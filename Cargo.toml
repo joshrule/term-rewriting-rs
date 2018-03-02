@@ -1,0 +1,6 @@
+[package]
+name = "rterf"
+version = "0.1.0"
+authors = ["Josh Rule <rule@mit.edu>"]
+
+[dependencies]
