@@ -16,16 +16,14 @@ pub mod types {
         arity: Arity,
         name: Name,
     }
-
     impl Operator {
         pub fn new(name: Name, arity: Arity) -> Operator {
             Operator { id: 0, name, arity }
         }
     }
-
     impl PartialEq for Operator {
         fn eq(&self, other: &Operator) -> bool {
-            self.id == other.id
+            self.id == other.id && self.arity == other.arity
         }
     }
 
@@ -35,13 +33,11 @@ pub mod types {
         id: DeBruin,
         name: Name,
     }
-
     impl Variable {
         pub fn new(name: Name) -> Variable {
             Variable { id: 0, name }
         }
     }
-
     impl PartialEq for Variable {
         fn eq(&self, other: &Variable) -> bool {
             self.id == other.id
@@ -54,7 +50,6 @@ pub mod types {
         lhs: Term,
         rhs: Vec<Term>,
     }
-
     impl Rule {
         pub fn new(lhs: Term, rhs: Vec<Term>) -> Rule {
             Rule { lhs, rhs }
@@ -71,6 +66,11 @@ pub mod types {
     #[derive(Debug)]
     pub struct TRS {
         rules: Vec<Rule>,
+    }
+    impl TRS {
+        pub fn new(rules: Vec<Rule>) -> TRS {
+            TRS { rules }
+        }
     }
 
     /// a `Term` is either a `Variable` or an `Application
@@ -136,9 +136,12 @@ pub mod parser {
     );
 
     named!(application<CompleteStr, Term>,
-           do_parse!(head: operator >>
+           do_parse!(head: identifier >>
                      args: delimited!(lparen, many0!(ws!(term)), rparen) >>
-                     (Term::Application{head, args}))
+                     (Term::Application{
+                         head: Operator::new(Some(head.0.to_string()),
+                                             args.len()),
+                         args}))
 
     );
 
@@ -158,9 +161,39 @@ pub mod parser {
                      (Statement::Term(term)))
     );
 
-    named!(pub program<CompleteStr, Vec<Statement>>,
+    named!(program<CompleteStr, Vec<Statement>>,
            many0!(terminated!(alt!(rule | statement), ws!(semicolon)))
     );
+
+    pub fn parse(input: &str) -> Result<(TRS, Vec<Term>), &str> {
+        match program(CompleteStr(input)) {
+            Ok((CompleteStr(""), o)) => {
+                let (srs, sts): (Vec<Statement>, Vec<Statement>) =
+                    o.into_iter().partition(|x| match x {
+                        &Statement::Rule(_) => true,
+                        _ => false,
+                    });
+
+                let rs: Vec<Rule> = srs.into_iter()
+                    .filter_map(|x| match x {
+                        Statement::Rule(r) => Some(r),
+                        _ => None,
+                    })
+                    .collect();
+
+                let ts: Vec<Term> = sts.into_iter()
+                    .filter_map(|x| match x {
+                        Statement::Term(t) => Some(t),
+                        _ => None,
+                    })
+                    .collect();
+
+                Ok((TRS::new(rs), ts))
+            }
+            Ok((CompleteStr(_), _)) => Err("parse incomplete!"),
+            Err(_) => Err("parse failed!"),
+        }
+    }
 
     #[cfg(test)]
     mod tests {
@@ -252,7 +285,7 @@ pub mod parser {
         #[test]
         fn app_test() {
             let term = Term::Application {
-                head: Operator::new(Some("abc".to_string()), 1),
+                head: Operator::new(Some("abc".to_string()), 0),
                 args: vec![],
             };
 
@@ -265,13 +298,13 @@ pub mod parser {
         #[test]
         fn rule_test() {
             let lhs = Term::Application {
-                head: Operator::new(Some("a".to_string()), 1),
+                head: Operator::new(Some("a".to_string()), 0),
                 args: vec![],
             };
 
             let rhs = vec![
                 Term::Application {
-                    head: Operator::new(Some("b".to_string()), 1),
+                    head: Operator::new(Some("b".to_string()), 0),
                     args: vec![],
                 },
             ];
@@ -287,7 +320,7 @@ pub mod parser {
         #[test]
         fn statement_test() {
             let term = Statement::Term(Term::Application {
-                head: Operator::new(Some("a".to_string()), 1),
+                head: Operator::new(Some("a".to_string()), 0),
                 args: vec![],
             });
 
@@ -297,7 +330,7 @@ pub mod parser {
         #[test]
         fn program_test() {
             let term = Statement::Term(Term::Application {
-                head: Operator::new(Some("a".to_string()), 1),
+                head: Operator::new(Some("a".to_string()), 0),
                 args: vec![],
             });
 
