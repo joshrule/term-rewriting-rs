@@ -1,16 +1,16 @@
 pub mod types {
     /// A `Name` is an optional `String` telling us the name of an atom.
-    type Name = Option<String>;
+    pub type Name = Option<String>;
 
     /// A `DeBruin` is a `usize` determining the identity of an atom.
-    type DeBruin = usize;
+    pub type DeBruin = usize;
 
     /// An `Arity` is a `usize` determining the number of arguments an
     /// `Operator` takes.
-    type Arity = usize;
+    pub type Arity = usize;
 
     /// An `Operator` is a symbol with fixed arity.
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Operator {
         id: DeBruin,
         arity: Arity,
@@ -20,6 +20,12 @@ pub mod types {
         pub fn new(name: Name, arity: Arity) -> Operator {
             Operator { id: 0, name, arity }
         }
+        pub fn name(&self) -> &Name {
+            &self.name
+        }
+        pub fn arity(&self) -> Arity {
+            self.arity
+        }
     }
     impl PartialEq for Operator {
         fn eq(&self, other: &Operator) -> bool {
@@ -28,7 +34,7 @@ pub mod types {
     }
 
     /// A `Variable` is a symbol representing an unspecified term.
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Variable {
         id: DeBruin,
         name: Name,
@@ -36,6 +42,9 @@ pub mod types {
     impl Variable {
         pub fn new(name: Name) -> Variable {
             Variable { id: 0, name }
+        }
+        pub fn name(&self) -> &Name {
+            &self.name
         }
     }
     impl PartialEq for Variable {
@@ -74,7 +83,7 @@ pub mod types {
     }
 
     /// a `Term` is either a `Variable` or an `Application
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Clone)]
     pub enum Term {
         Variable(Variable),
         Application { head: Operator, args: Vec<Term> },
@@ -125,48 +134,86 @@ pub mod parser {
     named!(octothorpe<CompleteStr, CompleteStr>, tag!("#"));
     named!(identifier<CompleteStr, CompleteStr>, call!(alphanumeric));
 
-    named!(operator<CompleteStr, Operator>,
-           do_parse!(name: identifier >>
-                     (Operator::new(Some(name.0.to_string()), 1)))
-    );
+    #[derive(Debug)]
+    pub struct Parser {
+        operators: Vec<Operator>,
+        variables: Vec<Variable>,
+    }
+    impl Parser {
+        fn new() -> Parser {
+            Parser {
+                operators: vec![],
+                variables: vec![],
+            }
+        }
 
-    named!(variable<CompleteStr, Term>,
-           do_parse!(name: terminated!(identifier, underscore)  >>
-                     (Term::Variable(Variable::new(Some(name.0.to_string())))))
-    );
+        fn get_or_make_var(&mut self, name: &str) -> Variable {
+            for v in &self.variables {
+                let vname = v.name();
+                match vname {
+                    &Some(ref n) if n == name => return v.clone(),
+                    _ => (),
+                }
+            }
+            let var = Variable::new(Some(name.to_string()));
+            self.variables.push(var.clone());
+            var
+        }
 
-    named!(application<CompleteStr, Term>,
-           do_parse!(head: identifier >>
-                     args: delimited!(lparen, many0!(ws!(term)), rparen) >>
-                     (Term::Application{
-                         head: Operator::new(Some(head.0.to_string()),
-                                             args.len()),
-                         args}))
+        fn get_or_make_op(&mut self, name: &str, arity: Arity) -> Operator {
+            for o in &self.operators {
+                let oname = o.name();
+                let oarity = o.arity();
+                match oname {
+                    &Some(ref n) if n == name && arity == oarity => return o.clone(),
+                    _ => (),
+                }
+            }
+            let op = Operator::new(Some(name.to_string()), arity);
+            self.operators.push(op.clone());
+            op
+        }
 
-    );
+        method!(variable<Parser, CompleteStr, Term>, mut self,
+                map!(terminated!(identifier, underscore),
+                     |v| Term::Variable(self.get_or_make_var(v.0)))
+        );
 
-    named!(term<CompleteStr, Term>,
-           alt!(variable | application)
-    );
+        method!(application<Parser, CompleteStr, Term>, mut self,
+                do_parse!(name: identifier >>
+                          args: delimited!(lparen, many0!(ws!(term)), rparen) >>
+                          (Term::Application{
+                              head: self.get_or_make_op(name.0, args.len()),
+                              args
+                          }))
+        );
 
-    named!(rule<CompleteStr, Statement>,
-           do_parse!(lhs: term >>
-                     ws!(rule_kw) >>
-                     rhs: separated_nonempty_list!(ws!(pipe), term) >>
-                     (Statement::Rule(Rule::new(lhs, rhs))))
-    );
+        method!(term<Parser, CompleteStr, Term>, mut self,
+                alt!(call_m!(self.variable) | call_m!(self.application))
+        );
 
-    named!(statement<CompleteStr, Statement>,
-           do_parse!(term: term >>
-                     (Statement::Term(term)))
-    );
+        method!(rule<Parser, CompleteStr, Statement>, mut self,
+                do_parse!(lhs: call_m!(self.term) >>
+                          ws!(rule_kw) >>
+                          rhs: separated_nonempty_list!(ws!(pipe),
+                                                        call_m!(self.term)) >>
+                          (Statement::Rule(Rule::new(lhs, rhs))))
+        );
 
-    named!(program<CompleteStr, Vec<Statement>>,
-           many0!(terminated!(alt!(rule | statement), ws!(semicolon)))
+        method!(statement<Parser, CompleteStr, Statement>, mut self,
+                do_parse!(term: call_m!(self.term) >>
+                          (Statement::Term(term))));
+
+        method!(program<Parser, CompleteStr, Vec<Statement>>, mut self,
+                many0!(terminated!(alt!(call_m!(self.rule) |
+                                        call_m!(self.statement)),
+                                   ws!(semicolon)))
     );
+    }
 
     pub fn parse(input: &str) -> Result<(TRS, Vec<Term>), &str> {
-        match program(CompleteStr(input)) {
+        let (_parser, result) = Parser::new().program(CompleteStr(input));
+        match result {
             Ok((CompleteStr(""), o)) => {
                 let (srs, sts): (Vec<Statement>, Vec<Statement>) =
                     o.into_iter().partition(|x| match x {
@@ -273,8 +320,10 @@ pub mod parser {
 
         #[test]
         fn var_test() {
+            let p = Parser::new();
+            let (_, var) = p.variable(CompleteStr("abc_"));
             assert_eq!(
-                variable(CompleteStr("abc_")),
+                var,
                 Ok((
                     CompleteStr(""),
                     Term::Variable(Variable::new(Some("abc".to_string())))
@@ -284,15 +333,48 @@ pub mod parser {
 
         #[test]
         fn app_test() {
+            let (_, app) = Parser::new().application(CompleteStr("abc()"));
+
             let term = Term::Application {
                 head: Operator::new(Some("abc".to_string()), 0),
                 args: vec![],
             };
 
-            assert_eq!(
-                application(CompleteStr("abc()")),
-                Ok((CompleteStr(""), term))
-            );
+            assert_eq!(app, Ok((CompleteStr(""), term)));
+        }
+
+        #[test]
+        fn term_test() {
+            let (_, parsed_t1) = Parser::new().term(CompleteStr("a()"));
+            let (_, parsed_t2) = Parser::new().term(CompleteStr("a_"));
+            let (_, parsed_t3) = Parser::new().term(CompleteStr("A(x_ A(x_ x_))"));
+
+            let t1 = Term::Application {
+                head: Operator::new(Some("a".to_string()), 0),
+                args: vec![],
+            };
+
+            let t2 = Term::Variable(Variable::new(Some("a".to_string())));
+
+            let a1 = Operator::new(Some("A".to_string()), 2);
+            let a2 = a1.clone();
+            let x1 = Term::Variable(Variable::new(Some("x".to_string())));
+            let x2 = x1.clone();
+            let x3 = x2.clone();
+            let t3 = Term::Application {
+                head: a1,
+                args: vec![
+                    x1,
+                    Term::Application {
+                        head: a2,
+                        args: vec![x2, x3],
+                    },
+                ],
+            };
+
+            assert_eq!(parsed_t1, Ok((CompleteStr(""), t1)));
+            assert_eq!(parsed_t2, Ok((CompleteStr(""), t2)));
+            assert_eq!(parsed_t3, Ok((CompleteStr(""), t3)));
         }
 
         #[test]
@@ -311,33 +393,33 @@ pub mod parser {
 
             let rule = Statement::Rule(Rule::new(lhs, rhs));
 
-            assert_eq!(
-                super::rule(CompleteStr("a() = b()")),
-                Ok((CompleteStr(""), rule))
-            );
+            let (_, parsed_rule) = Parser::new().rule(CompleteStr("a() = b()"));
+            assert_eq!(parsed_rule, Ok((CompleteStr(""), rule)));
         }
 
         #[test]
         fn statement_test() {
+            let (_, parsed_statement) = Parser::new()
+                .statement(CompleteStr("a()"));
+
             let term = Statement::Term(Term::Application {
                 head: Operator::new(Some("a".to_string()), 0),
                 args: vec![],
             });
 
-            assert_eq!(statement(CompleteStr("a()")), Ok((CompleteStr(""), term)));
+            assert_eq!(parsed_statement, Ok((CompleteStr(""), term)));
         }
 
         #[test]
         fn program_test() {
-            let term = Statement::Term(Term::Application {
+            let (_, parsed_program) = Parser::new()
+                .program(CompleteStr("a();"));
+            let program = Statement::Term(Term::Application {
                 head: Operator::new(Some("a".to_string()), 0),
                 args: vec![],
             });
 
-            assert_eq!(
-                program(CompleteStr("a();")),
-                Ok((CompleteStr(""), vec![term]))
-            );
+            assert_eq!(parsed_program, Ok((CompleteStr(""), vec![program])));
         }
 
     }
