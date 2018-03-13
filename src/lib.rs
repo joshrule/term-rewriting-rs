@@ -122,6 +122,7 @@ pub mod parser {
     use super::types::*;
     use nom::alphanumeric;
     use nom::types::CompleteStr;
+    use nom::IResult;
 
     named!(lbracket<CompleteStr, CompleteStr>,   tag!("["));
     named!(rbracket<CompleteStr, CompleteStr>,   tag!("]"));
@@ -160,18 +161,34 @@ pub mod parser {
             var
         }
 
-        fn get_or_make_op(&mut self, name: &str, arity: Arity) -> Operator {
-            for o in &self.operators {
-                let oname = o.name();
-                let oarity = o.arity();
-                match oname {
-                    &Some(ref n) if n == name && arity == oarity => return o.clone(),
-                    _ => (),
+        fn has_op(&mut self, name: &str, arity: Arity) -> Option<Operator> {
+            let res = self.operators.iter().find(
+                |&&ref o|
+                match o.name() {
+                    &Some(ref n) if n == name && arity == o.arity() => true,
+                    _ => false
+                }
+            );
+            match res {
+                Some(o) => Some(o.clone()),
+                _ => None
+            }
+        }
+
+        fn get_or_make_op2<'a>(
+            mut self: Parser, input: CompleteStr<'a>,  name: &str, arity: Arity)
+            -> (Self, IResult<CompleteStr<'a>, Operator>) {
+            match self.has_op(name, arity) {
+                Some(o) => (self, Ok((input, o))),
+                None => {let op = Operator::new(Some(name.to_string()), arity);
+                         self.operators.push(op.clone());
+                         (self, Ok((input, op)))
                 }
             }
-            let op = Operator::new(Some(name.to_string()), arity);
-            self.operators.push(op.clone());
-            op
+        }
+        
+        fn clear_variables(&mut self) {
+            self.variables.clear();
         }
 
         method!(variable<Parser, CompleteStr, Term>, mut self,
@@ -179,15 +196,18 @@ pub mod parser {
                      |v| Term::Variable(self.get_or_make_var(v.0)))
         );
 
+        // there was a bug in delimited! (or in tuple_parser! closures)
         method!(application<Parser, CompleteStr, Term>, mut self,
                 do_parse!(name: identifier >>
-                          args: delimited!(lparen, many0!(ws!(term)), rparen) >>
-                          (Term::Application{
-                              head: self.get_or_make_op(name.0, args.len()),
-                              args
-                          }))
+                          lparen >>
+                          args: many0!(ws!(call_m!(self.term))) >>
+                          rparen >>
+                          head: call_m!(self.get_or_make_op2,
+                                        name.0,
+                                        args.len()) >>
+                          (Term::Application{head, args})) 
         );
-
+        
         method!(term<Parser, CompleteStr, Term>, mut self,
                 alt!(call_m!(self.variable) | call_m!(self.application))
         );
@@ -199,16 +219,17 @@ pub mod parser {
                                                         call_m!(self.term)) >>
                           (Statement::Rule(Rule::new(lhs, rhs))))
         );
-
+        
         method!(statement<Parser, CompleteStr, Statement>, mut self,
                 do_parse!(term: call_m!(self.term) >>
                           (Statement::Term(term))));
-
+        
         method!(program<Parser, CompleteStr, Vec<Statement>>, mut self,
-                many0!(terminated!(alt!(call_m!(self.rule) |
-                                        call_m!(self.statement)),
-                                   ws!(semicolon)))
-    );
+                many0!(map!(terminated!(alt!(call_m!(self.rule) |
+                                             call_m!(self.statement)),
+                                        ws!(semicolon)),
+                            |s| {self.clear_variables(); s}))
+        );
     }
 
     pub fn parse(input: &str) -> Result<(TRS, Vec<Term>), &str> {
@@ -220,21 +241,21 @@ pub mod parser {
                         &Statement::Rule(_) => true,
                         _ => false,
                     });
-
+    
                 let rs: Vec<Rule> = srs.into_iter()
                     .filter_map(|x| match x {
                         Statement::Rule(r) => Some(r),
                         _ => None,
                     })
                     .collect();
-
+    
                 let ts: Vec<Term> = sts.into_iter()
                     .filter_map(|x| match x {
                         Statement::Term(t) => Some(t),
                         _ => None,
                     })
                     .collect();
-
+    
                 Ok((TRS::new(rs), ts))
             }
             Ok((CompleteStr(_), _)) => Err("parse incomplete!"),
@@ -334,28 +355,28 @@ pub mod parser {
         #[test]
         fn app_test() {
             let (_, app) = Parser::new().application(CompleteStr("abc()"));
-
+        
             let term = Term::Application {
                 head: Operator::new(Some("abc".to_string()), 0),
                 args: vec![],
             };
-
+        
             assert_eq!(app, Ok((CompleteStr(""), term)));
         }
-
+        
         #[test]
         fn term_test() {
             let (_, parsed_t1) = Parser::new().term(CompleteStr("a()"));
             let (_, parsed_t2) = Parser::new().term(CompleteStr("a_"));
             let (_, parsed_t3) = Parser::new().term(CompleteStr("A(x_ A(x_ x_))"));
-
+        
             let t1 = Term::Application {
                 head: Operator::new(Some("a".to_string()), 0),
                 args: vec![],
             };
-
+        
             let t2 = Term::Variable(Variable::new(Some("a".to_string())));
-
+        
             let a1 = Operator::new(Some("A".to_string()), 2);
             let a2 = a1.clone();
             let x1 = Term::Variable(Variable::new(Some("x".to_string())));
@@ -371,45 +392,45 @@ pub mod parser {
                     },
                 ],
             };
-
+        
             assert_eq!(parsed_t1, Ok((CompleteStr(""), t1)));
             assert_eq!(parsed_t2, Ok((CompleteStr(""), t2)));
             assert_eq!(parsed_t3, Ok((CompleteStr(""), t3)));
         }
-
+        
         #[test]
         fn rule_test() {
             let lhs = Term::Application {
                 head: Operator::new(Some("a".to_string()), 0),
                 args: vec![],
             };
-
+        
             let rhs = vec![
                 Term::Application {
                     head: Operator::new(Some("b".to_string()), 0),
                     args: vec![],
                 },
             ];
-
+        
             let rule = Statement::Rule(Rule::new(lhs, rhs));
-
+        
             let (_, parsed_rule) = Parser::new().rule(CompleteStr("a() = b()"));
             assert_eq!(parsed_rule, Ok((CompleteStr(""), rule)));
         }
-
+        
         #[test]
         fn statement_test() {
             let (_, parsed_statement) = Parser::new()
                 .statement(CompleteStr("a()"));
-
+        
             let term = Statement::Term(Term::Application {
                 head: Operator::new(Some("a".to_string()), 0),
                 args: vec![],
             });
-
+        
             assert_eq!(parsed_statement, Ok((CompleteStr(""), term)));
         }
-
+        
         #[test]
         fn program_test() {
             let (_, parsed_program) = Parser::new()
@@ -418,7 +439,7 @@ pub mod parser {
                 head: Operator::new(Some("a".to_string()), 0),
                 args: vec![],
             });
-
+        
             assert_eq!(parsed_program, Ok((CompleteStr(""), vec![program])));
         }
 
