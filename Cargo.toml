@@ -5,3 +5,4 @@ authors = ["Josh Rule <rule@mit.edu>"]
 
 [dependencies]
 nom = "4.0.0-beta1"
+lazy_static = "1.0"
