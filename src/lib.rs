@@ -64,7 +64,7 @@ pub mod types {
     }
 
     /// A `Variable` is a symbol representing an unspecified term.
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Eq)]
     pub struct Variable {
         id: DeBruin,
         name: Name,
@@ -85,6 +85,14 @@ pub mod types {
             self.id == other.id
         }
     }
+    impl Hash for Variable {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            self.id.hash(state);
+        }
+    }
+
+    use std::hash::{Hash, Hasher};
+    use std::collections::HashSet;
 
     /// A `Rule` equates a LHS `Term` with a RHS `Term`.
     #[derive(Debug, PartialEq)]
@@ -93,8 +101,30 @@ pub mod types {
         rhs: Vec<Term>,
     }
     impl Rule {
-        pub fn new(lhs: Term, rhs: Vec<Term>) -> Rule {
-            Rule { lhs, rhs }
+        pub fn validate(lhs: &Term, rhs: &Vec<Term>) -> bool {
+            // the lhs must be an application
+            if lhs.is_application() {
+                // variables(rhs) must be a subset of variables(lhs)
+                let lhs_vars: HashSet<&Variable> = lhs.variables().into_iter().collect();
+                let rhs_vars: HashSet<&Variable> =
+                    rhs.iter().flat_map(|&ref r| r.variables()).collect();
+                if rhs_vars.is_subset(&lhs_vars) {
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        }
+
+        pub fn new(lhs: Term, rhs: Vec<Term>) -> Option<Rule> {
+            // the lhs must be an application
+            if Rule::validate(&lhs, &rhs) {
+                Some(Rule { lhs, rhs })
+            } else {
+                None
+            }
         }
     }
 
@@ -120,6 +150,31 @@ pub mod types {
     pub enum Term {
         Variable(Variable),
         Application { head: Operator, args: Vec<Term> },
+    }
+    impl Term {
+        fn variables(&self) -> Vec<&Variable> {
+            match self {
+                &Term::Variable(ref v) => vec![&v],
+                &Term::Application { args: ref a, .. } => {
+                    let res: Vec<&Variable> = a.iter().flat_map(|x| x.variables()).collect();
+                    res
+                }
+            }
+        }
+
+        fn is_variable(&self) -> bool {
+            match self {
+                &Term::Variable(_) => true,
+                _ => false,
+            }
+        }
+
+        fn is_application(&self) -> bool {
+            match self {
+                &Term::Application { .. } => true,
+                _ => false,
+            }
+        }
     }
 
     /// an `Atom` is either a `Variable` or an `Operator`
@@ -263,12 +318,16 @@ pub mod parser {
         );
 
         method!(rule<Parser, CompleteStr, Statement>, mut self,
-                do_parse!(lhs: call_m!(self.top_term) >>
-                          ws!(rule_kw) >>
-                          rhs: separated_nonempty_list!(
-                              ws!(pipe),
-                              call_m!(self.top_term)) >>
-                          (Statement::Rule(Rule::new(lhs, rhs))))
+                map!(
+                    map_opt!(
+                        do_parse!(lhs: call_m!(self.top_term) >>
+                                  ws!(rule_kw) >>
+                                  rhs: separated_nonempty_list!(
+                                      ws!(pipe),
+                                      call_m!(self.top_term)) >>
+                                  (lhs, rhs)),
+                        |(lhs, rhs)| Rule::new(lhs, rhs)),
+                    |r| Statement::Rule(r))
         );
 
         method!(statement<Parser, CompleteStr, Statement>, mut self,
@@ -507,7 +566,7 @@ pub mod parser {
                     args: vec![],
                 },
             ];
-            let rule = Statement::Rule(Rule::new(lhs, rhs));
+            let rule = Statement::Rule(Rule::new(lhs, rhs).unwrap());
 
             let (_, parsed_rule) = p.rule(CompleteStr("a() = b()"));
             assert_eq!(parsed_rule, Ok((CompleteStr(""), rule)));
