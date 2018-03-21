@@ -13,7 +13,7 @@ term-rewriting = { git = "https://github.com/joshrule/term-rewriting-rs" }
 
 Term Rewriting Systems (TRS) are a simple formalism from theoretical computer science used to model the behavior and evolution of tree-based structures like natural langauge parse trees or abstract syntax trees.
 
-A TRS is defined as a pair /(S, R)/. /S/ is a set of symbols called the signature and together with a disjoint and countably infinite set of variables, defines the set of all possible trees, or terms, which the system can consider. /R/ is a set of rewrite rules. A rewrite rule is an equation, /s = t/, and is interpreted as follows: any term matching the pattern described by /s/ can be rewritten according to the pattern described by /t/. Together /S/ and /R/ define a TRS that describes a system of computation, which can be considered as a sort of programming language. term-rewriting-rs provides a way to describe arbitrary first-order TRSs (i.e. no lambda-binding in rules).
+A TRS is defined as a pair _(S, R)_. _S_ is a set of symbols called the signature and together with a disjoint and countably infinite set of variables, defines the set of all possible trees, or terms, which the system can consider. _R_ is a set of rewrite rules. A rewrite rule is an equation, _s = t_, and is interpreted as follows: any term matching the pattern described by _s_ can be rewritten according to the pattern described by _t_. Together _S_ and _R_ define a TRS that describes a system of computation, which can be considered as a sort of programming language. term-rewriting-rs provides a way to describe arbitrary first-order TRSs (i.e. no lambda-binding in rules).
 
 ### Further Reading
 
