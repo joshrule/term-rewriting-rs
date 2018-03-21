@@ -10,6 +10,12 @@ named!(rule_kw<CompleteStr, CompleteStr>,    tag!("="));
 named!(underscore<CompleteStr, CompleteStr>, tag!("_"));
 named!(identifier<CompleteStr, CompleteStr>, call!(alphanumeric));
 
+#[derive(Debug, PartialEq)]
+pub enum Statement {
+    Term(Term),
+    Rule(Rule),
+}
+
 #[derive(Debug)]
 pub struct Parser {
     operators: Vec<Operator>,
