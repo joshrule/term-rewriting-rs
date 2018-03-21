@@ -1,8 +1,15 @@
 [package]
-name = "rterf"
+name = "term-rewriting"
 version = "0.1.0"
-authors = ["Josh Rule <rule@mit.edu>"]
+authors = ["Joshua S. Rule <joshua.s.rule@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/joshrule/term-rewriting-rs"
+homepage = "https://github.com/joshrule/term-rewriting-rs"
+description = "An implementation of first-order term rewriting systems (TRS)"
+keywords = ["term-rewriting", "language", "rewriting"]
+categories = ["science", "data-structures", "algorithms"]
 
 [dependencies]
-nom = "4.0.0-beta1"
+nom = "4.0.0-beta2"
 lazy_static = "1.0"
