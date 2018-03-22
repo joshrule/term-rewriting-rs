@@ -11,7 +11,7 @@ To include as a dependency:
 
 ```toml
 [dependencies]
-term-rewriting = { git = "https://github.com/joshrule/term-rewriting-rs" }
+term-rewriting = "0.1"
 ```
 
 To actually make use of the library:
