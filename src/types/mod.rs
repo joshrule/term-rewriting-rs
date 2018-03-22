@@ -100,12 +100,9 @@ impl Term {
     /// [`Vec<Variable>`]: https://doc.rust-lang.org/std/vec/struct.Vec.html
     /// [`Variable`]: struct.Variable.html
     pub fn variables(&self) -> Vec<&Variable> {
-        match self {
-            &Term::Variable(ref v) => vec![&v],
-            &Term::Application { args: ref a, .. } => {
-                let res = a.iter().flat_map(|x| x.variables()).collect();
-                res
-            }
+        match *self {
+            Term::Variable(ref v) => vec![v],
+            Term::Application { args: ref a, .. } => a.iter().flat_map(|x| x.variables()).collect(),
         }
     }
 }
@@ -123,18 +120,13 @@ pub struct Rule {
 }
 impl Rule {
     /// logic ensuring that the `lhs` and `rhs` are compatible.
-    fn is_valid(lhs: &Term, rhs: &Vec<Term>) -> bool {
+    fn is_valid(lhs: &Term, rhs: &[Term]) -> bool {
         // the lhs must be an application
-        if let &Term::Application { .. } = lhs {
+        if let Term::Application { .. } = *lhs {
             // variables(rhs) must be a subset of variables(lhs)
             let lhs_vars: HashSet<&Variable> = lhs.variables().into_iter().collect();
-            let rhs_vars: HashSet<&Variable> =
-                rhs.iter().flat_map(|&ref r| r.variables()).collect();
-            if rhs_vars.is_subset(&lhs_vars) {
-                true
-            } else {
-                false
-            }
+            let rhs_vars: HashSet<&Variable> = rhs.iter().flat_map(|r| r.variables()).collect();
+            rhs_vars.is_subset(&lhs_vars)
         } else {
             false
         }
@@ -201,10 +193,8 @@ impl Signature {
     /// [`Variable`]: struct.Variable.html
     pub fn new_variable(&mut self, name: Name) -> Variable {
         self.variable_count += 1;
-        let v = Variable {
-            id: self.variable_count - 1,
-            name: name,
-        };
+        let id = self.variable_count - 1;
+        let v = Variable { id, name };
         self.variables.push(v.clone());
         v
     }
@@ -215,8 +205,8 @@ impl Signature {
     /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
     /// [`Variable`]: struct.Variable.html
     pub fn has_var(&self, name: &str) -> Option<Variable> {
-        let res = self.variables.iter().find(|&&ref v| match v.name() {
-            &Some(ref n) if n == name => true,
+        let res = self.variables.iter().find(|&v| match *v.name() {
+            Some(ref n) if n == name => true,
             _ => false,
         });
         if let Some(v) = res {
@@ -243,8 +233,8 @@ impl Signature {
     /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
     /// [`Operator`]: struct.Operator.html
     pub fn has_op(&mut self, name: &str, arity: Arity) -> Option<Operator> {
-        let res = self.operators.iter().find(|&&ref o| match o.name() {
-            &Some(ref n) if n == name && arity == o.arity() => true,
+        let res = self.operators.iter().find(|&o| match *o.name() {
+            Some(ref n) if n == name && arity == o.arity() => true,
             _ => false,
         });
         if let Some(o) = res {

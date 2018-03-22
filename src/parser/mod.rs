@@ -15,8 +15,8 @@ pub fn parse<'a>(input: &'a str, sig: &mut Signature) -> Result<(TRS, Vec<Term>)
     match result {
         Ok((CompleteStr(""), o)) => {
             let (srs, sts): (Vec<Statement>, Vec<Statement>) =
-                o.into_iter().partition(|x| match x {
-                    &Statement::Rule(_) => true,
+                o.into_iter().partition(|x| match *x {
+                    Statement::Rule(_) => true,
                     _ => false,
                 });
 
@@ -150,7 +150,7 @@ impl<'a> Parser<'a> {
                                   call_m!(self.top_term)) >>
                               (lhs, rhs)),
                     |(lhs, rhs)| Rule::new(lhs, rhs)),
-                |r| Statement::Rule(r))
+                Statement::Rule)
     );
 
     method!(statement<Parser<'a>, CompleteStr, Statement>, mut self,
