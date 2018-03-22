@@ -7,9 +7,78 @@ A [Rust][1] library for parsing, representing, and computing with first-order [t
 
 ## Usage
 
+To include as a dependency:
+
 ```toml
 [dependencies]
 term-rewriting = { git = "https://github.com/joshrule/term-rewriting-rs" }
+```
+
+To actually make use of the library:
+
+```rust
+    extern crate term_rewriting;
+    use term_rewriting::types::*;
+
+    fn main() {
+    // A string representation of SK combinatory logic, including:
+
+    // a rule for the S combinator,
+    let s_rule = "S x_ y_ z_ = (x_ z_) (y_ z_);".to_string();
+
+    // the rule for the K combinator,
+    let k_rule = "K x_ y_ = x_;";
+
+    // and an arbitrary term,
+    let term = "S K K (K S K);";
+
+    // can be parsed to give back the TRS and a term.
+    let mut sig = Signature::default();
+    let (parsed_trs, parsed_term_vec) = sig.parse(&(s_rule + k_rule + term)).expect("successful parse");
+
+    // These can also be constructed by hand. Let's look at the term:
+    let mut sig = Signature::default();
+    let app = sig.get_op(".", 2);
+    let s = sig.get_op("S", 0);
+    let k = sig.get_op("K", 0);
+
+    let term = Term::Application {
+        head: app.clone(),
+        args: vec![
+            Term::Application {
+                head: app.clone(),
+                args: vec![
+                    Term::Application {
+                        head: app.clone(),
+                        args: vec![
+                            Term::Application { head: s.clone(), args: vec![] },
+                            Term::Application { head: k.clone(), args: vec![] },
+                        ]
+                    },
+                    Term::Application { head: k.clone(), args: vec![] }
+                ]
+            },
+            Term::Application {
+                head: app.clone(),
+                args: vec![
+                    Term::Application {
+                        head: app.clone(),
+                        args: vec![
+                            Term::Application { head: k.clone(), args: vec![] },
+                            Term::Application { head: s.clone(), args: vec![] },
+                        ]
+                    },
+                    Term::Application { head: k.clone(), args: vec![] }
+                ]
+            }
+        ]
+    };
+
+    let constructed_term_vec = vec![term];
+
+    // This is the same output the parser produces.
+    assert_eq!(parsed_term_vec, constructed_term_vec);
+}
 ```
 
 ## Term Rewriting Systems
