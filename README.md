@@ -1,5 +1,5 @@
 [![Build
-Status](https://travis-ci.org/joshrule/term-rewriting-rs.svg?branch=setup_travis_ci)](https://travis-ci.org/joshrule/term-rewriting-rs)
+Status](https://travis-ci.org/joshrule/term-rewriting-rs.svg?branch=develop)](https://travis-ci.org/joshrule/term-rewriting-rs)
 
 # [term-rewriting-rs][0]
 
