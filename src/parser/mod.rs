@@ -1,6 +1,7 @@
 use super::types::*;
 
-use nom::{alphanumeric, multispace, IResult, types::CompleteStr};
+use nom::{alphanumeric, multispace, IResult};
+use nom::types::CompleteStr;
 
 named!(lparen<CompleteStr, CompleteStr>,     tag!("("));
 named!(rparen<CompleteStr, CompleteStr>,     tag!(")"));
