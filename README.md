@@ -3,7 +3,7 @@ Status](https://travis-ci.org/joshrule/term-rewriting-rs.svg?branch=develop)](ht
 
 # [term-rewriting-rs][0]
 
-A [Rust][1] library for parsing, representing, and computing with first-order [term rewriting systems][2].
+A [Rust][1] library for representing and parsing first-order [term rewriting systems][2].
 
 ## Usage
 

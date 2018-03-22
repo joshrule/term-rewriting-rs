@@ -1,4 +1,4 @@
-//! A library for parsing and representing first-order [term rewriting systems][1].
+//! A [Rust][0] library for representing and parsing first-order [term rewriting systems][1].
 //!
 //! # Example
 //!
@@ -90,6 +90,8 @@
 //! - Bezem, Klop, & de Vrijer (Eds.) (2003). [Term Rewriting Systems][3]. Cambridge University Press.
 //! - [Rewriting][4]. (2017). Wikipedia.
 //!
+//! [0]: https://www.rust-lang.org
+//!      "The Rust Programming Language"
 //! [1]: https://en.wikipedia.org/wiki/Rewriting#Term_rewriting_systems
 //!      "Wikipedia - Term Rewriting Systems"
 //! [2]: http://www.cambridge.org/us/academic/subjects/computer-science/programming-languages-and-applied-logic/term-rewriting-and-all
