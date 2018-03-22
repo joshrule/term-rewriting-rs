@@ -1,618 +1,108 @@
+//! A [Rust][0] library for representing and parsing first-order [term rewriting systems][1].
+//!
+//! # Example
+//!
+//! ```
+//! # extern crate term_rewriting;
+//! use term_rewriting::types::*;
+//!
+//! # fn main() {
+//! // A string representation of SK combinatory logic, including:
+//!
+//! // a rule for the S combinator,
+//! let s_rule = "S x_ y_ z_ = (x_ z_) (y_ z_);".to_string();
+//!
+//! // the rule for the K combinator,
+//! let k_rule = "K x_ y_ = x_;";
+//!
+//! // and an arbitrary term,
+//! let term = "S K K (K S K);";
+//!
+//! // can be parsed to give back the TRS and a term.
+//! let mut sig = Signature::default();
+//! let (parsed_trs, parsed_term_vec) = sig.parse(&(s_rule + k_rule + term)).expect("successful parse");
+//!
+//! // These can also be constructed by hand. Let's look at the term:
+//! let mut sig = Signature::default();
+//! let app = sig.get_op(".", 2);
+//! let s = sig.get_op("S", 0);
+//! let k = sig.get_op("K", 0);
+//!
+//! let term = Term::Application {
+//!     head: app.clone(),
+//!     args: vec![
+//!         Term::Application {
+//!             head: app.clone(),
+//!             args: vec![
+//!                 Term::Application {
+//!                     head: app.clone(),
+//!                     args: vec![
+//!                         Term::Application { head: s.clone(), args: vec![] },
+//!                         Term::Application { head: k.clone(), args: vec![] },
+//!                     ]
+//!                 },
+//!                 Term::Application { head: k.clone(), args: vec![] }
+//!             ]
+//!         },
+//!         Term::Application {
+//!             head: app.clone(),
+//!             args: vec![
+//!                 Term::Application {
+//!                     head: app.clone(),
+//!                     args: vec![
+//!                         Term::Application { head: k.clone(), args: vec![] },
+//!                         Term::Application { head: s.clone(), args: vec![] },
+//!                     ]
+//!                 },
+//!                 Term::Application { head: k.clone(), args: vec![] }
+//!             ]
+//!         }
+//!     ]
+//! };
+//!
+//! let constructed_term_vec = vec![term];
+//!
+//! // This is the same output the parser produces.
+//! assert_eq!(parsed_term_vec, constructed_term_vec);
+//! # }
+//! ```
+//!
+//! # Term Rewriting Systems
+//!
+//! Term Rewriting Systems (TRS) are a simple formalism from theoretical
+//! computer science used to model the behavior and evolution of tree-based
+//! structures like natural langauge parse trees or abstract syntax trees.
+//!
+//! A TRS is defined as a pair _(S, R)_. _S_ is a set of symbols called the
+//! signature and together with a disjoint and countably infinite set of
+//! variables, defines the set of all possible trees, or terms, which the system
+//! can consider. _R_ is a set of rewrite rules. A rewrite rule is an equation,
+//! _s = t_, and is interpreted as follows: any term matching the pattern
+//! described by _s_ can be rewritten according to the pattern described by _t_.
+//! Together _S_ and _R_ define a TRS that describes a system of computation,
+//! which can be considered as a sort of programming language.
+//! `term_rewriting` provides a way to describe arbitrary first-order TRSs
+//! (i.e. no lambda-binding in rules).
+//!
+//! ### Further Reading
+//!
+//! - Baader & Nipkow (1999). [Term rewriting and all that][2]. Cambridge University Press.
+//! - Bezem, Klop, & de Vrijer (Eds.) (2003). [Term Rewriting Systems][3]. Cambridge University Press.
+//! - [Rewriting][4]. (2017). Wikipedia.
+//!
+//! [0]: https://www.rust-lang.org
+//!      "The Rust Programming Language"
+//! [1]: https://en.wikipedia.org/wiki/Rewriting#Term_rewriting_systems
+//!      "Wikipedia - Term Rewriting Systems"
+//! [2]: http://www.cambridge.org/us/academic/subjects/computer-science/programming-languages-and-applied-logic/term-rewriting-and-all
+//!      "Term Rewriting and All That"
+//! [3]: http://www.cambridge.org/us/academic/subjects/computer-science/programming-languages-and-applied-logic/term-rewriting-systems
+//!      "Term Rewriting Systems"
+//! [4]: https://en.wikipedia.org/wiki/Rewriting
+//!      "Wikipedia - Rewriting"
+
 #[macro_use]
 extern crate nom;
 
-#[macro_use]
-extern crate lazy_static;
-
-pub mod types {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    /// A `Name` is an optional `String` telling us the name of an atom.
-    pub type Name = Option<String>;
-
-    /// A `DeBruin` is a `usize` determining the identity of an atom.
-    pub type DeBruin = usize;
-
-    /// An `Arity` is a `usize` determining the number of arguments an
-    /// `Operator` takes.
-    pub type Arity = usize;
-
-    lazy_static! {
-        static ref OP_ID: AtomicUsize = AtomicUsize::new(0);
-    }
-
-    lazy_static! {
-        static ref VAR_ID: AtomicUsize = AtomicUsize::new(0);
-    }
-
-    /// Returns the next internal counter, incrementing it.
-    fn op_next() -> usize {
-        OP_ID.fetch_add(1, Ordering::Relaxed)
-    }
-
-    /// Returns the next internal counter, incrementing it.
-    fn var_next() -> usize {
-        VAR_ID.fetch_add(1, Ordering::Relaxed)
-    }
-
-    /// An `Operator` is a symbol with fixed arity.
-    #[derive(Debug, Clone)]
-    pub struct Operator {
-        id: DeBruin,
-        arity: Arity,
-        name: Name,
-    }
-    impl Operator {
-        pub fn new(name: Name, arity: Arity) -> Operator {
-            Operator {
-                id: op_next(),
-                name,
-                arity,
-            }
-        }
-        pub fn name(&self) -> &Name {
-            &self.name
-        }
-        pub fn arity(&self) -> Arity {
-            self.arity
-        }
-    }
-    impl PartialEq for Operator {
-        fn eq(&self, other: &Operator) -> bool {
-            self.id == other.id && self.arity == other.arity
-        }
-    }
-
-    /// A `Variable` is a symbol representing an unspecified term.
-    #[derive(Debug, Clone, Eq)]
-    pub struct Variable {
-        id: DeBruin,
-        name: Name,
-    }
-    impl Variable {
-        pub fn new(name: Name) -> Variable {
-            Variable {
-                id: var_next(),
-                name,
-            }
-        }
-        pub fn name(&self) -> &Name {
-            &self.name
-        }
-    }
-    impl PartialEq for Variable {
-        fn eq(&self, other: &Variable) -> bool {
-            self.id == other.id
-        }
-    }
-    impl Hash for Variable {
-        fn hash<H: Hasher>(&self, state: &mut H) {
-            self.id.hash(state);
-        }
-    }
-
-    use std::hash::{Hash, Hasher};
-    use std::collections::HashSet;
-
-    /// A `Rule` equates a LHS `Term` with a RHS `Term`.
-    #[derive(Debug, PartialEq)]
-    pub struct Rule {
-        lhs: Term,
-        rhs: Vec<Term>,
-    }
-    impl Rule {
-        pub fn validate(lhs: &Term, rhs: &Vec<Term>) -> bool {
-            // the lhs must be an application
-            if lhs.is_application() {
-                // variables(rhs) must be a subset of variables(lhs)
-                let lhs_vars: HashSet<&Variable> = lhs.variables().into_iter().collect();
-                let rhs_vars: HashSet<&Variable> =
-                    rhs.iter().flat_map(|&ref r| r.variables()).collect();
-                if rhs_vars.is_subset(&lhs_vars) {
-                    true
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        }
-
-        pub fn new(lhs: Term, rhs: Vec<Term>) -> Option<Rule> {
-            // the lhs must be an application
-            if Rule::validate(&lhs, &rhs) {
-                Some(Rule { lhs, rhs })
-            } else {
-                None
-            }
-        }
-    }
-
-    #[derive(Debug, PartialEq)]
-    pub enum Statement {
-        Term(Term),
-        Rule(Rule),
-    }
-
-    /// A `TRS` is a list of `Rule`s.
-    #[derive(Debug)]
-    pub struct TRS {
-        rules: Vec<Rule>,
-    }
-    impl TRS {
-        pub fn new(rules: Vec<Rule>) -> TRS {
-            TRS { rules }
-        }
-    }
-
-    /// a `Term` is either a `Variable` or an `Application
-    #[derive(Debug, PartialEq, Clone)]
-    pub enum Term {
-        Variable(Variable),
-        Application { head: Operator, args: Vec<Term> },
-    }
-    impl Term {
-        fn variables(&self) -> Vec<&Variable> {
-            match self {
-                &Term::Variable(ref v) => vec![&v],
-                &Term::Application { args: ref a, .. } => {
-                    let res: Vec<&Variable> = a.iter().flat_map(|x| x.variables()).collect();
-                    res
-                }
-            }
-        }
-
-        fn is_variable(&self) -> bool {
-            match self {
-                &Term::Variable(_) => true,
-                _ => false,
-            }
-        }
-
-        fn is_application(&self) -> bool {
-            match self {
-                &Term::Application { .. } => true,
-                _ => false,
-            }
-        }
-    }
-
-    /// an `Atom` is either a `Variable` or an `Operator`
-    #[derive(Debug)]
-    pub enum Atom {
-        Operator(Operator),
-        Variable(Variable),
-    }
-}
-
-pub mod parser {
-    use super::types::*;
-    use nom::{alphanumeric, multispace, IResult};
-    use nom::types::CompleteStr;
-
-    named!(lbracket<CompleteStr, CompleteStr>,   tag!("["));
-    named!(rbracket<CompleteStr, CompleteStr>,   tag!("]"));
-    named!(lparen<CompleteStr, CompleteStr>,     tag!("("));
-    named!(rparen<CompleteStr, CompleteStr>,     tag!(")"));
-    named!(pipe<CompleteStr, CompleteStr>,       tag!("|"));
-    named!(semicolon<CompleteStr, CompleteStr>,  tag!(";"));
-    named!(rule_kw<CompleteStr, CompleteStr>,    tag!("="));
-    named!(underscore<CompleteStr, CompleteStr>, tag!("_"));
-    named!(octothorpe<CompleteStr, CompleteStr>, tag!("#"));
-    named!(identifier<CompleteStr, CompleteStr>, call!(alphanumeric));
-
-    #[derive(Debug)]
-    pub struct Parser {
-        operators: Vec<Operator>,
-        variables: Vec<Variable>,
-    }
-    impl Parser {
-        fn new() -> Parser {
-            Parser {
-                operators: vec![],
-                variables: vec![],
-            }
-        }
-
-        fn get_or_make_var(&mut self, name: &str) -> Variable {
-            for v in &self.variables {
-                let vname = v.name();
-                match vname {
-                    &Some(ref n) if n == name => return v.clone(),
-                    _ => (),
-                }
-            }
-            let var = Variable::new(Some(name.to_string()));
-            self.variables.push(var.clone());
-            var
-        }
-
-        fn has_op(&mut self, name: &str, arity: Arity) -> Option<Operator> {
-            let res = self.operators.iter().find(|&&ref o| match o.name() {
-                &Some(ref n) if n == name && arity == o.arity() => true,
-                _ => false,
-            });
-            match res {
-                Some(o) => Some(o.clone()),
-                _ => None,
-            }
-        }
-
-        fn get_or_make_op2<'a>(
-            mut self: Parser,
-            input: CompleteStr<'a>,
-            name: &str,
-            arity: Arity,
-        ) -> (Self, IResult<CompleteStr<'a>, Operator>) {
-            match self.has_op(name, arity) {
-                Some(o) => (self, Ok((input, o))),
-                None => {
-                    let op = Operator::new(Some(name.to_string()), arity);
-                    self.operators.push(op.clone());
-                    (self, Ok((input, op)))
-                }
-            }
-        }
-
-        fn clear_variables(&mut self) {
-            self.variables.clear();
-        }
-
-        method!(variable<Parser, CompleteStr, Term>, mut self,
-                map!(terminated!(identifier, underscore),
-                     |v| Term::Variable(self.get_or_make_var(v.0)))
-        );
-
-        method!(application<Parser, CompleteStr, Term>, mut self,
-                alt!(call_m!(self.standard_application) |
-                     call_m!(self.constant) |
-                     call_m!(self.binary_application))
-        );
-
-        // there was a bug in delimited! (or in tuple_parser! closures)
-        method!(standard_application<Parser, CompleteStr, Term>, mut self,
-                do_parse!(name: identifier >>
-                          lparen >>
-                          args: many0!(ws!(call_m!(self.term))) >>
-                          rparen >>
-                          head: call_m!(self.get_or_make_op2,
-                                        name.0,
-                                        args.len()) >>
-                          (Term::Application{head, args}))
-        );
-
-        method!(constant<Parser, CompleteStr, Term>, mut self,
-                do_parse!(name: identifier >>
-                          head: call_m!(self.get_or_make_op2,
-                                        name.0,
-                                        0) >>
-                          (Term::Application{head, args: vec![]}))
-        );
-
-        method!(binary_application<Parser, CompleteStr, Term>, mut self,
-                do_parse!(lparen >>
-                          t1: ws!(call_m!(self.term)) >>
-                          t2: ws!(call_m!(self.term)) >>
-                          head: call_m!(self.get_or_make_op2, ".", 2) >>
-                          rparen >>
-                          (Term::Application{ head, args: vec![t1, t2] }))
-        );
-
-        method!(term<Parser, CompleteStr, Term>, mut self,
-                alt!(call_m!(self.variable) | call_m!(self.application))
-        );
-
-        method!(top_term<Parser, CompleteStr, Term>, mut self,
-                map!(do_parse!(head: call_m!(self.get_or_make_op2, ".", 2) >>
-                               args: separated_nonempty_list!(
-                                   multispace,
-                                   call_m!(self.term)) >>
-                               (head, args)),
-                     |(h, a)| { let mut it = a.into_iter();
-                                let init = it.next().unwrap();
-                                it.fold(init, |acc, x|
-                                        Term::Application{
-                                            head: h.clone(),
-                                            args: vec![acc, x],
-                                        })})
-        );
-
-        method!(rule<Parser, CompleteStr, Statement>, mut self,
-                map!(
-                    map_opt!(
-                        do_parse!(lhs: call_m!(self.top_term) >>
-                                  ws!(rule_kw) >>
-                                  rhs: separated_nonempty_list!(
-                                      ws!(pipe),
-                                      call_m!(self.top_term)) >>
-                                  (lhs, rhs)),
-                        |(lhs, rhs)| Rule::new(lhs, rhs)),
-                    |r| Statement::Rule(r))
-        );
-
-        method!(statement<Parser, CompleteStr, Statement>, mut self,
-                do_parse!(term: call_m!(self.top_term) >>
-                          (Statement::Term(term))));
-
-        method!(comment<Parser, CompleteStr, CompleteStr>, self,
-                preceded!(tag!("#"), take_until_and_consume!("\n"))
-        );
-
-        method!(program<Parser, CompleteStr, Vec<Statement>>, mut self,
-                many0!(map!(do_parse!(many0!(ws!(call_m!(self.comment))) >>
-                                      statement: alt!(call_m!(self.rule) |
-                                                      call_m!(self.statement)) >>
-                                      ws!(semicolon) >>
-                                      many0!(ws!(call_m!(self.comment))) >>
-                                      (statement)),
-                            |s| {self.clear_variables(); s}))
-        );
-    }
-
-    pub fn parse(input: &str) -> Result<(TRS, Vec<Term>), &str> {
-        let (_parser, result) = Parser::new().program(CompleteStr(input));
-        match result {
-            Ok((CompleteStr(""), o)) => {
-                let (srs, sts): (Vec<Statement>, Vec<Statement>) =
-                    o.into_iter().partition(|x| match x {
-                        &Statement::Rule(_) => true,
-                        _ => false,
-                    });
-
-                let rs: Vec<Rule> = srs.into_iter()
-                    .filter_map(|x| match x {
-                        Statement::Rule(r) => Some(r),
-                        _ => None,
-                    })
-                    .collect();
-
-                let ts: Vec<Term> = sts.into_iter()
-                    .filter_map(|x| match x {
-                        Statement::Term(t) => Some(t),
-                        _ => None,
-                    })
-                    .collect();
-
-                Ok((TRS::new(rs), ts))
-            }
-            Ok((CompleteStr(_), _)) => Err("parse incomplete!"),
-            Err(_) => Err("parse failed!"),
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn lbracket_test() {
-            assert_eq!(
-                lbracket(CompleteStr("[")),
-                Ok((CompleteStr(""), CompleteStr("[")))
-            );
-        }
-
-        #[test]
-        fn rbracket_test() {
-            assert_eq!(
-                rbracket(CompleteStr("]")),
-                Ok((CompleteStr(""), CompleteStr("]")))
-            );
-        }
-
-        #[test]
-        fn lparen_test() {
-            assert_eq!(
-                lparen(CompleteStr("(")),
-                Ok((CompleteStr(""), CompleteStr("(")))
-            );
-        }
-
-        #[test]
-        fn rparen_test() {
-            assert_eq!(
-                rparen(CompleteStr(")")),
-                Ok((CompleteStr(""), CompleteStr(")")))
-            );
-        }
-
-        #[test]
-        fn pipe_test() {
-            assert_eq!(
-                pipe(CompleteStr("|")),
-                Ok((CompleteStr(""), CompleteStr("|")))
-            );
-        }
-
-        #[test]
-        fn semicolon_test() {
-            assert_eq!(
-                semicolon(CompleteStr(";")),
-                Ok((CompleteStr(""), CompleteStr(";")))
-            );
-        }
-
-        #[test]
-        fn rule_kw_test() {
-            assert_eq!(
-                rule_kw(CompleteStr("=")),
-                Ok((CompleteStr(""), CompleteStr("=")))
-            );
-        }
-
-        #[test]
-        fn underscore_test() {
-            assert_eq!(
-                underscore(CompleteStr("_")),
-                Ok((CompleteStr(""), CompleteStr("_")))
-            );
-        }
-
-        #[test]
-        fn octothorpe_test() {
-            assert_eq!(
-                octothorpe(CompleteStr("#")),
-                Ok((CompleteStr(""), CompleteStr("#")))
-            );
-        }
-
-        #[test]
-        fn var_test() {
-            let mut p = Parser::new();
-            let abc = p.get_or_make_var("abc");
-            let (_, var) = p.variable(CompleteStr("abc_"));
-            assert_eq!(var, Ok((CompleteStr(""), Term::Variable(abc))));
-        }
-
-        fn add_op_to_parser(p: Parser, name: &str, arity: Arity) -> (Parser, Operator) {
-            let (p, a) = p.get_or_make_op2(CompleteStr(""), name, arity);
-            let a = match a {
-                Ok((_, op)) => op,
-                _ => Operator::new(Some(name.to_string()), arity),
-            };
-            (p, a)
-        }
-
-        #[test]
-        fn app_test() {
-            let (p, a) = add_op_to_parser(Parser::new(), "a", 0);
-            let (_, app1) = p.application(CompleteStr("a()"));
-            let term1 = Term::Application {
-                head: a,
-                args: vec![],
-            };
-
-            let (p, b) = add_op_to_parser(Parser::new(), "b", 0);
-            let (_, app2) = p.application(CompleteStr("b"));
-            let term2 = Term::Application {
-                head: b,
-                args: vec![],
-            };
-
-            let (p, c) = add_op_to_parser(Parser::new(), "c", 0);
-            let (p, d) = add_op_to_parser(p, "d", 0);
-            let (p, dot) = add_op_to_parser(p, ".", 2);
-            let (_, app3) = p.application(CompleteStr("(c d)"));
-            let term3 = Term::Application {
-                head: c,
-                args: vec![],
-            };
-            let term4 = Term::Application {
-                head: d,
-                args: vec![],
-            };
-            let term5 = Term::Application {
-                head: dot,
-                args: vec![term3, term4],
-            };
-
-            assert_eq!(app1, Ok((CompleteStr(""), term1)));
-            assert_eq!(app2, Ok((CompleteStr(""), term2)));
-            assert_eq!(app3, Ok((CompleteStr(""), term5)));
-        }
-
-        #[test]
-        fn term_test() {
-            let (p, a) = add_op_to_parser(Parser::new(), "a", 0);
-            let (_, parsed_t1) = p.term(CompleteStr("a()"));
-            let t1 = Term::Application {
-                head: a,
-                args: vec![],
-            };
-
-            let mut p = Parser::new();
-            let a = p.get_or_make_var("a");
-            // let (p, a) = add_var_to_parser(Parser::new(), "a");
-            let (_, parsed_t2) = p.term(CompleteStr("a_"));
-            let t2 = Term::Variable(a);
-
-            let p = Parser::new();
-            let (mut p, a1) = add_op_to_parser(p, "A", 2);
-            let x1 = p.get_or_make_var("x");
-            let (_, parsed_t3) = p.term(CompleteStr("A(x_ A(x_ x_))"));
-            let a2 = a1.clone();
-            let x1 = Term::Variable(x1);
-            let x2 = x1.clone();
-            let x3 = x2.clone();
-            let t3 = Term::Application {
-                head: a1,
-                args: vec![
-                    x1,
-                    Term::Application {
-                        head: a2,
-                        args: vec![x2, x3],
-                    },
-                ],
-            };
-
-            assert_eq!(parsed_t1, Ok((CompleteStr(""), t1)));
-            assert_eq!(parsed_t2, Ok((CompleteStr(""), t2)));
-            assert_eq!(parsed_t3, Ok((CompleteStr(""), t3)));
-        }
-
-        #[test]
-        fn rule_test() {
-            let p = Parser::new();
-            let (p, a) = add_op_to_parser(p, "a", 0);
-            let (p, b) = add_op_to_parser(p, "b", 0);
-
-            let lhs = Term::Application {
-                head: a,
-                args: vec![],
-            };
-            let rhs = vec![
-                Term::Application {
-                    head: b,
-                    args: vec![],
-                },
-            ];
-            let rule = Statement::Rule(Rule::new(lhs, rhs).unwrap());
-
-            let (_, parsed_rule) = p.rule(CompleteStr("a() = b()"));
-            assert_eq!(parsed_rule, Ok((CompleteStr(""), rule)));
-        }
-
-        #[test]
-        fn statement_test() {
-            let (p, a) = add_op_to_parser(Parser::new(), "a", 0);
-            let (_, statement1) = p.statement(CompleteStr("a()"));
-            let term1 = Statement::Term(Term::Application {
-                head: a,
-                args: vec![],
-            });
-
-            let (p, b) = add_op_to_parser(Parser::new(), "b", 0);
-            let (p, c) = add_op_to_parser(p, "c", 0);
-            let (p, dot) = add_op_to_parser(p, ".", 2);
-            let (_, statement2) = p.statement(CompleteStr("b c"));
-            let term2 = Term::Application {
-                head: b,
-                args: vec![],
-            };
-            let term3 = Term::Application {
-                head: c,
-                args: vec![],
-            };
-            let term4 = Statement::Term(Term::Application {
-                head: dot,
-                args: vec![term2, term3],
-            });
-
-            assert_eq!(statement1, Ok((CompleteStr(""), term1)));
-            assert_eq!(statement2, Ok((CompleteStr(""), term4)));
-        }
-
-        #[test]
-        fn program_test() {
-            let (p, a) = add_op_to_parser(Parser::new(), "a", 0);
-            let (_, parsed_program) = p.program(CompleteStr("a();"));
-            let program = Statement::Term(Term::Application {
-                head: a,
-                args: vec![],
-            });
-
-            assert_eq!(parsed_program, Ok((CompleteStr(""), vec![program])));
-        }
-
-    }
-}
+mod parser;
+pub mod types;
