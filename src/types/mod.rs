@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
 use super::parser;
@@ -107,8 +108,6 @@ impl Term {
     }
 }
 
-use std::collections::HashSet;
-
 /// Represents a rewrite rule equating a left-hand-side [`Term`] with one or
 /// more right-hand-side [`Term`]s.
 ///
@@ -131,7 +130,6 @@ impl Rule {
             false
         }
     }
-
     /// Construct a rewrite rule from a left-hand-side (LHS) [`Term`] with one
     /// or more right-hand-side (RHS) [`Term`]s. Returns [`Some(Rule{lhs, rhs})`]
     /// if `Rule{lhs, rhs}` is valid, and [`None`] otherwise.
@@ -313,7 +311,7 @@ impl Default for Signature {
 }
 
 /// Represents a first-order term rewriting system.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct TRS {
     rules: Vec<Rule>,
 }
@@ -323,3 +321,6 @@ impl TRS {
         TRS { rules }
     }
 }
+
+#[cfg(test)]
+mod tests;

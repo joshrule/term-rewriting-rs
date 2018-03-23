@@ -13,6 +13,7 @@ named!(identifier<CompleteStr, CompleteStr>, call!(alphanumeric));
 
 pub fn parse<'a>(input: &'a str, sig: &mut Signature) -> Result<(TRS, Vec<Term>), &'a str> {
     let (_parser, result) = Parser::new(sig).program(CompleteStr(input));
+    println!("{:?}", result);
     match result {
         Ok((CompleteStr(""), o)) => {
             let (srs, sts): (Vec<Statement>, Vec<Statement>) =
@@ -37,8 +38,7 @@ pub fn parse<'a>(input: &'a str, sig: &mut Signature) -> Result<(TRS, Vec<Term>)
 
             Ok((TRS::new(rs), ts))
         }
-        Ok((CompleteStr(s), _)) => {
-            println!("parse incomplete! \"{}\"", s);
+        Ok((CompleteStr(_), _)) => {
             Err("parse incomplete!")
         }
         Err(_) => Err("parse failed!"),
@@ -158,20 +158,20 @@ impl<'a> Parser<'a> {
             do_parse!(term: call_m!(self.top_term) >>
                       (Statement::Term(term))));
 
-    method!(
-        comment<Parser<'a>, CompleteStr, CompleteStr>,
-        self,
-        preceded!(tag!("#"), take_until_and_consume!("\n"))
+    method!(comment<Parser<'a>, CompleteStr, CompleteStr>, self,
+            preceded!(tag!("#"), take_until_and_consume!("\n"))
     );
 
     method!(program<Parser<'a>, CompleteStr, Vec<Statement>>, mut self,
-            many0!(map!(do_parse!(many0!(ws!(call_m!(self.comment))) >>
-                                  statement: alt!(call_m!(self.rule) |
-                                                  call_m!(self.statement)) >>
-                                  ws!(semicolon) >>
-                                  many0!(ws!(call_m!(self.comment))) >>
-                                  (statement)),
-                        |s| {self.clear_variables(); s}))
+            add_return_error!(
+                ErrorKind::Custom(1),
+                many0!(map!(do_parse!(many0!(ws!(call_m!(self.comment))) >>
+                                      statement: alt!(call_m!(self.rule) |
+                                                      call_m!(self.statement)) >>
+                                      ws!(semicolon) >>
+                                      many0!(ws!(call_m!(self.comment))) >>
+                                      (statement)),
+                            |s| {self.clear_variables(); s})))
     );
 }
 
@@ -309,23 +309,70 @@ mod tests {
         let mut s = Signature::default();
         let a1 = s.get_op("a", 2);
         let x1 = s.get_var("x");
+        let y1 = s.get_var("y");
         let p = Parser::new(&mut s);
-        let (_, parsed_term) = p.term(CompleteStr("a(x_ a(x_ x_))"));
+        let (_, parsed_term) = p.term(CompleteStr("a(x_ a(y_ x_))"));
         let a2 = a1.clone();
         let x1 = Term::Variable(x1);
         let x2 = x1.clone();
-        let x3 = x2.clone();
+        let y1 = Term::Variable(y1);
         let term = Term::Application {
             head: a1,
             args: vec![
                 x1,
                 Term::Application {
                     head: a2,
-                    args: vec![x2, x3],
+                    args: vec![y1, x2],
                 },
             ],
         };
         assert_eq!(parsed_term, Ok((CompleteStr(""), term)));
+    }
+
+    #[test]
+    fn top_term_test() {
+        let mut sig = Signature::default();
+        let (_, parsed_term_vec) = sig.parse("S K K (K S K);").expect("successful parse");
+
+        let mut sig = Signature::default();
+        let app = sig.get_op(".", 2);
+        let s = sig.get_op("S", 0);
+        let k = sig.get_op("K", 0);
+        let term = Term::Application {
+            head: app.clone(),
+            args: vec![
+                Term::Application {
+                    head: app.clone(),
+                    args: vec![
+                        Term::Application {
+                            head: app.clone(),
+                            args: vec![
+                                Term::Application { head: s.clone(), args: vec![] },
+                                Term::Application { head: k.clone(), args: vec![] },
+                            ]
+                        },
+                        Term::Application { head: k.clone(), args: vec![] }
+                    ]
+                },
+                Term::Application {
+                    head: app.clone(),
+                    args: vec![
+                        Term::Application {
+                            head: app.clone(),
+                            args: vec![
+                                Term::Application { head: k.clone(), args: vec![] },
+                                Term::Application { head: s.clone(), args: vec![] },
+                            ]
+                        },
+                        Term::Application { head: k.clone(), args: vec![] }
+                    ]
+                }
+            ]
+        };
+
+        let term_vec = vec![term];
+
+        assert_eq!(parsed_term_vec, term_vec);
     }
 
     #[test]
@@ -400,5 +447,19 @@ mod tests {
         });
 
         assert_eq!(parsed_program, Ok((CompleteStr(""), vec![program])));
+    }
+
+    #[test]
+    fn parser_debug() {
+        let mut sig = Signature::default();
+        let p = Parser { signature: &mut sig };
+        assert_eq!(format!("{:?}", p),
+                   "Parser { signature: Signature { operators: [], variables: [], operator_count: 0, variable_count: 0 } }");
+    }
+    #[test]
+    fn parser_incomplete() {
+        let mut sig = Signature::default();
+        let res = sig.parse("(a b c");
+        assert_eq!(res, Err("parse incomplete!"));
     }
 }
