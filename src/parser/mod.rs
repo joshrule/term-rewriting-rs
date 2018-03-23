@@ -38,9 +38,7 @@ pub fn parse<'a>(input: &'a str, sig: &mut Signature) -> Result<(TRS, Vec<Term>)
 
             Ok((TRS::new(rs), ts))
         }
-        Ok((CompleteStr(_), _)) => {
-            Err("parse incomplete!")
-        }
+        Ok((CompleteStr(_), _)) => Err("parse incomplete!"),
         Err(_) => Err("parse failed!"),
     }
 }
@@ -158,8 +156,10 @@ impl<'a> Parser<'a> {
             do_parse!(term: call_m!(self.top_term) >>
                       (Statement::Term(term))));
 
-    method!(comment<Parser<'a>, CompleteStr, CompleteStr>, self,
-            preceded!(tag!("#"), take_until_and_consume!("\n"))
+    method!(
+        comment<Parser<'a>, CompleteStr, CompleteStr>,
+        self,
+        preceded!(tag!("#"), take_until_and_consume!("\n"))
     );
 
     method!(program<Parser<'a>, CompleteStr, Vec<Statement>>, mut self,
@@ -347,12 +347,21 @@ mod tests {
                         Term::Application {
                             head: app.clone(),
                             args: vec![
-                                Term::Application { head: s.clone(), args: vec![] },
-                                Term::Application { head: k.clone(), args: vec![] },
-                            ]
+                                Term::Application {
+                                    head: s.clone(),
+                                    args: vec![],
+                                },
+                                Term::Application {
+                                    head: k.clone(),
+                                    args: vec![],
+                                },
+                            ],
                         },
-                        Term::Application { head: k.clone(), args: vec![] }
-                    ]
+                        Term::Application {
+                            head: k.clone(),
+                            args: vec![],
+                        },
+                    ],
                 },
                 Term::Application {
                     head: app.clone(),
@@ -360,14 +369,23 @@ mod tests {
                         Term::Application {
                             head: app.clone(),
                             args: vec![
-                                Term::Application { head: k.clone(), args: vec![] },
-                                Term::Application { head: s.clone(), args: vec![] },
-                            ]
+                                Term::Application {
+                                    head: k.clone(),
+                                    args: vec![],
+                                },
+                                Term::Application {
+                                    head: s.clone(),
+                                    args: vec![],
+                                },
+                            ],
                         },
-                        Term::Application { head: k.clone(), args: vec![] }
-                    ]
-                }
-            ]
+                        Term::Application {
+                            head: k.clone(),
+                            args: vec![],
+                        },
+                    ],
+                },
+            ],
         };
 
         let term_vec = vec![term];
@@ -452,7 +470,9 @@ mod tests {
     #[test]
     fn parser_debug() {
         let mut sig = Signature::default();
-        let p = Parser { signature: &mut sig };
+        let p = Parser {
+            signature: &mut sig,
+        };
         assert_eq!(format!("{:?}", p),
                    "Parser { signature: Signature { operators: [], variables: [], operator_count: 0, variable_count: 0 } }");
     }
