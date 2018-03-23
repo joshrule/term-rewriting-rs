@@ -1,7 +1,9 @@
-[![Build
-Status](https://travis-ci.org/joshrule/term-rewriting-rs.svg?branch=develop)](https://travis-ci.org/joshrule/term-rewriting-rs)
-
 # [term-rewriting-rs][0]
+
+[![Travis-CI.org](https://img.shields.io/travis/joshrule/term-rewriting-rs.svg?maxAge=3600)](https://travis-ci.org/joshrule/term-rewriting-rs)
+[![Crates.io](https://img.shields.io/crates/v/term_rewriting.svg?maxAge=3600)](https://crates.io/crates/term_rewriting)
+[![Codecov](https://img.shields.io/codecov/c/github/joshrule/term-rewriting-rs.svg?maxAge=3600)](https://codecov.io/gh/joshrule/term-rewriting-rs)
+[![docs.rs](https://docs.rs/term_rewriting/badge.svg)](https://docs.rs/term_rewriting)
 
 A [Rust][1] library for representing and parsing first-order [term rewriting systems][2].
 
