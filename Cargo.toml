@@ -6,10 +6,10 @@ license = "MIT"
 readme = "README.md"
 repository = "https://github.com/joshrule/term-rewriting-rs"
 homepage = "https://github.com/joshrule/term-rewriting-rs"
-documentation = "https://docs.rs/polytype"
+documentation = "https://docs.rs/term_rewriting"
 description = "A Rust library for representing and parsing first-order term rewriting systems."
 keywords = ["term-rewriting", "language", "rewriting", "parser"]
-categories = ["science", "data-structures", "algorithms", "parser implementations", "science"]
+categories = ["science", "data-structures", "algorithms", "parser-implementations"]
 
 [dependencies]
 nom = "4.0.0-beta2"
