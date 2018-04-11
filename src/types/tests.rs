@@ -3,6 +3,48 @@ use std::hash::Hash;
 use super::*;
 
 #[test]
+fn term_substitute_test() {
+    let mut sig = Signature::default();
+    let y = sig.get_var("y");
+    let z = sig.get_var("z");
+
+    // build a term
+    let s_before = "S K y_ z_;";
+    let (_, terms) = sig.parse(s_before).expect("parse of S x_ y_ z_");
+    let term_before = terms[0].clone();
+
+    // build a substitution
+    let s = sig.get_op("S", 0);
+    let s_term = Term::Application {
+        head: s,
+        args: vec![],
+    };
+    let k = sig.get_op("K", 0);
+    let k_term = Term::Application {
+        head: k,
+        args: vec![],
+    };
+    let mut sub = HashMap::new();
+    sub.insert(y, s_term);
+    sub.insert(z, k_term);
+
+    // build the term after substitution
+    let s_after = "S K S K;";
+    let (_, terms) = sig.parse(s_after).expect("parse of 'S K S K'");
+    let term_after = terms[0].clone();
+
+    // check for equality
+    assert_eq!(term_before.substitute(&sub), term_after);
+    assert_ne!(term_before, term_before.substitute(&sub));
+    assert_ne!(term_before, term_after);
+    assert_eq!(term_before.substitute(&HashMap::new()), term_before);
+    assert_ne!(
+        term_before.substitute(&HashMap::new()),
+        term_before.substitute(&sub)
+    );
+}
+
+#[test]
 fn variable_name() {
     let v1 = Variable { id: 7, name: None };
     let v2 = Variable {

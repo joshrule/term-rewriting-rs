@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
 use super::parser;
@@ -104,6 +104,20 @@ impl Term {
         match *self {
             Term::Variable(ref v) => vec![v],
             Term::Application { args: ref a, .. } => a.iter().flat_map(|x| x.variables()).collect(),
+        }
+    }
+    /// Given a mapping from [`Variable`s] to [`Term`s], perform a substitution on a [`Term`].
+    ///
+    /// [`Variable`s]: struct.Variable.html
+    /// [`Term`s]: enum.Term.html
+    /// [`Term`]: enum.Term.html
+    pub fn substitute(&self, sub: &HashMap<Variable, Term>) -> Term {
+        match *self {
+            Term::Variable(ref v) => sub.get(v).unwrap_or(self).clone(),
+            Term::Application { ref head, ref args } => Term::Application {
+                head: head.clone(),
+                args: args.iter().map(|x| x.substitute(sub)).collect(),
+            },
         }
     }
 }
