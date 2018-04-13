@@ -20,10 +20,16 @@ pub type DeBruin = usize;
 /// [`Operator`]: struct.Operator.html
 pub type Arity = usize;
 
+/// Represents a mapping from [`Variable`s] to [`Term`s].
+///
+/// [`Variable`s]: struct.Variable.html
+/// [`Term`s]: struct.Term.html
+pub type Substitution = HashMap<Variable, Term>;
+
 /// Represents a symbol with fixed [`Arity`].
 ///
 /// [`Arity`]: type.Arity.html
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq)]
 pub struct Operator {
     id: DeBruin,
     arity: Arity,
@@ -46,6 +52,12 @@ impl Operator {
 impl PartialEq for Operator {
     fn eq(&self, other: &Operator) -> bool {
         self.id == other.id && self.arity == other.arity
+    }
+}
+impl Hash for Operator {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+        self.arity.hash(state);
     }
 }
 
@@ -83,7 +95,7 @@ impl Hash for Variable {
 /// [`Operator`]: struct.Operator.html
 /// [`Application`]: enum.Term.html#variant.Application
 /// [`Term`]: enum.Term.html
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Term {
     /// A concrete but unspecified [`Term`] (e.g. `x`, `y`)
     ///
@@ -106,18 +118,83 @@ impl Term {
             Term::Application { args: ref a, .. } => a.iter().flat_map(|x| x.variables()).collect(),
         }
     }
+    /// Return a [`Vec<Variable>`] containing every unbound [`Variable`] that occurs in `self`.
+    ///
+    /// [`Vec<Variable>`]: https://doc.rust-lang.org/std/vec/struct.Vec.html
+    /// [`Variable`]: struct.Variable.html
+    pub fn free_vars(&self) -> Vec<&Variable> {
+        self.variables()
+    }
     /// Given a mapping from [`Variable`s] to [`Term`s], perform a substitution on a [`Term`].
     ///
     /// [`Variable`s]: struct.Variable.html
     /// [`Term`s]: enum.Term.html
     /// [`Term`]: enum.Term.html
-    pub fn substitute(&self, sub: &HashMap<Variable, Term>) -> Term {
+    pub fn substitute(&self, sub: &Substitution) -> Term {
         match *self {
             Term::Variable(ref v) => sub.get(v).unwrap_or(self).clone(),
             Term::Application { ref head, ref args } => Term::Application {
                 head: head.clone(),
                 args: args.iter().map(|x| x.substitute(sub)).collect(),
             },
+        }
+    }
+    /// Take a vector of pairs of terms and perform a substitution on each term.
+    fn constraint_substitute(cs: &[(Term, Term)], sub: &Substitution) -> Vec<(Term, Term)> {
+        cs.iter()
+            .map(|&(ref s, ref t)| (s.substitute(sub), t.substitute(sub)))
+            .collect()
+    }
+    /// Compose two substitutions.
+    fn compose(sub1: Option<Substitution>, sub2: Option<Substitution>) -> Option<Substitution> {
+        match (sub1, sub2) {
+            (Some(ref s1), Some(ref s2)) => {
+                let mut sub = s1.clone();
+                for (k, v) in s2 {
+                    sub.insert(k.clone(), v.substitute(s1));
+                }
+                Some(sub)
+            }
+            _ => None,
+        }
+    }
+    /// Given a vector of contraints, return [`Some(sigma)`] if the constraints
+    /// can be satisfied, where `sigma` is a substitution, otherwise [`None`].
+    ///
+    /// [`Some(sigma)`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.Some
+    /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
+    pub fn unify(mut cs: Vec<(Term, Term)>) -> Option<Substitution> {
+        let c = cs.pop();
+        match c {
+            None => Some(HashMap::new()),
+            Some((ref s, ref t)) if s == t => Term::unify(cs),
+            Some((
+                Term::Application {
+                    head: ref h1,
+                    args: ref a1,
+                },
+                Term::Application {
+                    head: ref h2,
+                    args: ref a2,
+                },
+            )) if h1 == h2 =>
+            {
+                cs.append(&mut a1.clone().into_iter().zip(a2.clone().into_iter()).collect());
+                Term::unify(cs)
+            }
+            Some((Term::Variable(ref var), ref t)) if !Term::free_vars(t).contains(&var) => {
+                let mut st = HashMap::new();
+                st.insert(var.clone(), t.clone());
+                let mut cs = Term::constraint_substitute(&cs, &st);
+                Term::compose(Term::unify(cs), Some(st))
+            }
+            Some((ref s, Term::Variable(ref var))) if !Term::free_vars(s).contains(&var) => {
+                let mut ts = HashMap::new();
+                ts.insert(var.clone(), s.clone());
+                let mut cs = Term::constraint_substitute(&cs, &ts);
+                Term::compose(Term::unify(cs), Some(ts))
+            }
+            _ => None,
         }
     }
 }
