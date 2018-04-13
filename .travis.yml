@@ -7,15 +7,15 @@ rust:
 script:
   - cargo build --verbose
   - cargo test  --verbose
-  - cargo doc   --verbose
+  - cargo rustdoc --verbose -- --html-in-header rustdoc-include-katex-header.html
 matrix:
   fast_failures: true
   allow_failures:
     - env: KCOV=1
   include:
-    - rust: nightly-2018-03-06
+    - rust: nightly-2018-04-02
       env:
-        - CLIPPY_VERSION=0.0.187
+        - CLIPPY_VERSION=0.0.191
       before_script:
         - cargo install rustfmt-nightly --force
         - cargo install clippy --version $CLIPPY_VERSION || echo "clippy already installed"
