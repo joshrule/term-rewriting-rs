@@ -325,10 +325,6 @@ fn trs_debug() {
 #[test]
 fn unify_test() {
     let mut sig = Signature::default();
-    let y = sig.get_var("y");
-    let z = sig.get_var("z");
-    let s = sig.get_op("S", 0);
-    let k = sig.get_op("K", 0);
 
     // build a term
     let s_t1 = "S K y_ z_;";
@@ -344,6 +340,17 @@ fn unify_test() {
     let s_t3 = "K K K K;";
     let (_, terms) = sig.parse(s_t3).expect("parse of K K K K");
     let t3 = terms[0].clone();
+
+    // build another term
+    let mut sig = Signature::default();
+    let y = sig.get_var("y");
+    let z = sig.get_var("z");
+    let a = sig.get_op(".", 2);
+    let s = sig.get_op("S", 0);
+    let k = sig.get_op("K", 0);
+    let s_t4 = "y_ K;";
+    let (_, terms) = sig.parse(s_t4).expect("parse of y_ K");
+    let t4 = terms[0].clone();
 
     let mut hm1 = HashMap::new();
     hm1.insert(
@@ -363,16 +370,6 @@ fn unify_test() {
     assert_eq!(Some(hm1), Term::unify(vec![(t1.clone(), t2.clone())]));
     assert_eq!(None, Term::unify(vec![(t1.clone(), t3.clone())]));
     assert_eq!(None, Term::unify(vec![(t2.clone(), t3.clone())]));
-
-    // build another term
-    let mut sig = Signature::default();
-    let y = sig.get_var("y");
-    let k = sig.get_op("K", 0);
-    let a = sig.get_op(".", 2);
-    let s_t4 = "y_ K;";
-    let (_, terms) = sig.parse(s_t4).expect("parse of y_ K");
-    let t4 = terms[0].clone();
-
     let mut hm2 = HashMap::new();
     hm2.insert(
         y.clone(),
