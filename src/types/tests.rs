@@ -1,6 +1,6 @@
+use super::*;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hash;
-use super::*;
 
 #[test]
 fn term_substitute_test() {
@@ -104,16 +104,14 @@ fn rule_is_valid_yes() {
         args: vec![],
     };
 
-    let rhs = vec![
-        Term::Application {
-            head: Operator {
-                arity: 0,
-                id: 1,
-                name: None,
-            },
-            args: vec![],
+    let rhs = vec![Term::Application {
+        head: Operator {
+            arity: 0,
+            id: 1,
+            name: None,
         },
-    ];
+        args: vec![],
+    }];
 
     assert!(Rule::is_valid(&lhs, &rhs));
 }
@@ -121,16 +119,14 @@ fn rule_is_valid_yes() {
 fn rule_is_valid_lhs_var() {
     let lhs = Term::Variable(Variable { name: None, id: 0 });
 
-    let rhs = vec![
-        Term::Application {
-            head: Operator {
-                arity: 0,
-                id: 1,
-                name: None,
-            },
-            args: vec![],
+    let rhs = vec![Term::Application {
+        head: Operator {
+            arity: 0,
+            id: 1,
+            name: None,
         },
-    ];
+        args: vec![],
+    }];
 
     assert!(!Rule::is_valid(&lhs, &rhs));
 }
@@ -160,16 +156,14 @@ fn rule_new_some() {
         args: vec![],
     };
 
-    let rhs = vec![
-        Term::Application {
-            head: Operator {
-                arity: 0,
-                id: 1,
-                name: None,
-            },
-            args: vec![],
+    let rhs = vec![Term::Application {
+        head: Operator {
+            arity: 0,
+            id: 1,
+            name: None,
         },
-    ];
+        args: vec![],
+    }];
 
     let rule = Rule {
         lhs: lhs.clone(),
@@ -267,21 +261,19 @@ fn signature_parse() {
             Term::Variable(z.clone()),
         ],
     };
-    let s_rhs = vec![
-        Term::Application {
-            head: a.clone(),
-            args: vec![
-                Term::Application {
-                    head: a.clone(),
-                    args: vec![Term::Variable(x.clone()), Term::Variable(z.clone())],
-                },
-                Term::Application {
-                    head: a.clone(),
-                    args: vec![Term::Variable(y.clone()), Term::Variable(z.clone())],
-                },
-            ],
-        },
-    ];
+    let s_rhs = vec![Term::Application {
+        head: a.clone(),
+        args: vec![
+            Term::Application {
+                head: a.clone(),
+                args: vec![Term::Variable(x.clone()), Term::Variable(z.clone())],
+            },
+            Term::Application {
+                head: a.clone(),
+                args: vec![Term::Variable(y.clone()), Term::Variable(z.clone())],
+            },
+        ],
+    }];
     let s_rule = Rule::new(s_lhs, s_rhs).expect("new S rule");
 
     let k_lhs = Term::Application {
@@ -397,4 +389,22 @@ fn unify_test() {
         },
     );
     assert_eq!(Some(hm2), Term::unify(vec![(t3.clone(), t4.clone())]));
+}
+
+#[test]
+fn rewrite_test() {
+    let mut sig = Signature::default();
+
+    // build a term
+    let s_str = "S x_ y_ z_ = x_ z_ (y_ z_);";
+    let k_str = "K x_ y_ = x_;";
+    let l_str = "K S K;";
+    let r_str = "S;";
+
+    let (trs, terms) = sig.parse(&(s_str.to_owned() + k_str + l_str + r_str))
+        .expect("parse");
+    let l_term = &terms[0];
+    let r_term = terms[1].clone();
+
+    assert_eq!(trs.rewrite(&l_term), Some(vec![r_term]));
 }

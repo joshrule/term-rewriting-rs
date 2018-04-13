@@ -88,6 +88,13 @@ impl Hash for Variable {
     }
 }
 
+/// What type of unification is being performed?
+#[derive(PartialEq, Eq)]
+enum Unification {
+    Match,
+    Unify,
+}
+
 /// Represents a first-order term: either a [`Variable`] or an [`Application`]
 /// of an [`Operator`] to [`Term`]s
 ///
@@ -163,11 +170,23 @@ impl Term {
     ///
     /// [`Some(sigma)`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.Some
     /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
-    pub fn unify(mut cs: Vec<(Term, Term)>) -> Option<Substitution> {
+    pub fn pmatch(cs: Vec<(Term, Term)>) -> Option<Substitution> {
+        Term::unify_internal(cs, Unification::Match)
+    }
+    /// Given a vector of contraints, return [`Some(sigma)`] if the constraints
+    /// can be satisfied, where `sigma` is a substitution, otherwise [`None`].
+    ///
+    /// [`Some(sigma)`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.Some
+    /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
+    pub fn unify(cs: Vec<(Term, Term)>) -> Option<Substitution> {
+        Term::unify_internal(cs, Unification::Unify)
+    }
+    /// the internal implementation of unify and match.
+    fn unify_internal(mut cs: Vec<(Term, Term)>, utype: Unification) -> Option<Substitution> {
         let c = cs.pop();
         match c {
             None => Some(HashMap::new()),
-            Some((ref s, ref t)) if s == t => Term::unify(cs),
+            Some((ref s, ref t)) if s == t => Term::unify_internal(cs, utype),
             Some((
                 Term::Application {
                     head: ref h1,
@@ -180,19 +199,21 @@ impl Term {
             )) if h1 == h2 =>
             {
                 cs.append(&mut a1.clone().into_iter().zip(a2.clone().into_iter()).collect());
-                Term::unify(cs)
+                Term::unify_internal(cs, utype)
             }
             Some((Term::Variable(ref var), ref t)) if !Term::free_vars(t).contains(&var) => {
                 let mut st = HashMap::new();
                 st.insert(var.clone(), t.clone());
                 let mut cs = Term::constraint_substitute(&cs, &st);
-                Term::compose(Term::unify(cs), Some(st))
+                Term::compose(Term::unify_internal(cs, utype), Some(st))
             }
-            Some((ref s, Term::Variable(ref var))) if !Term::free_vars(s).contains(&var) => {
+            Some((ref s, Term::Variable(ref var)))
+                if !Term::free_vars(s).contains(&var) && utype != Unification::Match =>
+            {
                 let mut ts = HashMap::new();
                 ts.insert(var.clone(), s.clone());
                 let mut cs = Term::constraint_substitute(&cs, &ts);
-                Term::compose(Term::unify(cs), Some(ts))
+                Term::compose(Term::unify_internal(cs, utype), Some(ts))
             }
             _ => None,
         }
@@ -410,6 +431,44 @@ impl TRS {
     /// Constructs a term rewriting system from a list of rules.
     pub fn new(rules: Vec<Rule>) -> TRS {
         TRS { rules }
+    }
+    // Return rewrites modifying the entire term, if possible, else None.
+    fn rewrite_head(&self, term: &Term) -> Option<Vec<Term>> {
+        for rule in &self.rules {
+            if let Some(ref sub) = Term::pmatch(vec![(rule.lhs.clone(), term.clone())]) {
+                return Some(rule.rhs.iter().map(|x| x.substitute(sub)).collect());
+            }
+        }
+        None
+    }
+    // Return rewrites modifying subterms, if possible, else None.
+    fn rewrite_args(&self, term: &Term) -> Option<Vec<Term>> {
+        if let Term::Application { ref head, ref args } = *term {
+            for (i, arg) in args.iter().enumerate() {
+                if let Some(v) = self.rewrite(arg) {
+                    let res = v.iter()
+                        .map(|x| {
+                            let head = head.clone();
+                            let mut args = args.clone();
+                            args[i] = x.clone();
+                            Term::Application { head, args }
+                        })
+                        .collect();
+                    return Some(res);
+                }
+            }
+            None
+        } else {
+            None
+        }
+    }
+    /// Perform a single rewrite step using a normal-order (leftmost-outermost)
+    /// rewrite strategy.
+    pub fn rewrite(&self, term: &Term) -> Option<Vec<Term>> {
+        match term {
+            &Term::Variable(_) => None,
+            app => self.rewrite_head(app).or_else(|| self.rewrite_args(app)),
+        }
     }
 }
 

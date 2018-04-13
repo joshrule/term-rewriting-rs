@@ -13,9 +13,9 @@ matrix:
   allow_failures:
     - env: KCOV=1
   include:
-    - rust: nightly-2018-04-02
+    - rust: nightly-2018-04-11
       env:
-        - CLIPPY_VERSION=0.0.191
+        - CLIPPY_VERSION=0.0.193
       before_script:
         - cargo install rustfmt-nightly --force
         - cargo install clippy --version $CLIPPY_VERSION || echo "clippy already installed"

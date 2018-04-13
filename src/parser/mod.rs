@@ -1,7 +1,7 @@
 use super::types::*;
 
-use nom::{alphanumeric, multispace, IResult};
 use nom::types::CompleteStr;
+use nom::{alphanumeric, multispace, IResult};
 
 named!(lparen<CompleteStr, CompleteStr>,     tag!("("));
 named!(rparen<CompleteStr, CompleteStr>,     tag!(")"));
@@ -405,12 +405,10 @@ mod tests {
             head: a,
             args: vec![],
         };
-        let rhs = vec![
-            Term::Application {
-                head: b,
-                args: vec![],
-            },
-        ];
+        let rhs = vec![Term::Application {
+            head: b,
+            args: vec![],
+        }];
         let rule = Statement::Rule(Rule::new(lhs, rhs).unwrap());
 
         assert_eq!(parsed_rule, Ok((CompleteStr(""), rule)));
