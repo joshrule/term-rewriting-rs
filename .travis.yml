@@ -7,7 +7,7 @@ rust:
 script:
   - cargo build --verbose
   - cargo test  --verbose
-  - cargo rustdoc --verbose -- --html-in-header rustdoc-include-katex-header.html
+  - cargo rustdoc --verbose
 matrix:
   fast_failures: true
   allow_failures:
