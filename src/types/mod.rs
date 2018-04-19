@@ -1,5 +1,7 @@
+use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
+use std::iter;
 
 use super::parser;
 
@@ -25,6 +27,11 @@ pub type Arity = usize;
 /// [`Variable`s]: struct.Variable.html
 /// [`Term`s]: struct.Term.html
 pub type Substitution = HashMap<Variable, Term>;
+
+/// Represents a place in a [`Term`]
+///
+/// [`Term`]: struct.Term.html
+pub type Place = Vec<usize>;
 
 /// Represents a symbol with fixed [`Arity`].
 ///
@@ -115,14 +122,116 @@ pub enum Term {
     Application { head: Operator, args: Vec<Term> },
 }
 impl Term {
-    /// Return a [`Vec<Variable>`] containing every [`Variable`] that occurs in `self`.
+    /// Return a [`Vec<&Variable>`] referencing every [`Variable`] in `self`.
     ///
-    /// [`Vec<Variable>`]: https://doc.rust-lang.org/std/vec/struct.Vec.html
+    /// [`Vec<&Variable>`]: https://doc.rust-lang.org/std/vec/struct.Vec.html
     /// [`Variable`]: struct.Variable.html
     pub fn variables(&self) -> Vec<&Variable> {
         match *self {
             Term::Variable(ref v) => vec![v],
-            Term::Application { args: ref a, .. } => a.iter().flat_map(|x| x.variables()).collect(),
+            Term::Application { ref args, .. } => {
+                args.iter().flat_map(|x| x.variables()).unique().collect()
+            }
+        }
+    }
+    /// Return a [`Vec<&Operator>`] referencing every [`Operator`] in `self`.
+    ///
+    /// [`Vec<&Operator>`]: https://doc.rust-lang.org/std/vec/struct.Vec.html
+    /// [`Operator`]: struct.Operator.html
+    pub fn operators(&self) -> Vec<&Operator> {
+        match *self {
+            Term::Variable(_) => vec![],
+            Term::Application { ref head, ref args } => args.iter()
+                .flat_map(|x| x.operators())
+                .chain(iter::once(head))
+                .unique()
+                .collect(),
+        }
+    }
+    /// Return a [`Vec<Place>`] containing every [`Place`] in `self`.
+    ///
+    /// [`Vec<Place>`]: https://doc.rust-lang.org/std/vec/struct.Vec.html
+    /// [`Place`]: type.Place.html
+    pub fn places(&self) -> Vec<Place> {
+        match *self {
+            Term::Variable(_) => vec![vec![]],
+            Term::Application { ref args, .. } => {
+                let here = iter::once(vec![]);
+                let subplaces = args.iter().enumerate().flat_map(|(i, arg)| {
+                    arg.places()
+                        .into_iter()
+                        .zip(iter::repeat(i))
+                        .map(|(p, ii)| {
+                            let mut a = vec![ii];
+                            a.extend(p);
+                            a
+                        })
+                });
+                here.chain(subplaces).collect()
+            }
+        }
+    }
+    /// Return a [`Vec<&Term>`] referencing every [`Term`] in `self`.
+    ///
+    /// [`Vec<&Term>`]: https://doc.rust-lang.org/std/vec/struct.Vec.html
+    /// [`Term`]: enum.Term.html
+    pub fn subterms(&self) -> Vec<&Term> {
+        match *self {
+            Term::Variable(_) => vec![self],
+            Term::Application { ref args, .. } => {
+                let here = iter::once(self);
+                let subterms = args.iter().flat_map(|a| a.subterms());
+                here.chain(subterms).collect()
+            }
+        }
+    }
+    /// Return [`Some(t)`] if `t` is the subterm at [`Place`] `place`, else [`None`].
+    ///
+    /// [`Some(t)`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.Some
+    /// [`Place`]: type.Place.html
+    /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
+    pub fn at(&self, place: &[usize]) -> Option<&Term> {
+        if place.is_empty() {
+            Some(self)
+        } else {
+            match *self {
+                Term::Variable(_) => None,
+                Term::Application { ref args, .. } => if place[0] <= args.len() {
+                    args[place[0]].at(&place[1..].to_vec())
+                } else {
+                    None
+                },
+            }
+        }
+    }
+    /// Return a [`some(term)`], where is a copy of `self` where the [`Term`] at [`Place`] `place` has been replaced with `subterm`, otherwise [`None`].
+    ///
+    /// [`Some(term)`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.Some
+    /// [`Place`]: type.Place.html
+    /// [`Term`]: enum.Term.html
+    /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
+    pub fn replace(&self, place: &[usize], subterm: Term) -> Option<Term> {
+        if place.is_empty() {
+            Some(subterm)
+        } else {
+            match *self {
+                Term::Variable(_) => None,
+                Term::Application { ref head, ref args } => if place[0] <= args.len() {
+                    if let Some(term) = args[place[0]].replace(&place[1..].to_vec(), subterm) {
+                        let mut new_args = args.clone();
+                        new_args.remove(place[0]);
+                        new_args.insert(place[0], term);
+                        Some(Term::Application {
+                            head: head.clone(),
+                            args: new_args,
+                        })
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                },
+            }
         }
     }
     /// Return a [`Vec<Variable>`] containing every unbound [`Variable`] that occurs in `self`.

@@ -97,6 +97,7 @@
 
 #[macro_use]
 extern crate nom;
+extern crate itertools;
 
 mod parser;
 pub mod types;
