@@ -407,8 +407,20 @@ impl Signature {
     /// [`Term`]: enum.Term.html
     /// [`Ok((trs, terms))`]:  https://doc.rust-lang.org/std/result/enum.Result.html#variant.Ok
     /// [`Err`]:  https://doc.rust-lang.org/std/result/enum.Result.html#variant.Err
-    pub fn parse<'a>(&mut self, input: &'a str) -> Result<(TRS, Vec<Term>), &'a str> {
+    pub fn parse(&mut self, input: &str) -> Result<(TRS, Vec<Term>), parser::ParseError> {
         parser::parse(input, self)
+    }
+    /// Similar to `parse`, but produces only a [`TRS`].
+    ///
+    /// [`TRS`]: struct.TRS.html
+    pub fn parse_trs(&mut self, input: &str) -> Result<TRS, parser::ParseError> {
+        parser::parse_trs(input, self)
+    }
+    /// Similar to `parse`, but produces only a [`Term`].
+    ///
+    /// [`Term`]: struct.Term.html
+    pub fn parse_term(&mut self, input: &str) -> Result<Term, parser::ParseError> {
+        parser::parse_term(input, self)
     }
 }
 impl Default for Signature {

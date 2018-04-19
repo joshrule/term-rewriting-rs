@@ -7,20 +7,16 @@
 //! use term_rewriting::types::*;
 //!
 //! # fn main() {
-//! // A string representation of SK combinatory logic, including:
-//!
-//! // a rule for the S combinator,
-//! let s_rule = "S x_ y_ z_ = (x_ z_) (y_ z_);".to_string();
-//!
-//! // the rule for the K combinator,
-//! let k_rule = "K x_ y_ = x_;";
-//!
-//! // and an arbitrary term,
-//! let term = "S K K (K S K);";
-//!
-//! // can be parsed to give back the TRS and a term.
+//! // Given a signature,
 //! let mut sig = Signature::default();
-//! let (parsed_trs, parsed_term_vec) = sig.parse(&(s_rule + k_rule + term)).expect("successful parse");
+//!
+//! // we can parse a string representation of SK combinatory logic,
+//! let sk_rules = "S x_ y_ z_ = (x_ z_) (y_ z_); K x_ y_ = x_;";
+//! let parsed_trs = sig.parse_trs(sk_rules).expect("parsed TRS");
+//!
+//! // and we can also parse an arbitrary term.
+//! let term = "S K K (K S K)";
+//! let parsed_term = sig.parse_term(term).expect("parsed term");
 //!
 //! // These can also be constructed by hand. Let's look at the term:
 //! let mut sig = Signature::default();
@@ -28,7 +24,7 @@
 //! let s = sig.get_op("S", 0);
 //! let k = sig.get_op("K", 0);
 //!
-//! let term = Term::Application {
+//! let constructed_term = Term::Application {
 //!     head: app.clone(),
 //!     args: vec![
 //!         Term::Application {
@@ -60,10 +56,8 @@
 //!     ]
 //! };
 //!
-//! let constructed_term_vec = vec![term];
-//!
 //! // This is the same output the parser produces.
-//! assert_eq!(parsed_term_vec, constructed_term_vec);
+//! assert_eq!(parsed_term, constructed_term);
 //! # }
 //! ```
 //!

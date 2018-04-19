@@ -11,9 +11,32 @@ named!(rule_kw<CompleteStr, CompleteStr>,    tag!("="));
 named!(underscore<CompleteStr, CompleteStr>, tag!("_"));
 named!(identifier<CompleteStr, CompleteStr>, call!(alphanumeric));
 
-pub fn parse<'a>(input: &'a str, sig: &mut Signature) -> Result<(TRS, Vec<Term>), &'a str> {
+#[derive(Debug, PartialEq)]
+pub enum ParseError {
+    ParseIncomplete,
+    ParseFailed,
+}
+
+pub fn parse_trs(input: &str, sig: &mut Signature) -> Result<TRS, ParseError> {
+    let (_parser, result) = Parser::new(sig).trs(CompleteStr(input));
+    match result {
+        Ok((CompleteStr(""), t)) => Ok(t),
+        Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
+        Err(_) => Err(ParseError::ParseFailed),
+    }
+}
+
+pub fn parse_term(input: &str, sig: &mut Signature) -> Result<Term, ParseError> {
+    let (_parser, result) = Parser::new(sig).top_term(CompleteStr(input));
+    match result {
+        Ok((CompleteStr(""), t)) => Ok(t),
+        Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
+        Err(_) => Err(ParseError::ParseFailed),
+    }
+}
+
+pub fn parse(input: &str, sig: &mut Signature) -> Result<(TRS, Vec<Term>), ParseError> {
     let (_parser, result) = Parser::new(sig).program(CompleteStr(input));
-    println!("{:?}", result);
     match result {
         Ok((CompleteStr(""), o)) => {
             let (srs, sts): (Vec<Statement>, Vec<Statement>) =
@@ -38,8 +61,8 @@ pub fn parse<'a>(input: &'a str, sig: &mut Signature) -> Result<(TRS, Vec<Term>)
 
             Ok((TRS::new(rs), ts))
         }
-        Ok((CompleteStr(_), _)) => Err("parse incomplete!"),
-        Err(_) => Err("parse failed!"),
+        Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
+        Err(_) => Err(ParseError::ParseFailed),
     }
 }
 
@@ -139,20 +162,23 @@ impl<'a> Parser<'a> {
                                     })})
     );
 
-    method!(rule<Parser<'a>, CompleteStr, Statement>, mut self,
-            map!(
-                map_opt!(
-                    do_parse!(lhs: call_m!(self.top_term) >>
-                              ws!(rule_kw) >>
-                              rhs: separated_nonempty_list!(
-                                  ws!(pipe),
-                                  call_m!(self.top_term)) >>
-                              (lhs, rhs)),
-                    |(lhs, rhs)| Rule::new(lhs, rhs)),
-                Statement::Rule)
+    method!(rule<Parser<'a>, CompleteStr, Rule>, mut self,
+            map_opt!(
+                do_parse!(lhs: call_m!(self.top_term) >>
+                          ws!(rule_kw) >>
+                          rhs: separated_nonempty_list!(
+                              ws!(pipe),
+                              call_m!(self.top_term)) >>
+                          (lhs, rhs)),
+                |(lhs, rhs)| Rule::new(lhs, rhs))
     );
 
-    method!(statement<Parser<'a>, CompleteStr, Statement>, mut self,
+    method!(rule_statement<Parser<'a>, CompleteStr, Statement>, mut self,
+            map!(call_m!(self.rule),
+                 Statement::Rule)
+    );
+
+    method!(term_statement<Parser<'a>, CompleteStr, Statement>, mut self,
             do_parse!(term: call_m!(self.top_term) >>
                       (Statement::Term(term))));
 
@@ -162,12 +188,28 @@ impl<'a> Parser<'a> {
         preceded!(tag!("#"), take_until_and_consume!("\n"))
     );
 
+    method!(trs<Parser<'a>, CompleteStr, TRS>, mut self,
+            add_return_error!(
+                ErrorKind::Custom(1),
+                do_parse!(
+                    rules: many0!(
+                        map!(
+                            do_parse!(
+                                many0!(ws!(call_m!(self.comment))) >>
+                                rule: call_m!(self.rule) >>
+                                ws!(semicolon) >>
+                                many0!(ws!(call_m!(self.comment))) >>
+                                (rule)),
+                            |r| {self.clear_variables(); r})) >>
+                    (TRS::new(rules))))
+    );
+
     method!(program<Parser<'a>, CompleteStr, Vec<Statement>>, mut self,
             add_return_error!(
                 ErrorKind::Custom(1),
                 many0!(map!(do_parse!(many0!(ws!(call_m!(self.comment))) >>
-                                      statement: alt!(call_m!(self.rule) |
-                                                      call_m!(self.statement)) >>
+                                      statement: alt!(call_m!(self.rule_statement) |
+                                                      call_m!(self.term_statement)) >>
                                       ws!(semicolon) >>
                                       many0!(ws!(call_m!(self.comment))) >>
                                       (statement)),
@@ -399,7 +441,7 @@ mod tests {
         let a = s.get_op("a", 0);
         let b = s.get_op("b", 0);
         let p = Parser::new(&mut s);
-        let (_, parsed_rule) = p.rule(CompleteStr("a = b()"));
+        let (_, parsed_rule) = p.rule_statement(CompleteStr("a = b()"));
 
         let lhs = Term::Application {
             head: a,
@@ -419,7 +461,7 @@ mod tests {
         let mut s = Signature::default();
         let a = s.get_op("a", 0);
         let p = Parser::new(&mut s);
-        let (_, parsed_statement) = p.statement(CompleteStr("a()"));
+        let (_, parsed_statement) = p.term_statement(CompleteStr("a()"));
         let statement = Statement::Term(Term::Application {
             head: a,
             args: vec![],
@@ -433,7 +475,7 @@ mod tests {
         let b = s.get_op("b", 0);
         let dot = s.get_op(".", 2);
         let p = Parser::new(&mut s);
-        let (_, parsed_statement) = p.statement(CompleteStr("a b"));
+        let (_, parsed_statement) = p.term_statement(CompleteStr("a b"));
 
         let st1 = Term::Application {
             head: a,
@@ -478,6 +520,6 @@ mod tests {
     fn parser_incomplete() {
         let mut sig = Signature::default();
         let res = sig.parse("(a b c");
-        assert_eq!(res, Err("parse incomplete!"));
+        assert_eq!(res, Err(ParseError::ParseIncomplete));
     }
 }
