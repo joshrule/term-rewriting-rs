@@ -274,6 +274,46 @@ impl Term {
             _ => None,
         }
     }
+    /// Given two terms, return `true` if they are [alpha equivalent], else `false`.
+    ///
+    /// [alpha equivalent]: https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
+    pub fn alpha_equivalent(t1: &Term, t2: &Term) -> bool {
+        Term::pmatch(vec![(t1.clone(), t2.clone())]).is_some()
+            && Term::pmatch(vec![(t2.clone(), t1.clone())]).is_some()
+    }
+    pub fn shape_equivalent(t1: &Term, t2: &Term) -> bool {
+        let mut vmap = HashMap::new();
+        let mut omap = HashMap::new();
+        Term::se_helper(t1, t2, &mut vmap, &mut omap)
+    }
+    pub fn se_helper(
+        t1: &Term,
+        t2: &Term,
+        vmap: &mut HashMap<Variable, Variable>,
+        omap: &mut HashMap<Operator, Operator>,
+    ) -> bool {
+        match (t1, t2) {
+            (&Term::Variable(ref v1), &Term::Variable(ref v2)) => {
+                v2 == vmap.entry(v1.clone()).or_insert_with(|| v2.clone())
+            }
+            (
+                &Term::Application {
+                    head: ref h1,
+                    args: ref as1,
+                },
+                &Term::Application {
+                    head: ref h2,
+                    args: ref as2,
+                },
+            ) => {
+                h2 == omap.entry(h1.clone()).or_insert_with(|| h2.clone())
+                    && as1.iter()
+                        .zip(as2.iter())
+                        .all(|(a1, a2)| Term::se_helper(a1, a2, vmap, omap))
+            }
+            _ => false,
+        }
+    }
     /// Given a vector of contraints, return [`Some(sigma)`] if the constraints
     /// can be satisfied, where `sigma` is a substitution, otherwise [`None`].
     ///
