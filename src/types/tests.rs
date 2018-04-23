@@ -45,17 +45,17 @@ fn term_substitute_test() {
 }
 
 #[test]
-fn variable_name() {
+fn variable_show() {
     let v1 = Variable { id: 7, name: None };
     let v2 = Variable {
         id: 8,
         name: Some("blah".to_string()),
     };
 
-    assert_eq!(v1.name(), &None);
-    assert_ne!(v1.name(), &Some("blah".to_string()));
-    assert_ne!(v2.name(), &None);
-    assert_eq!(v2.name(), &Some("blah".to_string()));
+    assert_eq!(v1.show(), "".to_string());
+    assert_ne!(v1.show(), "blah".to_string());
+    assert_ne!(v2.show(), "".to_string());
+    assert_eq!(v2.show(), "blah".to_string());
 }
 #[test]
 fn variable_eq() {

@@ -68,6 +68,12 @@ impl Hash for Operator {
     }
 }
 
+/// A trait for Variables.
+pub trait Var: Eq + Hash {
+    fn new(&[&Self]) -> Self;
+    fn show(&self) -> String;
+}
+
 /// Represents a symbol signifying an unspecified [`Term`].
 ///
 /// [`Term`]: enum.Term.html
@@ -76,12 +82,25 @@ pub struct Variable {
     id: DeBruin,
     name: Name,
 }
-impl Variable {
-    /// Return the human-assigned [`Name`] of `self`.
+impl Var for Variable {
+    /// Return a human-readable representation of `self`.
+    fn show(&self) -> String {
+        if let Some(ref s) = self.name {
+            s.clone()
+        } else {
+            "".to_string()
+        }
+    }
+    /// Return a new [`Variable`] distinct from any existing [`Variable`].
     ///
-    /// [`Name`]: type.Name.html
-    pub fn name(&self) -> &Name {
-        &self.name
+    ///[`Variable`]: struct.Variable.html
+    fn new(existing: &[&Self]) -> Self {
+        let name = None;
+        let id = match existing.iter().map(|v| v.id).max() {
+            Some(n) => n + 1,
+            _ => 0,
+        };
+        Variable { id, name }
     }
 }
 impl PartialEq for Variable {
@@ -464,14 +483,10 @@ impl Signature {
     /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
     /// [`Variable`]: struct.Variable.html
     pub fn has_var(&self, name: &str) -> Option<Variable> {
-        let res = self.variables.iter().find(|&v| match *v.name() {
-            Some(ref n) if n == name => true,
-            _ => false,
-        });
-        if let Some(v) = res {
-            Some(v.clone())
-        } else {
+        if name == "" {
             None
+        } else {
+            self.variables.iter().find(|&v| v.show() == name).cloned()
         }
     }
     /// Returns a [`Variable`] `v` where `v` has the lowest `id` of any [`Variable`] in
