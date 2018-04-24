@@ -4,7 +4,7 @@ use std::hash::Hash;
 
 #[test]
 fn term_substitute_test() {
-    let mut sig = Signature::default();
+    let mut sig: Signature<NamedDeBruijn> = Signature::default();
     let y = sig.get_var("y");
     let z = sig.get_var("z");
 
@@ -46,8 +46,8 @@ fn term_substitute_test() {
 
 #[test]
 fn variable_show() {
-    let v1 = Variable { id: 7, name: None };
-    let v2 = Variable {
+    let v1 = NamedDeBruijn { id: 7, name: None };
+    let v2 = NamedDeBruijn {
         id: 8,
         name: Some("blah".to_string()),
     };
@@ -59,13 +59,13 @@ fn variable_show() {
 }
 #[test]
 fn variable_eq() {
-    let v1 = Variable { id: 7, name: None };
-    let v2 = Variable { id: 8, name: None };
-    let v3 = Variable {
+    let v1 = NamedDeBruijn { id: 7, name: None };
+    let v2 = NamedDeBruijn { id: 8, name: None };
+    let v3 = NamedDeBruijn {
         id: 7,
         name: Some("blah".to_string()),
     };
-    let v4 = Variable { id: 7, name: None };
+    let v4 = NamedDeBruijn { id: 7, name: None };
 
     assert_eq!(v1, v1);
     assert_ne!(v1, v2);
@@ -76,7 +76,7 @@ fn variable_eq() {
 fn variable_hash_eq() {
     let mut hasher1 = DefaultHasher::new();
     let mut hasher2 = DefaultHasher::new();
-    let v = Variable { id: 7, name: None };
+    let v = NamedDeBruijn { id: 7, name: None };
     7_usize.hash(&mut hasher1);
     v.hash(&mut hasher2);
 
@@ -86,7 +86,7 @@ fn variable_hash_eq() {
 fn variable_hash_ne() {
     let mut hasher1 = DefaultHasher::new();
     let mut hasher2 = DefaultHasher::new();
-    let v = Variable { id: 7, name: None };
+    let v = NamedDeBruijn { id: 7, name: None };
     8_usize.hash(&mut hasher1);
     v.hash(&mut hasher2);
 
@@ -95,7 +95,7 @@ fn variable_hash_ne() {
 
 #[test]
 fn rule_is_valid_yes() {
-    let lhs = Term::Application {
+    let lhs: Term<NamedDeBruijn> = Term::Application {
         head: Operator {
             arity: 0,
             id: 0,
@@ -104,7 +104,7 @@ fn rule_is_valid_yes() {
         args: vec![],
     };
 
-    let rhs = vec![Term::Application {
+    let rhs: Vec<Term<NamedDeBruijn>> = vec![Term::Application {
         head: Operator {
             arity: 0,
             id: 1,
@@ -117,7 +117,7 @@ fn rule_is_valid_yes() {
 }
 #[test]
 fn rule_is_valid_lhs_var() {
-    let lhs = Term::Variable(Variable { name: None, id: 0 });
+    let lhs = Term::Variable(NamedDeBruijn { name: None, id: 0 });
 
     let rhs = vec![Term::Application {
         head: Operator {
@@ -141,13 +141,13 @@ fn rule_is_valid_rhs_var() {
         args: vec![],
     };
 
-    let rhs = vec![Term::Variable(Variable { name: None, id: 0 })];
+    let rhs = vec![Term::Variable(NamedDeBruijn { name: None, id: 0 })];
 
     assert!(!Rule::is_valid(&lhs, &rhs));
 }
 #[test]
 fn rule_new_some() {
-    let lhs = Term::Application {
+    let lhs: Term<NamedDeBruijn> = Term::Application {
         head: Operator {
             arity: 0,
             id: 0,
@@ -183,14 +183,14 @@ fn rule_is_valid_none() {
         args: vec![],
     };
 
-    let rhs = vec![Term::Variable(Variable { name: None, id: 0 })];
+    let rhs = vec![Term::Variable(NamedDeBruijn { name: None, id: 0 })];
 
     assert_eq!(Rule::new(lhs, rhs), None);
 }
 
 #[test]
 fn signature_debug() {
-    let sig = Signature::default();
+    let sig: Signature<NamedDeBruijn> = Signature::default();
     assert_eq!(
         format!("{:?}", sig),
         "Signature { operators: [], variables: [], operator_count: 0, variable_count: 0 }"
@@ -216,24 +216,24 @@ fn signature_parse() {
         name: Some("K".to_string()),
         arity: 0,
     };
-    let x = Variable {
+    let x = NamedDeBruijn {
         id: 0,
         name: Some("x".to_string()),
     };
-    let y = Variable {
+    let y = NamedDeBruijn {
         id: 1,
         name: Some("y".to_string()),
     };
-    let z = Variable {
+    let z = NamedDeBruijn {
         id: 2,
         name: Some("z".to_string()),
     };
-    let x2 = Variable {
-        id: 3,
+    let x2 = NamedDeBruijn {
+        id: 0,
         name: Some("x".to_string()),
     };
-    let y2 = Variable {
-        id: 4,
+    let y2 = NamedDeBruijn {
+        id: 1,
         name: Some("y".to_string()),
     };
 
@@ -304,13 +304,13 @@ fn signature_parse() {
 
 #[test]
 fn trs_new() {
-    let trs1 = TRS::new(vec![]);
+    let trs1: TRS<NamedDeBruijn> = TRS::new(vec![]);
     let trs2 = TRS { rules: vec![] };
     assert_eq!(trs1, trs2);
 }
 #[test]
 fn trs_debug() {
-    let trs = TRS::new(vec![]);
+    let trs: TRS<NamedDeBruijn> = TRS::new(vec![]);
     assert_eq!(format!("{:?}", trs), "TRS { rules: [] }");
 }
 
@@ -334,7 +334,7 @@ fn unify_test() {
     let t3 = terms[0].clone();
 
     // build another term
-    let mut sig = Signature::default();
+    let mut sig: Signature<NamedDeBruijn> = Signature::default();
     let y = sig.get_var("y");
     let z = sig.get_var("z");
     let a = sig.get_op(".", 2);
@@ -393,7 +393,7 @@ fn unify_test() {
 
 #[test]
 fn rewrite_test() {
-    let mut sig = Signature::default();
+    let mut sig: Signature<NamedDeBruijn> = Signature::default();
 
     // build a term
     let s_str = "S x_ y_ z_ = x_ z_ (y_ z_);";
