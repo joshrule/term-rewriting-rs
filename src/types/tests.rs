@@ -4,7 +4,7 @@ use std::hash::Hash;
 
 #[test]
 fn term_substitute_test() {
-    let mut sig: Signature<NamedDeBruijn> = Signature::default();
+    let mut sig: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
     let y = sig.get_var("y");
     let z = sig.get_var("z");
 
@@ -95,8 +95,8 @@ fn variable_hash_ne() {
 
 #[test]
 fn rule_is_valid_yes() {
-    let lhs: Term<NamedDeBruijn> = Term::Application {
-        head: Operator {
+    let lhs: Term<NamedDeBruijn, AritiedNamedDeBruijn> = Term::Application {
+        head: AritiedNamedDeBruijn {
             arity: 0,
             id: 0,
             name: None,
@@ -104,8 +104,8 @@ fn rule_is_valid_yes() {
         args: vec![],
     };
 
-    let rhs: Vec<Term<NamedDeBruijn>> = vec![Term::Application {
-        head: Operator {
+    let rhs: Vec<Term<NamedDeBruijn, AritiedNamedDeBruijn>> = vec![Term::Application {
+        head: AritiedNamedDeBruijn {
             arity: 0,
             id: 1,
             name: None,
@@ -120,7 +120,7 @@ fn rule_is_valid_lhs_var() {
     let lhs = Term::Variable(NamedDeBruijn { name: None, id: 0 });
 
     let rhs = vec![Term::Application {
-        head: Operator {
+        head: AritiedNamedDeBruijn {
             arity: 0,
             id: 1,
             name: None,
@@ -133,7 +133,7 @@ fn rule_is_valid_lhs_var() {
 #[test]
 fn rule_is_valid_rhs_var() {
     let lhs = Term::Application {
-        head: Operator {
+        head: AritiedNamedDeBruijn {
             arity: 0,
             id: 0,
             name: None,
@@ -147,8 +147,8 @@ fn rule_is_valid_rhs_var() {
 }
 #[test]
 fn rule_new_some() {
-    let lhs: Term<NamedDeBruijn> = Term::Application {
-        head: Operator {
+    let lhs: Term<NamedDeBruijn, AritiedNamedDeBruijn> = Term::Application {
+        head: AritiedNamedDeBruijn {
             arity: 0,
             id: 0,
             name: None,
@@ -157,7 +157,7 @@ fn rule_new_some() {
     };
 
     let rhs = vec![Term::Application {
-        head: Operator {
+        head: AritiedNamedDeBruijn {
             arity: 0,
             id: 1,
             name: None,
@@ -175,7 +175,7 @@ fn rule_new_some() {
 #[test]
 fn rule_is_valid_none() {
     let lhs = Term::Application {
-        head: Operator {
+        head: AritiedNamedDeBruijn {
             arity: 0,
             id: 0,
             name: None,
@@ -190,7 +190,7 @@ fn rule_is_valid_none() {
 
 #[test]
 fn signature_debug() {
-    let sig: Signature<NamedDeBruijn> = Signature::default();
+    let sig: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
     assert_eq!(
         format!("{:?}", sig),
         "Signature { operators: [], variables: [], operator_count: 0, variable_count: 0 }"
@@ -201,17 +201,17 @@ fn signature_parse() {
     let mut sig = Signature::default();
     let sk = "S x_ y_ z_ = x_ z_ (y_ z_); K x_ y_ = x_;";
 
-    let a = Operator {
+    let a = AritiedNamedDeBruijn {
         id: 0,
         name: Some(".".to_string()),
         arity: 2,
     };
-    let s = Operator {
+    let s = AritiedNamedDeBruijn {
         id: 1,
         name: Some("S".to_string()),
         arity: 0,
     };
-    let k = Operator {
+    let k = AritiedNamedDeBruijn {
         id: 2,
         name: Some("K".to_string()),
         arity: 0,
@@ -304,13 +304,13 @@ fn signature_parse() {
 
 #[test]
 fn trs_new() {
-    let trs1: TRS<NamedDeBruijn> = TRS::new(vec![]);
+    let trs1: TRS<NamedDeBruijn, AritiedNamedDeBruijn> = TRS::new(vec![]);
     let trs2 = TRS { rules: vec![] };
     assert_eq!(trs1, trs2);
 }
 #[test]
 fn trs_debug() {
-    let trs: TRS<NamedDeBruijn> = TRS::new(vec![]);
+    let trs: TRS<NamedDeBruijn, AritiedNamedDeBruijn> = TRS::new(vec![]);
     assert_eq!(format!("{:?}", trs), "TRS { rules: [] }");
 }
 
@@ -334,7 +334,7 @@ fn unify_test() {
     let t3 = terms[0].clone();
 
     // build another term
-    let mut sig: Signature<NamedDeBruijn> = Signature::default();
+    let mut sig: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
     let y = sig.get_var("y");
     let z = sig.get_var("z");
     let a = sig.get_op(".", 2);
@@ -393,7 +393,7 @@ fn unify_test() {
 
 #[test]
 fn rewrite_test() {
-    let mut sig: Signature<NamedDeBruijn> = Signature::default();
+    let mut sig: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
 
     // build a term
     let s_str = "S x_ y_ z_ = x_ z_ (y_ z_);";

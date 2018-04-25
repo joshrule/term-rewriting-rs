@@ -8,7 +8,7 @@
 //!
 //! # fn main() {
 //! // Given a signature,
-//! let mut sig: Signature<NamedDeBruijn> = Signature::default();
+//! let mut sig: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
 //!
 //! // we can parse a string representation of SK combinatory logic,
 //! let sk_rules = "S x_ y_ z_ = (x_ z_) (y_ z_); K x_ y_ = x_;";
@@ -19,7 +19,7 @@
 //! let parsed_term = sig.parse_term(term).expect("parsed term");
 //!
 //! // These can also be constructed by hand. Let's look at the term:
-//! let mut sig: Signature<NamedDeBruijn> = Signature::default();
+//! let mut sig: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
 //! let app = sig.get_op(".", 2);
 //! let s = sig.get_op("S", 0);
 //! let k = sig.get_op("K", 0);
