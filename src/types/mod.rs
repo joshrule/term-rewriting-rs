@@ -6,7 +6,7 @@ use std::iter;
 use super::parser;
 
 /// Represents a human-assigned name.
-pub type Name = Option<String>;
+pub type Name_ = Option<String>;
 
 /// Represents a unique identity, a [DeBruijn Index].
 ///
@@ -16,51 +16,84 @@ pub type DeBruijn = usize;
 /// Represents the number of arguments an [`Operator`] takes.
 ///
 /// [`Operator`]: trait.Operator.html
-pub type Arity = usize;
+pub type Arity_ = usize;
 
 /// Represents a place in a [`Term`]
 ///
 /// [`Term`]: struct.Term.html
 pub type Place = Vec<usize>;
 
-/// A trait for Variables: symbols without arities
-pub trait Variable: Eq + Hash + Clone {
-    /// Return a new [`Variable`] distinct from any existing [`Variable`].
-    ///
-    ///[`Variable`]: trait.Variable.html
-    fn new(&[&Self], Name) -> Self;
+/// A trait for things that act like symbols
+pub trait Symbol: Eq + Hash + Clone {
+    /// Each symbol must have a unique ID associated with it.
+    type ID;
+    /// Return a new `ID` distinct from any existing `ID`.
+    fn new_id(&[&Self]) -> Self::ID;
     /// Return a human-readable representation of `self`.
     fn show(&self) -> String;
+    /// Return the `ID` of `self`.
+    fn id(&self) -> Self::ID;
 }
 
-/// A trait for Operators, symbols with arities
-pub trait Operator: Eq + Hash + Clone {
-    /// Return a new [`Operator`] distinct from any existing [`Operator`].
-    ///
-    ///[`Operator`]: trait.Operator.html
-    fn new(&[&Self], Arity, Name) -> Self;
-    /// Return a human-readable representation of `self`.
-    fn show(&self) -> String;
-    /// Return the arity of `self`
-    fn arity(&self) -> Arity;
+/// An interface for things with arities.
+pub trait Arity {
+    fn arity(&self) -> Arity_;
 }
+
+/// An interface for things with names.
+pub trait Name {
+    fn name(&self) -> Name_;
+}
+
+/// An ADT for Variables.
+pub trait Variable: Symbol {}
+
+/// An ADT for Operators.
+pub trait Operator: Symbol + Arity {}
 
 /// Represents a symbol with fixed [`Arity`].
 ///
-/// [`Arity`]: type.Arity.html
+/// [`Arity`]: type.Arity_.html
 #[derive(Debug, Clone, Eq)]
-pub struct AritiedNamedDeBruijn {
+pub struct Op {
     id: DeBruijn,
-    arity: Arity,
-    name: Name,
+    arity: Arity_,
+    name: Name_,
 }
-impl Operator for AritiedNamedDeBruijn {
-    fn new(existing: &[&Self], arity: Arity, name: Name) -> Self {
-        let id = match existing.iter().map(|o| o.id).max() {
+impl Op {
+    pub fn new(id: DeBruijn, arity: Arity_, name: Name_) -> Self {
+        Op { id, arity, name }
+    }
+}
+impl Arity for Op {
+    fn arity(&self) -> Arity_ {
+        self.arity
+    }
+}
+impl Hash for Op {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+        self.arity.hash(state);
+    }
+}
+impl Name for Op {
+    fn name(&self) -> Name_ {
+        self.name.clone()
+    }
+}
+impl Operator for Op {}
+impl PartialEq for Op {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id && self.arity == other.arity
+    }
+}
+impl Symbol for Op {
+    type ID = DeBruijn;
+    fn new_id(existing: &[&Self]) -> Self::ID {
+        match existing.iter().map(|o| o.id).max() {
             Some(n) => n + 1,
             _ => 0,
-        };
-        AritiedNamedDeBruijn { id, name, arity }
+        }
     }
     fn show(&self) -> String {
         if let Some(ref s) = self.name {
@@ -69,22 +102,8 @@ impl Operator for AritiedNamedDeBruijn {
             "".to_string()
         }
     }
-    /// Return the [`Arity`] of `self`.
-    ///
-    /// [`Arity`]: type.Arity.html
-    fn arity(&self) -> Arity {
-        self.arity
-    }
-}
-impl PartialEq for AritiedNamedDeBruijn {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.arity == other.arity
-    }
-}
-impl Hash for AritiedNamedDeBruijn {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-        self.arity.hash(state);
+    fn id(&self) -> Self::ID {
+        self.id
     }
 }
 
@@ -92,17 +111,37 @@ impl Hash for AritiedNamedDeBruijn {
 ///
 /// [`Term`]: enum.Term.html
 #[derive(Debug, Clone, Eq)]
-pub struct NamedDeBruijn {
+pub struct Var {
     id: DeBruijn,
-    name: Name,
+    name: Name_,
 }
-impl Variable for NamedDeBruijn {
-    fn new(existing: &[&Self], name: Name) -> Self {
-        let id = match existing.iter().map(|v| v.id).max() {
+impl Var {
+    pub fn new(id: DeBruijn, name: Name_) -> Self {
+        Var { id, name }
+    }
+}
+impl Hash for Var {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+impl Name for Var {
+    fn name(&self) -> Name_ {
+        self.name.clone()
+    }
+}
+impl PartialEq for Var {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+impl Symbol for Var {
+    type ID = DeBruijn;
+    fn new_id(existing: &[&Self]) -> Self::ID {
+        match existing.iter().map(|v| v.id).max() {
             Some(n) => n + 1,
             _ => 0,
-        };
-        NamedDeBruijn { id, name }
+        }
     }
     fn show(&self) -> String {
         if let Some(ref s) = self.name {
@@ -111,19 +150,13 @@ impl Variable for NamedDeBruijn {
             "".to_string()
         }
     }
-}
-impl PartialEq for NamedDeBruijn {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
+    fn id(&self) -> Self::ID {
+        self.id
     }
 }
-impl Hash for NamedDeBruijn {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-    }
-}
+impl Variable for Var {}
 
-/// What type of unification is being performed?
+/// A way of signifying what type of unification is being performed
 #[derive(PartialEq, Eq)]
 enum Unification {
     Match,
@@ -455,160 +488,6 @@ impl<V: Variable, O: Operator> Rule<V, O> {
     }
 }
 
-/// Represents a universe of [`Operator`] and [`Variable`] symbols.
-///
-/// [`Operator`]: trait.Operator.html
-/// [`Variable`]: trait.Variable.html
-#[derive(Debug)]
-pub struct Signature<V: Variable, O: Operator> {
-    operators: Vec<O>,
-    variables: Vec<V>,
-    operator_count: usize,
-    variable_count: usize,
-}
-impl<V: Variable, O: Operator> Signature<V, O> {
-    /// Construct a fresh [`Operator`] and add it to `self`. Returns the newly
-    /// constructed [`Operator`]. Because this operation always creates a fresh
-    /// [`Operator`], it is possible for `self` to track multiple [`Operator`]s
-    /// with the same `name` and `arity` but different `id`s.
-    ///
-    /// [`Operator`]: trait.Operator.html
-    pub fn new_operator(&mut self, name: Name, arity: Arity) -> O {
-        let o = O::new(&self.operators.iter().collect::<Vec<&O>>()[..], arity, name);
-        self.operators.push(o.clone());
-        o
-    }
-    /// Construct a fresh [`Variable`] and add it to `self`. Returns the newly
-    /// constructed [`Variable`]. Because this operation always creates a fresh
-    /// [`Variable`], it is possible for `self` to track multiple [`Variable`]s
-    /// with the same `name` but different `id`s.
-    ///
-    /// [`Variable`]: trait.Variable.html
-    pub fn new_variable(&mut self, name: Name) -> V {
-        let v = V::new(&self.variables.iter().collect::<Vec<&V>>()[..], name);
-        self.variables.push(v.clone());
-        v
-    }
-    /// Returns [`Some(v)`] where `v` has the lowest `id` of any [`Variable`] in
-    /// `self` named `name` if such a [`Variable`] exists, otherwise [`None`].
-    ///
-    /// [`Some(v)`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.Some
-    /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
-    /// [`Variable`]: trait.Variable.html
-    pub fn has_var(&self, name: &str) -> Option<V> {
-        if name == "" {
-            None
-        } else {
-            self.variables.iter().find(|&v| v.show() == name).cloned()
-        }
-    }
-    /// Returns a [`Variable`] `v` where `v` has the lowest `id` of any [`Variable`] in
-    /// `self` named `name`, creating this [`Variable`] if necessary.
-    ///
-    /// [`Variable`]: trait.Variable.html
-    pub fn get_var(&mut self, name: &str) -> V {
-        match self.has_var(name) {
-            Some(v) => v,
-            None => self.new_variable(Some(name.to_string())),
-        }
-    }
-    /// Returns [`Some(o)`] where `o` has the lowest `id` of any [`Operator`] in
-    /// `self` named `name` with arity `arity` if such an [`Operator`] exists,
-    /// otherwise [`None`].
-    ///
-    /// [`Some(v)`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.Some
-    /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
-    /// [`Operator`]: trait.Operator.html
-    pub fn has_op(&mut self, name: &str, arity: Arity) -> Option<O> {
-        self.operators
-            .iter()
-            .find(|&o| o.show() == name && o.arity() == arity)
-            .cloned()
-    }
-    /// Returns an [`Operator`] `v` where `v` has the lowest `id` of any [`Operator`] in
-    /// `self` named `name` with arity `arity`, creating this [`Operator`] if necessary.
-    ///
-    /// [`Operator`]: trait.Operator.html
-    pub fn get_op(&mut self, name: &str, arity: Arity) -> O {
-        match self.has_op(name, arity) {
-            Some(o) => o,
-            None => self.new_operator(Some(name.to_string()), arity),
-        }
-    }
-    /// `self` forgets every currently tracked [`Variable`].
-    ///
-    /// [`Variable`]: trait.Variable.html
-    pub fn clear_variables(&mut self) {
-        self.variables.clear();
-    }
-    /// Parse a string as a [`TRS`], `trs`, and a [`Term`] list, `terms`, to be
-    /// evaluated. Returns [`Ok((trs, terms))`] if parsing succeeds and an
-    /// [`Err`] otherwise.
-    ///
-    /// # TRS syntax
-    ///
-    /// `input` is parsed as a `<program>`, defined as follows:
-    ///
-    /// ```text
-    /// <program> ::= ( <comment>* <statement> ";" <comment>* )*
-    ///
-    /// <comment> ::= "#" <any-char-but-newline> "\n"
-    ///
-    /// <statement> ::= <rule> | <top-level-term>
-    ///
-    /// <rule> ::= <top-level-term> "=" <top-level-term> ( "|" <top-level-term> )
-    ///
-    /// <top-level-term) ::= ( <term> | ( "(" <top-level-term> ")" ) ) (" "  ( <term> | ( "(" <top-level-term> ")" ) ) )*
-    ///
-    /// <term> ::= <variable> | <application>
-    ///
-    /// <variable> ::= <identifier>"_"
-    ///
-    /// <application> ::= <constant> | <binary-application> | <standard-application>
-    ///
-    /// <constant> ::= <identifier>
-    ///
-    /// <binary-application> ::= "(" <term> " " <term> ")"
-    ///
-    /// <standard-application> ::= <identifier> "(" <term>* ")"
-    ///
-    /// <identifier> ::= <alphanumeric>+
-    /// ```
-    ///
-    /// [`TRS`]: struct.TRS.html
-    /// [`Term`]: enum.Term.html
-    /// [`Ok((trs, terms))`]:  https://doc.rust-lang.org/std/result/enum.Result.html#variant.Ok
-    /// [`Err`]:  https://doc.rust-lang.org/std/result/enum.Result.html#variant.Err
-    pub fn parse(
-        &mut self,
-        input: &str,
-    ) -> Result<(TRS<V, O>, Vec<Term<V, O>>), parser::ParseError> {
-        parser::parse(input, self)
-    }
-    /// Similar to `parse`, but produces only a [`TRS`].
-    ///
-    /// [`TRS`]: struct.TRS.html
-    pub fn parse_trs(&mut self, input: &str) -> Result<TRS<V, O>, parser::ParseError> {
-        parser::parse_trs(input, self)
-    }
-    /// Similar to `parse`, but produces only a [`Term`].
-    ///
-    /// [`Term`]: struct.Term.html
-    pub fn parse_term(&mut self, input: &str) -> Result<Term<V, O>, parser::ParseError> {
-        parser::parse_term(input, self)
-    }
-}
-impl<V: Variable, O: Operator> Default for Signature<V, O> {
-    fn default() -> Self {
-        Signature {
-            operators: vec![],
-            variables: vec![],
-            operator_count: 0,
-            variable_count: 0,
-        }
-    }
-}
-
 /// Represents a first-order term rewriting system.
 #[derive(Debug, PartialEq)]
 pub struct TRS<V: Variable, O: Operator> {
@@ -657,6 +536,63 @@ impl<V: Variable, O: Operator> TRS<V, O> {
             app => self.rewrite_head(app).or_else(|| self.rewrite_args(app)),
         }
     }
+}
+
+/// Parse a string as a [`TRS`], `trs`, and a [`Term`] list, `terms`, to be
+/// evaluated. Returns [`Ok((trs, terms))`] if parsing succeeds and an
+/// [`Err`] otherwise.
+///
+/// # TRS syntax
+///
+/// `input` is parsed as a `<program>`, defined as follows:
+///
+/// ```text
+/// <program> ::= ( <comment>* <statement> ";" <comment>* )*
+///
+/// <comment> ::= "#" <any-char-but-newline> "\n"
+///
+/// <statement> ::= <rule> | <top-level-term>
+///
+/// <rule> ::= <top-level-term> "=" <top-level-term> ( "|" <top-level-term> )
+///
+/// <top-level-term) ::= ( <term> | ( "(" <top-level-term> ")" ) ) (" "  ( <term> | ( "(" <top-level-term> ")" ) ) )*
+///
+/// <term> ::= <variable> | <application>
+///
+/// <variable> ::= <identifier>"_"
+///
+/// <application> ::= <constant> | <binary-application> | <standard-application>
+///
+/// <constant> ::= <identifier>
+///
+/// <binary-application> ::= "(" <term> " " <term> ")"
+///
+/// <standard-application> ::= <identifier> "(" <term>* ")"
+///
+/// <identifier> ::= <alphanumeric>+
+/// ```
+///
+/// [`TRS`]: struct.TRS.html
+/// [`Term`]: enum.Term.html
+/// [`Ok((trs, terms))`]:  https://doc.rust-lang.org/std/result/enum.Result.html#variant.Ok
+/// [`Err`]:  https://doc.rust-lang.org/std/result/enum.Result.html#variant.Err
+pub fn parse(
+    operators: &[Op],
+    input: &str,
+) -> Result<(TRS<Var, Op>, Vec<Term<Var, Op>>), parser::ParseError> {
+    parser::parse(input, operators)
+}
+/// Similar to `parse`, but produces only a [`TRS`].
+///
+/// [`TRS`]: struct.TRS.html
+pub fn parse_trs(operators: &[Op], input: &str) -> Result<TRS<Var, Op>, parser::ParseError> {
+    parser::parse_trs(input, operators)
+}
+/// Similar to `parse`, but produces only a [`Term`].
+///
+/// [`Term`]: struct.Term.html
+pub fn parse_term(operators: &[Op], input: &str) -> Result<Term<Var, Op>, parser::ParseError> {
+    parser::parse_term(input, operators)
 }
 
 #[cfg(test)]

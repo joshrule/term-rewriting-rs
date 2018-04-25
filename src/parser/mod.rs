@@ -17,11 +17,8 @@ pub enum ParseError {
     ParseFailed,
 }
 
-pub fn parse_trs<V: Variable, O: Operator>(
-    input: &str,
-    sig: &mut Signature<V, O>,
-) -> Result<TRS<V, O>, ParseError> {
-    let (_parser, result) = Parser::new(sig).trs(CompleteStr(input));
+pub fn parse_trs(input: &str, operators: &[Op]) -> Result<TRS<Var, Op>, ParseError> {
+    let (_parser, result) = Parser::new(operators).trs(CompleteStr(input));
     match result {
         Ok((CompleteStr(""), t)) => Ok(t),
         Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
@@ -29,11 +26,8 @@ pub fn parse_trs<V: Variable, O: Operator>(
     }
 }
 
-pub fn parse_term<V: Variable, O: Operator>(
-    input: &str,
-    sig: &mut Signature<V, O>,
-) -> Result<Term<V, O>, ParseError> {
-    let (_parser, result) = Parser::new(sig).top_term(CompleteStr(input));
+pub fn parse_term(input: &str, operators: &[Op]) -> Result<Term<Var, Op>, ParseError> {
+    let (_parser, result) = Parser::new(operators).top_term(CompleteStr(input));
     match result {
         Ok((CompleteStr(""), t)) => Ok(t),
         Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
@@ -41,14 +35,14 @@ pub fn parse_term<V: Variable, O: Operator>(
     }
 }
 
-pub fn parse<V: Variable, O: Operator>(
+pub fn parse(
     input: &str,
-    sig: &mut Signature<V, O>,
-) -> Result<(TRS<V, O>, Vec<Term<V, O>>), ParseError> {
-    let (_parser, result) = Parser::new(sig).program(CompleteStr(input));
+    operators: &[Op],
+) -> Result<(TRS<Var, Op>, Vec<Term<Var, Op>>), ParseError> {
+    let (_parser, result) = Parser::new(operators).program(CompleteStr(input));
     match result {
         Ok((CompleteStr(""), o)) => {
-            let (srs, sts): (Vec<Statement<V, O>>, Vec<Statement<V, O>>) =
+            let (srs, sts): (Vec<Statement>, Vec<Statement>) =
                 o.into_iter().partition(|x| match *x {
                     Statement::Rule(_) => true,
                     _ => false,
@@ -76,84 +70,146 @@ pub fn parse<V: Variable, O: Operator>(
 }
 
 #[derive(Debug, PartialEq)]
-pub enum Statement<V: Variable, O: Operator> {
-    Term(Term<V, O>),
-    Rule(Rule<V, O>),
+pub enum Statement {
+    Term(Term<Var, Op>),
+    Rule(Rule<Var, Op>),
 }
 
 #[derive(Debug)]
-pub struct Parser<'a, V: 'a + Variable, O: 'a + Operator> {
-    signature: &'a mut Signature<V, O>,
+pub struct Parser {
+    operators: Vec<Op>,
+    variables: Vec<Var>,
 }
-impl<'a, V: 'a + Variable, O: 'a + Operator> Parser<'a, V, O> {
-    fn new(s: &'a mut Signature<V, O>) -> Parser<'a, V, O> {
-        Parser { signature: s }
+impl Parser {
+    /// Returns [`Some(v)`] where `v` has the lowest `id` of any [`Variable`] in
+    /// `self` named `name` if such a [`Variable`] exists, otherwise [`None`].
+    ///
+    /// [`Some(v)`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.Some
+    /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
+    /// [`Variable`]: trait.Variable.html
+    pub fn has_var(&self, name: &str) -> Option<Var> {
+        if name == "" {
+            None
+        } else {
+            self.variables.iter().find(|&v| v.show() == name).cloned()
+        }
     }
-
-    fn get_var(&mut self, name: &str) -> V {
-        self.signature.get_var(name)
+    /// Returns a [`Variable`] `v` where `v` has the lowest `id` of any [`Variable`] in
+    /// `self` named `name`, creating this [`Variable`] if necessary.
+    ///
+    /// [`Variable`]: trait.Variable.html
+    pub fn get_var(&mut self, name: &str) -> Var {
+        match self.has_var(name) {
+            Some(v) => v,
+            None => {
+                let v = Var::new(
+                    Var::new_id(&self.variables.iter().collect::<Vec<&Var>>()[..]),
+                    Some(name.to_string()),
+                );
+                self.variables.push(v.clone());
+                v
+            }
+        }
     }
-
-    fn get_op<'b>(
-        self: Parser<'a, V, O>,
+    /// Returns [`Some(o)`] where `o` has the lowest `id` of any [`Operator`] in
+    /// `self` named `name` with arity `arity` if such an [`Operator`] exists,
+    /// otherwise [`None`].
+    ///
+    /// [`Some(v)`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.Some
+    /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
+    /// [`Operator`]: trait.Operator.html
+    pub fn has_op(&mut self, name: &str, arity: Arity_) -> Option<Op> {
+        self.operators
+            .iter()
+            .find(|&o| o.show() == name && o.arity() == arity)
+            .cloned()
+    }
+    /// Returns an [`Operator`] `v` where `v` has the lowest `id` of any [`Operator`] in
+    /// `self` named `name` with arity `arity`, creating this [`Operator`] if necessary.
+    ///
+    /// [`Operator`]: trait.Operator.html
+    pub fn get_op(&mut self, name: &str, arity: Arity_) -> Op {
+        match self.has_op(name, arity) {
+            Some(o) => o,
+            None => {
+                let o = Op::new(
+                    Op::new_id(&self.operators.iter().collect::<Vec<&Op>>()[..]),
+                    arity,
+                    Some(name.to_string()),
+                );
+                self.operators.push(o.clone());
+                o
+            }
+        }
+    }
+    /// `self` forgets every currently tracked [`Variable`].
+    ///
+    /// [`Variable`]: trait.Variable.html
+    pub fn clear_variables(&mut self) {
+        self.variables.clear();
+    }
+    pub fn new(operators: &[Op]) -> Parser {
+        Parser {
+            operators: operators.to_vec(),
+            variables: vec![],
+        }
+    }
+    pub fn get_op_wrapped<'b>(
+        mut self: Parser,
         input: CompleteStr<'b>,
         name: &str,
-        arity: Arity,
-    ) -> (Self, IResult<CompleteStr<'b>, O>) {
-        let op = self.signature.get_op(name, arity);
+        arity: Arity_,
+    ) -> (Self, IResult<CompleteStr<'b>, Op>) {
+        let op = self.get_op(name, arity);
         (self, Ok((input, op)))
     }
 
-    fn clear_variables(&mut self) {
-        self.signature.clear_variables();
-    }
-
-    method!(variable<Parser<'a, V, O>, CompleteStr, Term<V, O>>, mut self,
+    method!(variable<Parser, CompleteStr, Term<Var, Op>>, mut self,
             map!(terminated!(identifier, underscore),
                  |v| Term::Variable(self.get_var(v.0)))
     );
 
-    method!(application<Parser<'a, V, O>, CompleteStr, Term<V, O>>, mut self,
+    method!(application<Parser, CompleteStr, Term<Var, Op>>, mut self,
             alt!(call_m!(self.standard_application) |
                  call_m!(self.constant) |
                  call_m!(self.binary_application))
     );
 
     // there was a bug in delimited! (or in tuple_parser! closures)
-    method!(standard_application<Parser<'a, V, O>, CompleteStr, Term<V, O>>, mut self,
+    method!(standard_application<Parser, CompleteStr, Term<Var, Op>>, mut self,
             do_parse!(name: identifier >>
                       lparen >>
                       args: many0!(ws!(call_m!(self.term))) >>
                       rparen >>
-                      head: call_m!(self.get_op,
+                      head: call_m!(self.get_op_wrapped,
                                     name.0,
                                     args.len()) >>
                       (Term::Application{head, args}))
     );
 
-    method!(constant<Parser<'a, V, O>, CompleteStr, Term<V, O>>, mut self,
+    method!(constant<Parser, CompleteStr, Term<Var, Op>>, mut self,
             do_parse!(name: identifier >>
-                      head: call_m!(self.get_op,
+                      head: call_m!(self.get_op_wrapped,
                                     name.0,
                                     0) >>
                       (Term::Application{head, args: vec![]}))
     );
 
-    method!(binary_application<Parser<'a, V, O>, CompleteStr, Term<V, O>>, mut self,
+    method!(binary_application<Parser, CompleteStr, Term<Var, Op>>, mut self,
             do_parse!(lparen >>
                       t1: ws!(call_m!(self.term)) >>
                       t2: ws!(call_m!(self.term)) >>
-                      head: call_m!(self.get_op, ".", 2) >>
+                      head: call_m!(self.get_op_wrapped, ".", 2) >>
                       rparen >>
                       (Term::Application{ head, args: vec![t1, t2] }))
     );
 
-    method!(term<Parser<'a, V, O>, CompleteStr, Term<V, O>>, mut self,
+    method!(term<Parser, CompleteStr, Term<Var, Op>>, mut self,
             alt!(call_m!(self.variable) | call_m!(self.application))
     );
 
-    method!(top_term<Parser<'a, V, O>, CompleteStr, Term<V, O>>, mut self,
-            map!(do_parse!(head: call_m!(self.get_op, ".", 2) >>
+    method!(top_term<Parser, CompleteStr, Term<Var, Op>>, mut self,
+            map!(do_parse!(head: call_m!(self.get_op_wrapped, ".", 2) >>
                            args: separated_nonempty_list!(
                                multispace,
                                alt!(call_m!(self.term) |
@@ -171,7 +227,7 @@ impl<'a, V: 'a + Variable, O: 'a + Operator> Parser<'a, V, O> {
                                     })})
     );
 
-    method!(rule<Parser<'a, V, O>, CompleteStr, Rule<V, O>>, mut self,
+    method!(rule<Parser, CompleteStr, Rule<Var, Op>>, mut self,
             map_opt!(
                 do_parse!(lhs: call_m!(self.top_term) >>
                           ws!(rule_kw) >>
@@ -182,22 +238,22 @@ impl<'a, V: 'a + Variable, O: 'a + Operator> Parser<'a, V, O> {
                 |(lhs, rhs)| Rule::new(lhs, rhs))
     );
 
-    method!(rule_statement<Parser<'a, V, O>, CompleteStr, Statement<V, O>>, mut self,
+    method!(rule_statement<Parser, CompleteStr, Statement>, mut self,
             map!(call_m!(self.rule),
                  Statement::Rule)
     );
 
-    method!(term_statement<Parser<'a, V, O>, CompleteStr, Statement<V, O>>, mut self,
+    method!(term_statement<Parser, CompleteStr, Statement>, mut self,
             do_parse!(term: call_m!(self.top_term) >>
                       (Statement::Term(term))));
 
     method!(
-        comment<Parser<'a, V, O>, CompleteStr, CompleteStr>,
+        comment<Parser, CompleteStr, CompleteStr>,
         self,
         preceded!(tag!("#"), take_until_and_consume!("\n"))
     );
 
-    method!(trs<Parser<'a, V, O>, CompleteStr, TRS<V, O>>, mut self,
+    method!(trs<Parser, CompleteStr, TRS<Var, Op>>, mut self,
             add_return_error!(
                 ErrorKind::Custom(1),
                 do_parse!(
@@ -213,7 +269,7 @@ impl<'a, V: 'a + Variable, O: 'a + Operator> Parser<'a, V, O> {
                     (TRS::new(rules))))
     );
 
-    method!(program<Parser<'a, V, O>, CompleteStr, Vec<Statement<V, O>>>, mut self,
+    method!(program<Parser, CompleteStr, Vec<Statement>>, mut self,
             add_return_error!(
                 ErrorKind::Custom(1),
                 many0!(map!(do_parse!(many0!(ws!(call_m!(self.comment))) >>
@@ -224,6 +280,14 @@ impl<'a, V: 'a + Variable, O: 'a + Operator> Parser<'a, V, O> {
                                       (statement)),
                             |s| {self.clear_variables(); s})))
     );
+}
+impl Default for Parser {
+    fn default() -> Self {
+        Parser {
+            operators: vec![],
+            variables: vec![],
+        }
+    }
 }
 
 #[cfg(test)]
@@ -280,18 +344,16 @@ mod tests {
 
     #[test]
     fn var_test() {
-        let mut s: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
-        let abc = s.get_var("abc");
-        let p = Parser::new(&mut s);
+        let mut p = Parser::default();
+        let abc = p.get_var("abc");
         let (_, var) = p.variable(CompleteStr("abc_"));
         assert_eq!(var, Ok((CompleteStr(""), Term::Variable(abc))));
     }
 
     #[test]
     fn app_test_1() {
-        let mut s: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
-        let a = s.get_op("a", 0);
-        let p = Parser::new(&mut s);
+        let mut p = Parser::default();
+        let a = p.get_op("a", 0);
         let (_, app) = p.application(CompleteStr("a()"));
         let term = Term::Application {
             head: a,
@@ -301,9 +363,8 @@ mod tests {
     }
     #[test]
     fn app_test_2() {
-        let mut s: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
-        let b = s.get_op("b", 0);
-        let p = Parser::new(&mut s);
+        let mut p = Parser::default();
+        let b = p.get_op("b", 0);
         let (_, app) = p.application(CompleteStr("b"));
         let term = Term::Application {
             head: b,
@@ -313,11 +374,10 @@ mod tests {
     }
     #[test]
     fn app_test_3() {
-        let mut s: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
-        let a = s.get_op(".", 2);
-        let b = s.get_op("b", 0);
-        let c = s.get_op("c", 0);
-        let p = Parser::new(&mut s);
+        let mut p = Parser::default();
+        let a = p.get_op(".", 2);
+        let b = p.get_op("b", 0);
+        let c = p.get_op("c", 0);
         let (_, app) = p.application(CompleteStr("(b c)"));
         let st1 = Term::Application {
             head: b,
@@ -336,9 +396,8 @@ mod tests {
 
     #[test]
     fn term_test_1() {
-        let mut s: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
-        let a = s.get_op("a", 0);
-        let p = Parser::new(&mut s);
+        let mut p = Parser::default();
+        let a = p.get_op("a", 0);
         let (_, parsed_term) = p.term(CompleteStr("a()"));
         let term = Term::Application {
             head: a,
@@ -348,20 +407,18 @@ mod tests {
     }
     #[test]
     fn term_test_2() {
-        let mut s: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
-        let a = s.get_var("a");
-        let p = Parser::new(&mut s);
+        let mut p = Parser::default();
+        let a = p.get_var("a");
         let (_, parsed_term) = p.term(CompleteStr("a_"));
         let term = Term::Variable(a);
         assert_eq!(parsed_term, Ok((CompleteStr(""), term)));
     }
     #[test]
     fn term_test_3() {
-        let mut s: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
-        let a1 = s.get_op("a", 2);
-        let x1 = s.get_var("x");
-        let y1 = s.get_var("y");
-        let p = Parser::new(&mut s);
+        let mut p = Parser::default();
+        let a1 = p.get_op("a", 2);
+        let x1 = p.get_var("x");
+        let y1 = p.get_var("y");
         let (_, parsed_term) = p.term(CompleteStr("a(x_ a(y_ x_))"));
         let a2 = a1.clone();
         let x1 = Term::Variable(x1);
@@ -382,13 +439,12 @@ mod tests {
 
     #[test]
     fn top_term_test() {
-        let mut sig: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
-        let (_, parsed_term_vec) = sig.parse("S K K (K S K);").expect("successful parse");
+        let (_, parsed_term_vec) = parse("S K K (K S K);", &vec![]).expect("successful parse");
 
-        let mut sig: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
-        let app = sig.get_op(".", 2);
-        let s = sig.get_op("S", 0);
-        let k = sig.get_op("K", 0);
+        let mut p = Parser::default();
+        let app = p.get_op(".", 2);
+        let s = p.get_op("S", 0);
+        let k = p.get_op("K", 0);
         let term = Term::Application {
             head: app.clone(),
             args: vec![
@@ -446,10 +502,9 @@ mod tests {
 
     #[test]
     fn rule_test() {
-        let mut s: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
-        let a = s.get_op("a", 0);
-        let b = s.get_op("b", 0);
-        let p = Parser::new(&mut s);
+        let mut p = Parser::default();
+        let a = p.get_op("a", 0);
+        let b = p.get_op("b", 0);
         let (_, parsed_rule) = p.rule_statement(CompleteStr("a = b()"));
 
         let lhs = Term::Application {
@@ -467,9 +522,8 @@ mod tests {
 
     #[test]
     fn statement_test_1() {
-        let mut s: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
-        let a = s.get_op("a", 0);
-        let p = Parser::new(&mut s);
+        let mut p = Parser::default();
+        let a = p.get_op("a", 0);
         let (_, parsed_statement) = p.term_statement(CompleteStr("a()"));
         let statement = Statement::Term(Term::Application {
             head: a,
@@ -479,11 +533,10 @@ mod tests {
     }
     #[test]
     fn statement_test_2() {
-        let mut s: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
-        let a = s.get_op("a", 0);
-        let b = s.get_op("b", 0);
-        let dot = s.get_op(".", 2);
-        let p = Parser::new(&mut s);
+        let mut p = Parser::default();
+        let a = p.get_op("a", 0);
+        let b = p.get_op("b", 0);
+        let dot = p.get_op(".", 2);
         let (_, parsed_statement) = p.term_statement(CompleteStr("a b"));
 
         let st1 = Term::Application {
@@ -504,9 +557,8 @@ mod tests {
 
     #[test]
     fn program_test() {
-        let mut s: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
-        let a = s.get_op("a", 0);
-        let p = Parser::new(&mut s);
+        let mut p = Parser::default();
+        let a = p.get_op("a", 0);
         let (_, parsed_program) = p.program(CompleteStr("a();"));
         let program = Statement::Term(Term::Application {
             head: a,
@@ -518,17 +570,15 @@ mod tests {
 
     #[test]
     fn parser_debug() {
-        let mut sig: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
-        let p = Parser {
-            signature: &mut sig,
-        };
-        assert_eq!(format!("{:?}", p),
-                   "Parser { signature: Signature { operators: [], variables: [], operator_count: 0, variable_count: 0 } }");
+        let p = Parser::default();
+        assert_eq!(
+            format!("{:?}", p),
+            "Parser { operators: [], variables: [] }"
+        );
     }
     #[test]
     fn parser_incomplete() {
-        let mut sig: Signature<NamedDeBruijn, AritiedNamedDeBruijn> = Signature::default();
-        let res = sig.parse("(a b c");
+        let res = parse("(a b c", &vec![]);
         assert_eq!(res, Err(ParseError::ParseIncomplete));
     }
 }
