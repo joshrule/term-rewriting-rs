@@ -7,22 +7,18 @@
 //! use term_rewriting::types::*;
 //!
 //! # fn main() {
-//! // Given a signature,
-//! let mut sig: Signature<NamedDeBruijn> = Signature::default();
-//!
-//! // we can parse a string representation of SK combinatory logic,
+//! // We can parse a string representation of SK combinatory logic,
 //! let sk_rules = "S x_ y_ z_ = (x_ z_) (y_ z_); K x_ y_ = x_;";
-//! let parsed_trs = sig.parse_trs(sk_rules).expect("parsed TRS");
+//! let parsed_trs = parse_trs(&vec![], sk_rules).expect("parsed TRS");
 //!
 //! // and we can also parse an arbitrary term.
 //! let term = "S K K (K S K)";
-//! let parsed_term = sig.parse_term(term).expect("parsed term");
+//! let parsed_term = parse_term(&vec![], term).expect("parsed term");
 //!
 //! // These can also be constructed by hand. Let's look at the term:
-//! let mut sig: Signature<NamedDeBruijn> = Signature::default();
-//! let app = sig.get_op(".", 2);
-//! let s = sig.get_op("S", 0);
-//! let k = sig.get_op("K", 0);
+//! let app = Op::new(0, 2, Some(".".to_string()));
+//! let s = Op::new(1, 0, Some("S".to_string()));
+//! let k = Op::new(2, 0, Some("K".to_string()));
 //!
 //! let constructed_term = Term::Application {
 //!     head: app.clone(),
