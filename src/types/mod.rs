@@ -51,6 +51,12 @@ pub trait Variable: Symbol {}
 /// An ADT for Operators.
 pub trait Operator: Symbol + Arity {}
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Atom<V: Variable, O: Operator> {
+    Variable(V),
+    Operator(O),
+}
+
 /// Represents a symbol with fixed [`Arity`].
 ///
 /// [`Arity`]: type.Arity_.html
