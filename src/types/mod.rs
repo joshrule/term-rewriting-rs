@@ -163,6 +163,49 @@ enum Unification {
     Unify,
 }
 
+/// Represents a first-order context: either a [`Variable`], a [`Hole`] or an
+/// [`Application`] of an [`Operator`] to [`Context`]s.
+///
+/// [`Variable`]: enum.Term.html#variant.Variable
+/// [`Hole`]: enum.Term.html#variant.Hole
+/// [`Application`]: enum.Term.html#variant.Application
+/// [`Operator`]: trait.Operator.html
+/// [`Term`]: enum.Term.html
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub enum Context<V: Variable, O: Operator> {
+    /// Represents a concrete but unspecified [`Context`] (e.g. `x`, `y`)
+    ///
+    /// [`Context`]: enum.Context.html
+    Variable(V),
+    /// Represents an empty place in the `Context`.
+    Hole,
+    /// Represents an [`Operator`] applied to zero or more [`Context`s] (e.g. (`f(x, y)`, `g()`)
+    ///
+    /// [`Operator`]: trait.Operator.html
+    /// [`Context`s]: enum.Context.html
+    Application { head: O, args: Vec<Context<V, O>> },
+}
+impl<V: Variable, O: Operator> Context<V, O> {
+    // takes in a term, returns a list of Terms fitting self's holes.
+    //
+    // pub fn prefix(&self, t: Term<V, O>) -> Option<Vec<Term<V, O>>>
+
+    // takes in a term and a context, returns a list of Terms fitting the holes.
+    //
+    // pub fn slice(&self, c: Context<V, O>, t: Term<V, O>) -> Option<Vec<Term<V, O>>>
+}
+impl<V: Variable, O: Operator> From<Term<V, O>> for Context<V, O> {
+    fn from(t: Term<V, O>) -> Self {
+        match t {
+            Term::Variable(v) => Context::Variable(v),
+            Term::Application { head, args } => {
+                let args = args.into_iter().map(Context::from).collect();
+                Context::Application { head, args }
+            }
+        }
+    }
+}
+
 /// Represents a first-order term: either a [`Variable`] or an [`Application`]
 /// of an [`Operator`] to [`Term`]s
 ///
