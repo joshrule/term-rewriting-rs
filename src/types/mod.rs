@@ -44,6 +44,12 @@ pub trait Operator: Eq + Hash + Clone {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Atom<V: Variable, O: Operator> {
+    Variable(V),
+    Operator(O),
+}
+
 /// Represents a symbol with fixed [`Arity`].
 ///
 /// [`Arity`]: type.Arity_.html
