@@ -91,7 +91,10 @@ impl Parser {
         if name == "" {
             None
         } else {
-            self.variables.iter().find(|&v| v.show() == name).cloned()
+            self.variables
+                .iter()
+                .find(|&v| v.name() == Some(name))
+                .cloned()
         }
     }
     /// Returns a [`Variable`] `v` where `v` has the lowest `id` of any [`Variable`] in
@@ -102,7 +105,7 @@ impl Parser {
         match self.has_var(name) {
             Some(v) => v,
             None => {
-                let v = Var::next(self.variables.iter().max()).named(name.to_string());
+                let v = Var::new_distinct(&self.variables, Some(name.to_string()));
                 self.variables.push(v.clone());
                 v
             }
@@ -118,7 +121,7 @@ impl Parser {
     pub fn has_op(&mut self, name: &str, arity: usize) -> Option<Op> {
         self.operators
             .iter()
-            .find(|&o| o.show() == name && o.arity() == arity)
+            .find(|&o| o.name() == Some(name) && o.arity() == arity)
             .cloned()
     }
     /// Returns an [`Operator`] `v` where `v` has the lowest `id` of any [`Operator`] in

@@ -18,9 +18,12 @@ pub type Place = Vec<usize>;
 
 /// An ADT for Variables.
 pub trait Variable: Eq + Ord + Hash + Clone {
-    /// Construct a new `Variable` that is larger than the given `Variable`.
-    fn next(Option<&Self>) -> Self;
-    /// A human-readable representation of `self`.
+    /// Construct a new `Variable` that has not been used.
+    fn new_distinct<'a, T>(existing: T, name: Option<String>) -> Self
+    where
+        T: IntoIterator<Item = &'a Self>,
+        Self: 'a;
+    /// A human-readable representation of the variable.
     fn show(&self) -> String {
         "<variable>".to_string()
     }
@@ -28,8 +31,14 @@ pub trait Variable: Eq + Ord + Hash + Clone {
 
 /// An ADT for Operators.
 pub trait Operator: Eq + Hash + Clone {
+    /// Construct a new `Operator` that has not been used.
+    fn new_distinct<'a, T>(operators: T, arity: usize, name: Option<String>) -> Self
+    where
+        T: IntoIterator<Item = &'a Self>,
+        Self: 'a;
+    /// The number of arguments a particular operator takes.
     fn arity(&self) -> usize;
-    /// A human-readable representation of `self`.
+    /// A human-readable representation of the operator.
     fn show(&self) -> String {
         "<operator>".to_string()
     }
@@ -48,15 +57,8 @@ impl Op {
     pub fn new(id: DeBruijn, arity: usize, name: Option<String>) -> Op {
         Op { id, arity, name }
     }
-    pub fn new_distinct<'a, T>(ops: T, arity: usize, name: Option<String>) -> Op
-    where
-        T: IntoIterator<Item = &'a Op>,
-    {
-        let id = match ops.into_iter().map(|o| o.id).max() {
-            Some(n) => n + 1,
-            _ => 0,
-        };
-        Op { id, arity, name }
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_ref().map(|s| s.as_str())
     }
 }
 impl Hash for Op {
@@ -71,15 +73,25 @@ impl PartialEq for Op {
     }
 }
 impl Operator for Op {
+    fn new_distinct<'a, T>(ops: T, arity: usize, name: Option<String>) -> Op
+    where
+        T: IntoIterator<Item = &'a Op>,
+    {
+        let id = match ops.into_iter().map(|o| o.id).max() {
+            Some(n) => n + 1,
+            _ => 0,
+        };
+        Op { id, arity, name }
+    }
+    fn arity(&self) -> usize {
+        self.arity
+    }
     fn show(&self) -> String {
         if let Some(ref s) = self.name {
             s.clone()
         } else {
             format!("<op {}/{}>", self.id, self.arity)
         }
-    }
-    fn arity(&self) -> usize {
-        self.arity
     }
 }
 
@@ -95,9 +107,8 @@ impl Var {
     pub fn new(id: DeBruijn, name: Option<String>) -> Self {
         Var { id, name }
     }
-    pub fn named(mut self, name: String) -> Self {
-        self.name = Some(name);
-        self
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_ref().map(|s| s.as_str())
     }
 }
 impl Hash for Var {
@@ -121,11 +132,15 @@ impl PartialOrd for Var {
     }
 }
 impl Variable for Var {
-    fn next(other: Option<&Var>) -> Var {
-        Var {
-            id: other.map(|v| v.id + 1).unwrap_or(0),
-            name: None,
-        }
+    fn new_distinct<'a, T>(existing: T, name: Option<String>) -> Var
+    where
+        T: IntoIterator<Item = &'a Var>,
+    {
+        let id = match existing.into_iter().map(|o| o.id).max() {
+            Some(n) => n + 1,
+            _ => 0,
+        };
+        Var { id, name }
     }
     fn show(&self) -> String {
         if let Some(ref s) = self.name {
