@@ -91,9 +91,9 @@
 //! [4]: https://en.wikipedia.org/wiki/Rewriting
 //!      "Wikipedia - Rewriting"
 
+extern crate itertools;
 #[macro_use]
 extern crate nom;
-extern crate itertools;
 
 mod parser;
 pub mod types;
