@@ -91,7 +91,10 @@ impl Parser {
         if name == "" {
             None
         } else {
-            self.variables.iter().find(|&v| v.show() == name).cloned()
+            self.variables
+                .iter()
+                .find(|&v| v.name() == Some(name))
+                .cloned()
         }
     }
     /// Returns a [`Variable`] `v` where `v` has the lowest `id` of any [`Variable`] in
@@ -102,10 +105,7 @@ impl Parser {
         match self.has_var(name) {
             Some(v) => v,
             None => {
-                let v = Var::new(
-                    Var::new_id(&self.variables.iter().collect::<Vec<&Var>>()[..]),
-                    Some(name.to_string()),
-                );
+                let v = Var::new_distinct(&self.variables, Some(name.to_string()));
                 self.variables.push(v.clone());
                 v
             }
@@ -118,25 +118,21 @@ impl Parser {
     /// [`Some(v)`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.Some
     /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
     /// [`Operator`]: trait.Operator.html
-    pub fn has_op(&mut self, name: &str, arity: Arity_) -> Option<Op> {
+    pub fn has_op(&mut self, name: &str, arity: usize) -> Option<Op> {
         self.operators
             .iter()
-            .find(|&o| o.show() == name && o.arity() == arity)
+            .find(|&o| o.name() == Some(name) && o.arity() == arity)
             .cloned()
     }
     /// Returns an [`Operator`] `v` where `v` has the lowest `id` of any [`Operator`] in
     /// `self` named `name` with arity `arity`, creating this [`Operator`] if necessary.
     ///
     /// [`Operator`]: trait.Operator.html
-    pub fn get_op(&mut self, name: &str, arity: Arity_) -> Op {
+    pub fn get_op(&mut self, name: &str, arity: usize) -> Op {
         match self.has_op(name, arity) {
             Some(o) => o,
             None => {
-                let o = Op::new(
-                    Op::new_id(&self.operators.iter().collect::<Vec<&Op>>()[..]),
-                    arity,
-                    Some(name.to_string()),
-                );
+                let o = Op::new_distinct(&self.operators, arity, Some(name.to_string()));
                 self.operators.push(o.clone());
                 o
             }
@@ -158,7 +154,7 @@ impl Parser {
         mut self: Parser,
         input: CompleteStr<'b>,
         name: &str,
-        arity: Arity_,
+        arity: usize,
     ) -> (Self, IResult<CompleteStr<'b>, Op>) {
         let op = self.get_op(name, arity);
         (self, Ok((input, op)))
