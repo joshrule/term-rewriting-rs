@@ -507,12 +507,10 @@ mod tests {
             head: a,
             args: vec![],
         };
-        let rhs = vec![
-            Term::Application {
-                head: b,
-                args: vec![],
-            },
-        ];
+        let rhs = vec![Term::Application {
+            head: b,
+            args: vec![],
+        }];
         let rule = Statement::Rule(Rule::new(lhs, rhs).unwrap());
 
         assert_eq!(parsed_rule, Ok((CompleteStr(""), rule)));

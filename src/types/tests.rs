@@ -98,16 +98,14 @@ fn rule_is_valid_yes() {
         args: vec![],
     };
 
-    let rhs: Vec<Term<Var, Op>> = vec![
-        Term::Application {
-            head: Op {
-                arity: 0,
-                id: 1,
-                name: None,
-            },
-            args: vec![],
+    let rhs: Vec<Term<Var, Op>> = vec![Term::Application {
+        head: Op {
+            arity: 0,
+            id: 1,
+            name: None,
         },
-    ];
+        args: vec![],
+    }];
 
     assert!(Rule::is_valid(&lhs, &rhs));
 }
@@ -115,16 +113,14 @@ fn rule_is_valid_yes() {
 fn rule_is_valid_lhs_var() {
     let lhs = Term::Variable(Var { name: None, id: 0 });
 
-    let rhs = vec![
-        Term::Application {
-            head: Op {
-                arity: 0,
-                id: 1,
-                name: None,
-            },
-            args: vec![],
+    let rhs = vec![Term::Application {
+        head: Op {
+            arity: 0,
+            id: 1,
+            name: None,
         },
-    ];
+        args: vec![],
+    }];
 
     assert!(!Rule::is_valid(&lhs, &rhs));
 }
@@ -154,16 +150,14 @@ fn rule_new_some() {
         args: vec![],
     };
 
-    let rhs = vec![
-        Term::Application {
-            head: Op {
-                arity: 0,
-                id: 1,
-                name: None,
-            },
-            args: vec![],
+    let rhs = vec![Term::Application {
+        head: Op {
+            arity: 0,
+            id: 1,
+            name: None,
         },
-    ];
+        args: vec![],
+    }];
 
     let rule = Rule {
         lhs: lhs.clone(),
@@ -252,21 +246,19 @@ fn signature_parse() {
             Term::Variable(z.clone()),
         ],
     };
-    let s_rhs = vec![
-        Term::Application {
-            head: a.clone(),
-            args: vec![
-                Term::Application {
-                    head: a.clone(),
-                    args: vec![Term::Variable(x.clone()), Term::Variable(z.clone())],
-                },
-                Term::Application {
-                    head: a.clone(),
-                    args: vec![Term::Variable(y.clone()), Term::Variable(z.clone())],
-                },
-            ],
-        },
-    ];
+    let s_rhs = vec![Term::Application {
+        head: a.clone(),
+        args: vec![
+            Term::Application {
+                head: a.clone(),
+                args: vec![Term::Variable(x.clone()), Term::Variable(z.clone())],
+            },
+            Term::Application {
+                head: a.clone(),
+                args: vec![Term::Variable(y.clone()), Term::Variable(z.clone())],
+            },
+        ],
+    }];
     let s_rule = Rule::new(s_lhs, s_rhs).expect("new S rule");
 
     let k_lhs = Term::Application {
