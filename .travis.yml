@@ -17,10 +17,10 @@ matrix:
       env:
         - CLIPPY_VERSION=0.0.193
       before_script:
-        - cargo install rustfmt-nightly --force
+        - rustup component add rustfmt-preview
         - cargo install clippy --version $CLIPPY_VERSION || echo "clippy already installed"
       script:
-        - cargo fmt -- --write-mode=diff
+        - cargo fmt --all -- --write-mode=diff
         - cargo clippy
     - env: KCOV=1
       sudo: required # travis-ci/travis-ci#9061
