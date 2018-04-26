@@ -1,55 +1,48 @@
 use itertools::Itertools;
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::iter;
 
 use super::parser;
 
-/// Represents a human-assigned name.
-pub type Name_ = Option<String>;
-
 /// Represents a unique identity, a [DeBruijn Index].
 ///
 /// [DeBruijn Index]: https://en.wikipedia.org/wiki/De_Bruijn_index
 pub type DeBruijn = usize;
-
-/// Represents the number of arguments an [`Operator`] takes.
-///
-/// [`Operator`]: trait.Operator.html
-pub type Arity_ = usize;
 
 /// Represents a place in a [`Term`]
 ///
 /// [`Term`]: struct.Term.html
 pub type Place = Vec<usize>;
 
-/// A trait for things that act like symbols
-pub trait Symbol: Eq + Hash + Clone {
-    /// Each symbol must have a unique ID associated with it.
-    type ID;
-    /// Return a new `ID` distinct from any existing `ID`.
-    fn new_id(&[&Self]) -> Self::ID;
-    /// Return a human-readable representation of `self`.
-    fn show(&self) -> String;
-    /// Return the `ID` of `self`.
-    fn id(&self) -> Self::ID;
-}
-
-/// An interface for things with arities.
-pub trait Arity {
-    fn arity(&self) -> Arity_;
-}
-
-/// An interface for things with names.
-pub trait Name {
-    fn name(&self) -> Name_;
-}
-
 /// An ADT for Variables.
-pub trait Variable: Symbol {}
+pub trait Variable: Eq + Ord + Hash + Clone {
+    /// Construct a new `Variable` that has not been used.
+    fn new_distinct<'a, T>(existing: T, name: Option<String>) -> Self
+    where
+        T: IntoIterator<Item = &'a Self>,
+        Self: 'a;
+    /// A human-readable representation of the variable.
+    fn show(&self) -> String {
+        "<variable>".to_string()
+    }
+}
 
 /// An ADT for Operators.
-pub trait Operator: Symbol + Arity {}
+pub trait Operator: Eq + Hash + Clone {
+    /// Construct a new `Operator` that has not been used.
+    fn new_distinct<'a, T>(operators: T, arity: usize, name: Option<String>) -> Self
+    where
+        T: IntoIterator<Item = &'a Self>,
+        Self: 'a;
+    /// The number of arguments a particular operator takes.
+    fn arity(&self) -> usize;
+    /// A human-readable representation of the operator.
+    fn show(&self) -> String {
+        "<operator>".to_string()
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Atom<V: Variable, O: Operator> {
@@ -63,17 +56,15 @@ pub enum Atom<V: Variable, O: Operator> {
 #[derive(Debug, Clone, Eq)]
 pub struct Op {
     id: DeBruijn,
-    arity: Arity_,
-    name: Name_,
+    arity: usize,
+    name: Option<String>,
 }
 impl Op {
-    pub fn new(id: DeBruijn, arity: Arity_, name: Name_) -> Self {
+    pub fn new(id: DeBruijn, arity: usize, name: Option<String>) -> Op {
         Op { id, arity, name }
     }
-}
-impl Arity for Op {
-    fn arity(&self) -> Arity_ {
-        self.arity
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_ref().map(|s| s.as_str())
     }
 }
 impl Hash for Op {
@@ -82,34 +73,31 @@ impl Hash for Op {
         self.arity.hash(state);
     }
 }
-impl Name for Op {
-    fn name(&self) -> Name_ {
-        self.name.clone()
-    }
-}
-impl Operator for Op {}
 impl PartialEq for Op {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id && self.arity == other.arity
     }
 }
-impl Symbol for Op {
-    type ID = DeBruijn;
-    fn new_id(existing: &[&Self]) -> Self::ID {
-        match existing.iter().map(|o| o.id).max() {
+impl Operator for Op {
+    fn new_distinct<'a, T>(ops: T, arity: usize, name: Option<String>) -> Op
+    where
+        T: IntoIterator<Item = &'a Op>,
+    {
+        let id = match ops.into_iter().map(|o| o.id).max() {
             Some(n) => n + 1,
             _ => 0,
-        }
+        };
+        Op { id, arity, name }
+    }
+    fn arity(&self) -> usize {
+        self.arity
     }
     fn show(&self) -> String {
         if let Some(ref s) = self.name {
             s.clone()
         } else {
-            "".to_string()
+            format!("<op {}/{}>", self.id, self.arity)
         }
-    }
-    fn id(&self) -> Self::ID {
-        self.id
     }
 }
 
@@ -119,11 +107,14 @@ impl Symbol for Op {
 #[derive(Debug, Clone, Eq)]
 pub struct Var {
     id: DeBruijn,
-    name: Name_,
+    name: Option<String>,
 }
 impl Var {
-    pub fn new(id: DeBruijn, name: Name_) -> Self {
+    pub fn new(id: DeBruijn, name: Option<String>) -> Self {
         Var { id, name }
+    }
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_ref().map(|s| s.as_str())
     }
 }
 impl Hash for Var {
@@ -131,36 +122,40 @@ impl Hash for Var {
         self.id.hash(state);
     }
 }
-impl Name for Var {
-    fn name(&self) -> Name_ {
-        self.name.clone()
-    }
-}
 impl PartialEq for Var {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }
 }
-impl Symbol for Var {
-    type ID = DeBruijn;
-    fn new_id(existing: &[&Self]) -> Self::ID {
-        match existing.iter().map(|v| v.id).max() {
+impl Ord for Var {
+    fn cmp(&self, other: &Var) -> Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+impl PartialOrd for Var {
+    fn partial_cmp(&self, other: &Var) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Variable for Var {
+    fn new_distinct<'a, T>(existing: T, name: Option<String>) -> Var
+    where
+        T: IntoIterator<Item = &'a Var>,
+    {
+        let id = match existing.into_iter().map(|o| o.id).max() {
             Some(n) => n + 1,
             _ => 0,
-        }
+        };
+        Var { id, name }
     }
     fn show(&self) -> String {
         if let Some(ref s) = self.name {
             s.clone()
         } else {
-            "".to_string()
+            format!("<var {}>", self.id)
         }
     }
-    fn id(&self) -> Self::ID {
-        self.id
-    }
 }
-impl Variable for Var {}
 
 /// A way of signifying what type of unification is being performed
 #[derive(PartialEq, Eq)]

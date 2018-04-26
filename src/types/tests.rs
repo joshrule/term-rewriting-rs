@@ -46,10 +46,10 @@ fn variable_show() {
         name: Some("blah".to_string()),
     };
 
-    assert_eq!(v1.show(), "".to_string());
-    assert_ne!(v1.show(), "blah".to_string());
-    assert_ne!(v2.show(), "".to_string());
+    assert_eq!(v1.show(), "<var 7>".to_string());
+    assert_eq!(v1.name(), None);
     assert_eq!(v2.show(), "blah".to_string());
+    assert_eq!(v2.name(), Some("blah"));
 }
 #[test]
 fn variable_eq() {
