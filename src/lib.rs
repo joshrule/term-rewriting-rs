@@ -8,45 +8,48 @@
 //!
 //! # fn main() {
 //! // We can parse a string representation of SK combinatory logic,
+//! let mut sig = Signature::default();
 //! let sk_rules = "S x_ y_ z_ = (x_ z_) (y_ z_); K x_ y_ = x_;";
-//! let parsed_trs = parse_trs(&vec![], sk_rules).expect("parsed TRS");
+//! let trs = parse_trs(&mut sig, sk_rules).expect("parsed TRS");
 //!
 //! // and we can also parse an arbitrary term.
+//! let mut sig = Signature::default();
 //! let term = "S K K (K S K)";
-//! let parsed_term = parse_term(&vec![], term).expect("parsed term");
+//! let parsed_term = parse_term(&mut sig, term).expect("parsed term");
 //!
-//! // These can also be constructed by hand. Let's look at the term:
-//! let app = Op::new(0, 2, Some(".".to_string()));
-//! let s = Op::new(1, 0, Some("S".to_string()));
-//! let k = Op::new(2, 0, Some("K".to_string()));
+//! // These can also be constructed by hand.
+//! let mut sig = Signature::default();
+//! let app = sig.new_op(2, Some(".".to_string()));
+//! let s = sig.new_op(0, Some("S".to_string()));
+//! let k = sig.new_op(0, Some("K".to_string()));
 //!
 //! let constructed_term = Term::Application {
-//!     head: app.clone(),
+//!     op: app,
 //!     args: vec![
 //!         Term::Application {
-//!             head: app.clone(),
+//!             op: app,
 //!             args: vec![
 //!                 Term::Application {
-//!                     head: app.clone(),
+//!                     op: app,
 //!                     args: vec![
-//!                         Term::Application { head: s.clone(), args: vec![] },
-//!                         Term::Application { head: k.clone(), args: vec![] },
+//!                         Term::Application { op: s, args: vec![] },
+//!                         Term::Application { op: k, args: vec![] },
 //!                     ]
 //!                 },
-//!                 Term::Application { head: k.clone(), args: vec![] }
+//!                 Term::Application { op: k, args: vec![] }
 //!             ]
 //!         },
 //!         Term::Application {
-//!             head: app.clone(),
+//!             op: app,
 //!             args: vec![
 //!                 Term::Application {
-//!                     head: app.clone(),
+//!                     op: app,
 //!                     args: vec![
-//!                         Term::Application { head: k.clone(), args: vec![] },
-//!                         Term::Application { head: s.clone(), args: vec![] },
+//!                         Term::Application { op: k, args: vec![] },
+//!                         Term::Application { op: s, args: vec![] },
 //!                     ]
 //!                 },
-//!                 Term::Application { head: k.clone(), args: vec![] }
+//!                 Term::Application { op: k, args: vec![] }
 //!             ]
 //!         }
 //!     ]

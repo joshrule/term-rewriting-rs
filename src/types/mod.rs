@@ -1,159 +1,296 @@
 use itertools::Itertools;
-use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
-use std::hash::{Hash, Hasher};
 use std::iter;
 
 use super::parser;
 
-/// Represents a unique identity, a [DeBruijn Index].
-///
-/// [DeBruijn Index]: https://en.wikipedia.org/wiki/De_Bruijn_index
-pub type DeBruijn = usize;
-
-/// Represents a place in a [`Term`]
-///
-/// [`Term`]: struct.Term.html
-pub type Place = Vec<usize>;
-
-/// An ADT for Variables.
-pub trait Variable: Eq + Ord + Hash + Clone {
-    /// Construct a new `Variable` that has not been used.
-    fn new_distinct<'a, T>(existing: T, name: Option<String>) -> Self
-    where
-        T: IntoIterator<Item = &'a Self>,
-        Self: 'a;
-    /// A human-readable representation of the variable.
-    fn show(&self) -> String {
-        "<variable>".to_string()
-    }
-}
-
-/// An ADT for Operators.
-pub trait Operator: Eq + Hash + Clone {
-    /// Construct a new `Operator` that has not been used.
-    fn new_distinct<'a, T>(operators: T, arity: usize, name: Option<String>) -> Self
-    where
-        T: IntoIterator<Item = &'a Self>,
-        Self: 'a;
-    /// The number of arguments a particular operator takes.
-    fn arity(&self) -> usize;
-    /// A human-readable representation of the operator.
-    fn show(&self) -> String {
-        "<operator>".to_string()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Atom<V: Variable, O: Operator> {
-    Variable(V),
-    Operator(O),
-}
-
-/// Represents a symbol with fixed [`Arity`].
-///
-/// [`Arity`]: type.Arity_.html
-#[derive(Debug, Clone, Eq)]
-pub struct Op {
-    id: DeBruijn,
-    arity: usize,
-    name: Option<String>,
-}
-impl Op {
-    pub fn new(id: DeBruijn, arity: usize, name: Option<String>) -> Op {
-        Op { id, arity, name }
-    }
-    pub fn name(&self) -> Option<&str> {
-        self.name.as_ref().map(|s| s.as_str())
-    }
-}
-impl Hash for Op {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-        self.arity.hash(state);
-    }
-}
-impl PartialEq for Op {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id && self.arity == other.arity
-    }
-}
-impl Operator for Op {
-    fn new_distinct<'a, T>(ops: T, arity: usize, name: Option<String>) -> Op
-    where
-        T: IntoIterator<Item = &'a Op>,
-    {
-        let id = match ops.into_iter().map(|o| o.id).max() {
-            Some(n) => n + 1,
-            _ => 0,
-        };
-        Op { id, arity, name }
-    }
-    fn arity(&self) -> usize {
-        self.arity
-    }
-    fn show(&self) -> String {
-        if let Some(ref s) = self.name {
-            s.clone()
-        } else {
-            format!("<op {}/{}>", self.id, self.arity)
-        }
-    }
-}
-
-/// Represents a symbol signifying an unspecified [`Term`].
+/// Represents a place in a [`Term`].
 ///
 /// [`Term`]: enum.Term.html
-#[derive(Debug, Clone, Eq)]
-pub struct Var {
-    id: DeBruijn,
-    name: Option<String>,
+pub type Place = Vec<usize>;
+
+/// A symbol for an unspecified term. Only carries meaning alongside a [`Signature`].
+///
+/// To construct an [`Variable`], use [`Signature::new_var`]
+///
+/// [`Signature`]: struct.Signature.html
+/// [`Variable`]: struct.Variable.html
+/// [`Signature::new_var`]: struct.Signature.html#method.new_var
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct Variable {
+    pub(crate) id: usize,
 }
-impl Var {
-    pub fn new(id: DeBruijn, name: Option<String>) -> Self {
-        Var { id, name }
+impl Variable {
+    pub fn name<'sig>(&self, sig: &'sig Signature) -> Option<&'sig str> {
+        let opt = &sig.variables[self.id];
+        opt.as_ref().map(|s| s.as_str())
     }
-    pub fn name(&self) -> Option<&str> {
-        self.name.as_ref().map(|s| s.as_str())
-    }
-}
-impl Hash for Var {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-    }
-}
-impl PartialEq for Var {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-impl Ord for Var {
-    fn cmp(&self, other: &Var) -> Ordering {
-        self.id.cmp(&other.id)
-    }
-}
-impl PartialOrd for Var {
-    fn partial_cmp(&self, other: &Var) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl Variable for Var {
-    fn new_distinct<'a, T>(existing: T, name: Option<String>) -> Var
-    where
-        T: IntoIterator<Item = &'a Var>,
-    {
-        let id = match existing.into_iter().map(|o| o.id).max() {
-            Some(n) => n + 1,
-            _ => 0,
-        };
-        Var { id, name }
-    }
-    fn show(&self) -> String {
-        if let Some(ref s) = self.name {
-            s.clone()
+    pub fn display(&self, sig: &Signature) -> String {
+        if let Some(ref name) = sig.variables[self.id] {
+            name.clone()
         } else {
             format!("<var {}>", self.id)
         }
+    }
+}
+
+/// A symbol with fixed arity. Only carries meaning alongside a [`Signature`].
+///
+/// To construct an [`Operator`], use [`Signature::new_op`]
+///
+/// [`Signature`]: struct.Signature.html
+/// [`Operator`]: struct.Operator.html
+/// [`Signature::new_op`]: struct.Signature.html#method.new_op
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct Operator {
+    pub(crate) id: usize,
+}
+impl Operator {
+    pub fn arity(&self, sig: &Signature) -> u32 {
+        sig.operators[self.id].0
+    }
+    pub fn name<'sig>(&self, sig: &'sig Signature) -> Option<&'sig str> {
+        let opt = &sig.operators[self.id].1;
+        opt.as_ref().map(|s| s.as_str())
+    }
+    pub fn display(&self, sig: &Signature) -> String {
+        if let (_, Some(ref name)) = sig.operators[self.id] {
+            name.clone()
+        } else {
+            format!("<op {}>", self.id)
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Atom {
+    Variable(Variable),
+    Operator(Operator),
+}
+impl From<Variable> for Atom {
+    fn from(var: Variable) -> Atom {
+        Atom::Variable(var)
+    }
+}
+impl From<Operator> for Atom {
+    fn from(op: Operator) -> Atom {
+        Atom::Operator(op)
+    }
+}
+
+/// Records a universe of symbols.
+///
+/// Use [`Signature::default`] for a blank signature, or [`Signature::new`] to initialize a
+/// signature with given operators.
+///
+/// [`Signature::default`]: #method.default
+/// [`Signature::new`]: #method.new
+#[derive(Clone, Debug)]
+pub struct Signature {
+    /// Stores the (arity, name) for every operator.
+    pub(crate) operators: Vec<(u32, Option<String>)>,
+    /// Stores the name for every variable.
+    pub(crate) variables: Vec<Option<String>>,
+}
+impl Signature {
+    /// Construct a signature with the given operators.
+    ///
+    /// Each operator is specified in the form of `(arity, Some(name))` or
+    /// `(arity, None)`, where `arity` is the number of arguments a term takes
+    /// (for example, an `arity` of 0 gives a "constant" operator). A `name` for
+    /// the operator is unnecessary, but may be supplied for more readable
+    /// formatting.
+    ///
+    /// The returned vector of [`Operator`]s corresponds to the supplied spec.
+    ///
+    /// [`Operator`]: struct.Operator.html
+    pub fn new(operator_spec: Vec<(u32, Option<String>)>) -> (Signature, Vec<Operator>) {
+        let variables = Vec::new();
+        let sig = Signature {
+            operators: operator_spec,
+            variables,
+        };
+        let ops = sig.operators();
+        (sig, ops)
+    }
+    /// Returns every [`Operator`] known to the signature, in the order they were created.
+    ///
+    /// [`Operator`]: struct.Operator.html
+    pub fn operators(&self) -> Vec<Operator> {
+        (0..self.operators.len())
+            .map(|id| Operator { id })
+            .collect()
+    }
+    /// Returns every [`Variable`] known to the signature, in the order they were created.
+    ///
+    /// [`Variable`]: struct.Variable.html
+    pub fn variables(&self) -> Vec<Variable> {
+        (0..self.variables.len())
+            .map(|id| Variable { id })
+            .collect()
+    }
+    /// Create a new [`Operator`] distinct from all existing operators.
+    ///
+    /// [`Operator`]: struct.Operator.html
+    pub fn new_op(&mut self, arity: u32, name: Option<String>) -> Operator {
+        let id = self.operators.len();
+        self.operators.push((arity, name));
+        Operator { id }
+    }
+    /// Create a new [`Variable`] distinct from all existing variables.
+    ///
+    /// [`Variable`]: struct.Variable.html
+    pub fn new_var(&mut self, name: Option<String>) -> Variable {
+        let id = self.variables.len();
+        self.variables.push(name);
+        Variable { id }
+    }
+    /// Merge two signatures. All terms, contexts, rules, and TRSs associated
+    /// with the `other` signature should be `reified` using methods provided
+    /// by the returned [`SignatureChange`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::types::{MergeStrategy, Signature, parse_term, parse_trs};
+    /// let (mut sig1, _ops) = Signature::new(vec![
+    ///     (2, Some(".".to_string())),
+    ///     (0, Some("S".to_string())),
+    ///     (0, Some("K".to_string())),
+    /// ]);
+    /// let mut sig2 = sig1.clone();
+    ///
+    /// let s1 = "S K K";
+    /// let term = parse_term(&mut sig1, s1).unwrap();
+    /// let s2 = "S x_ y_ z_ = (x_ z_) (y_ z_);";
+    /// let trs = parse_trs(&mut sig2, s2).unwrap();
+    ///
+    /// let sigchange = sig1.merge(sig2, MergeStrategy::SameOperators);
+    /// // we only reify terms/rules/TRSs associated with sig2
+    /// let trs = sigchange.reify_trs(trs);
+    /// // now term and rule both exist with symbols according to sig1.
+    /// ```
+    ///
+    /// [`SignatureChange`]: struct.SignatureChange.html
+    pub fn merge(&mut self, mut other: Signature, strategy: MergeStrategy) -> SignatureChange {
+        let delta_op = match strategy {
+            MergeStrategy::SameOperators => 0,
+            MergeStrategy::OperatorsByArityAndName => {
+                let old_len = self.operators.len();
+                for op_spec in other.operators {
+                    if !self.operators.contains(&op_spec) {
+                        self.operators.push(op_spec)
+                    }
+                }
+                old_len
+            }
+            MergeStrategy::DistinctOperators => {
+                let old_len = self.operators.len();
+                self.operators.append(&mut other.operators);
+                old_len
+            }
+        };
+        let delta_var = self.variables.len();
+        self.variables.append(&mut other.variables);
+        SignatureChange {
+            delta_op,
+            delta_var,
+        }
+    }
+}
+impl Default for Signature {
+    fn default() -> Signature {
+        Signature {
+            operators: Vec::new(),
+            variables: Vec::new(),
+        }
+    }
+}
+impl PartialEq for Signature {
+    fn eq(&self, other: &Signature) -> bool {
+        self.variables.len() == other.variables.len()
+            && self.operators.len() == other.operators.len()
+            && self.operators
+                .iter()
+                .zip(&other.operators)
+                .all(|(&(arity1, _), &(arity2, _))| arity1 == arity2)
+    }
+}
+
+/// Specifies how to merge two signatures.
+/// See [`Signature::merge`].
+///
+/// [`Signature::merge`]: struct.Signature.html#method.merge
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum MergeStrategy {
+    /// Operators won't be added to the signature:
+    /// this must mean all operators were added in the same order for both
+    /// signatures.
+    SameOperators,
+    /// Operators are added to the signature only when there is no existing
+    /// operator with the same arity and name.
+    OperatorsByArityAndName,
+    /// Operators are always added distinctly:
+    /// no operators associated with the first signature will every equate to
+    /// those associated with the second signature.
+    DistinctOperators,
+}
+
+/// Allows terms/rules/TRSs to be reified for use with another signature.
+/// See [`Signature::merge`].
+///
+/// [`Signature::merge`]: struct.Signature.html#method.merge
+pub struct SignatureChange {
+    delta_op: usize,
+    delta_var: usize,
+}
+impl SignatureChange {
+    pub fn reify_term(&self, term: Term) -> Term {
+        match term {
+            Term::Variable(Variable { id }) => {
+                let id = id + self.delta_var;
+                Term::Variable(Variable { id })
+            }
+            Term::Application {
+                op: Operator { id },
+                args,
+            } => {
+                let id = id + self.delta_op;
+                Term::Application {
+                    op: Operator { id },
+                    args: args.into_iter().map(|t| self.reify_term(t)).collect(),
+                }
+            }
+        }
+    }
+    pub fn reify_context(&self, context: Context) -> Context {
+        match context {
+            Context::Hole => Context::Hole,
+            Context::Variable(Variable { id }) => {
+                let id = id + self.delta_var;
+                Context::Variable(Variable { id })
+            }
+            Context::Application {
+                op: Operator { id },
+                args,
+            } => {
+                let id = id + self.delta_op;
+                Context::Application {
+                    op: Operator { id },
+                    args: args.into_iter().map(|t| self.reify_context(t)).collect(),
+                }
+            }
+        }
+    }
+    pub fn reify_rule(&self, rule: Rule) -> Rule {
+        let Rule { lhs, rhs } = rule;
+        let lhs = self.reify_term(lhs);
+        let rhs = rhs.into_iter().map(|t| self.reify_term(t)).collect();
+        Rule { lhs, rhs }
+    }
+    pub fn reify_trs(&self, trs: TRS) -> TRS {
+        let rules = trs.rules.into_iter().map(|r| self.reify_rule(r)).collect();
+        TRS { rules }
     }
 }
 
@@ -164,29 +301,22 @@ enum Unification {
     Unify,
 }
 
-/// Represents a first-order context: either a [`Variable`], a [`Hole`] or an
-/// [`Application`] of an [`Operator`] to [`Context`]s.
+/// A first-order context: a [`Term`] that may have [`Hole`]s.
 ///
-/// [`Variable`]: enum.Term.html#variant.Variable
-/// [`Hole`]: enum.Term.html#variant.Hole
-/// [`Application`]: enum.Term.html#variant.Application
-/// [`Operator`]: trait.Operator.html
 /// [`Term`]: enum.Term.html
+/// [`Hole`]: enum.Context.html#variant.Hole
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum Context<V: Variable, O: Operator> {
-    /// Represents a concrete but unspecified [`Context`] (e.g. `x`, `y`)
-    ///
-    /// [`Context`]: enum.Context.html
-    Variable(V),
-    /// Represents an empty place in the `Context`.
+pub enum Context {
+    /// An empty place in the `Context`.
     Hole,
-    /// Represents an [`Operator`] applied to zero or more [`Context`s] (e.g. (`f(x, y)`, `g()`)
+    /// A concrete but unspecified `Context` (e.g. `x`, `y`)
+    Variable(Variable),
+    /// An [`Operator`] applied to zero or more `Context`s (e.g. (`f(x, y)`, `g()`)
     ///
-    /// [`Operator`]: trait.Operator.html
-    /// [`Context`s]: enum.Context.html
-    Application { head: O, args: Vec<Context<V, O>> },
+    /// [`Operator`]: struct.Operator.html
+    Application { op: Operator, args: Vec<Context> },
 }
-impl<V: Variable, O: Operator> Context<V, O> {
+impl Context {
     // takes in a term, returns a list of Terms fitting self's holes.
     //
     // pub fn prefix(&self, t: Term<V, O>) -> Option<Vec<Term<V, O>>>
@@ -195,270 +325,230 @@ impl<V: Variable, O: Operator> Context<V, O> {
     //
     // pub fn slice(&self, c: Context<V, O>, t: Term<V, O>) -> Option<Vec<Term<V, O>>>
 }
-impl<V: Variable, O: Operator> From<Term<V, O>> for Context<V, O> {
-    fn from(t: Term<V, O>) -> Self {
+impl From<Term> for Context {
+    fn from(t: Term) -> Context {
         match t {
             Term::Variable(v) => Context::Variable(v),
-            Term::Application { head, args } => {
+            Term::Application { op, args } => {
                 let args = args.into_iter().map(Context::from).collect();
-                Context::Application { head, args }
+                Context::Application { op, args }
             }
         }
     }
 }
 
-/// Represents a first-order term: either a [`Variable`] or an [`Application`]
-/// of an [`Operator`] to [`Term`]s
+/// A first-order term: either a [`Variable`] or an application of an [`Operator`].
 ///
-/// [`Variable`]: trait.Variable.html
-/// [`Application`]: enum.Term.html#variant.Application
-/// [`Operator`]: trait.Operator.html
-/// [`Term`]: enum.Term.html
+/// [`Variable`]: struct.Variable.html
+/// [`Operator`]: struct.Operator.html
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum Term<V: Variable, O: Operator> {
-    /// A concrete but unspecified [`Term<V,O>`] (e.g. `x`, `y`)
+pub enum Term {
+    /// A concrete but unspecified `Term` (e.g. `x`, `y`)
+    Variable(Variable),
+    /// An [`Operator`] applied to zero or more `Term`s (e.g. (`f(x, y)`, `g()`)
     ///
-    /// [`Term<V,O>`]: enum.Term.html
-    Variable(V),
-    /// some [`Operator`] applied to zero or more [`Term<V,O>`s] (e.g. (`f(x, y)`, `g()`)
-    ///
-    /// [`Operator`]: trait.Operator.html
-    /// [`Term<V,O>`s]: enum.Term.html
-    Application { head: O, args: Vec<Term<V, O>> },
+    /// [`Operator`]: struct.Operator.html
+    Application { op: Operator, args: Vec<Term> },
 }
-impl<V: Variable, O: Operator> Term<V, O> {
-    /// Return a [`Vec`] referencing every [`Variable`] in `self`.
+impl Term {
+    /// Every [`Variable`] used in the term.
     ///
-    /// [`Vec`]: https://doc.rust-lang.org/std/vec/struct.Vec.html
-    /// [`Variable`]: trait.Variable.html
-    pub fn variables(&self) -> Vec<&V> {
+    /// [`Variable`]: struct.Variable.html
+    pub fn variables(&self) -> Vec<Variable> {
         match *self {
-            Term::Variable(ref v) => vec![v],
+            Term::Variable(v) => vec![v],
             Term::Application { ref args, .. } => {
-                args.iter().flat_map(|x| x.variables()).unique().collect()
+                args.iter().flat_map(Term::variables).unique().collect()
             }
         }
     }
-    /// Return a [`Vec`] referencing every [`Operator`] in `self`.
+    /// Every [`Operator`] used in the term.
     ///
-    /// [`Vec`]: https://doc.rust-lang.org/std/vec/struct.Vec.html
     /// [`Operator`]: struct.Operator.html
-    pub fn operators(&self) -> Vec<&O> {
+    pub fn operators(&self) -> Vec<Operator> {
         match *self {
             Term::Variable(_) => vec![],
-            Term::Application { ref head, ref args } => args.iter()
-                .flat_map(|x| x.operators())
-                .chain(iter::once(head))
+            Term::Application { op, ref args } => args.iter()
+                .flat_map(Term::operators)
+                .chain(iter::once(op))
                 .unique()
                 .collect(),
         }
     }
-    /// Return a [`Vec`] containing every [`Place`] in `self`.
-    ///
-    /// [`Vec`]: https://doc.rust-lang.org/std/vec/struct.Vec.html
-    /// [`Place`]: type.Place.html
-    pub fn places(&self) -> Vec<Place> {
+    /// Every subterm and its place, starting with the original term itself.
+    pub fn subterms(&self) -> Vec<(&Term, Place)> {
         match *self {
-            Term::Variable(_) => vec![vec![]],
+            Term::Variable(_) => vec![(self, vec![])],
             Term::Application { ref args, .. } => {
-                let here = iter::once(vec![]);
-                let subplaces = args.iter().enumerate().flat_map(|(i, arg)| {
-                    arg.places()
+                let here = iter::once((self, vec![]));
+                let subterms = args.iter().enumerate().flat_map(|(i, arg)| {
+                    arg.subterms()
                         .into_iter()
                         .zip(iter::repeat(i))
-                        .map(|(p, ii)| {
-                            let mut a = vec![ii];
+                        .map(|((t, p), i)| {
+                            let mut a = vec![i];
                             a.extend(p);
-                            a
+                            (t, a)
                         })
                 });
-                here.chain(subplaces).collect()
-            }
-        }
-    }
-    /// Return a [`Vec`] referencing every [`Term`] in `self`.
-    ///
-    /// [`Vec`]: https://doc.rust-lang.org/std/vec/struct.Vec.html
-    /// [`Term`]: enum.Term.html
-    pub fn subterms(&self) -> Vec<&Term<V, O>> {
-        match *self {
-            Term::Variable(_) => vec![self],
-            Term::Application { ref args, .. } => {
-                let here = iter::once(self);
-                let subterms = args.iter().flat_map(|a| a.subterms());
                 here.chain(subterms).collect()
             }
         }
     }
-    /// Return [`Some(t)`] if `t` is the subterm at [`Place`] `place`, else [`None`].
+    /// Get the subterm at the given [`Place`], or `None` if the place does not exist in the term.
     ///
-    /// [`Some(t)`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.Some
     /// [`Place`]: type.Place.html
-    /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
-    pub fn at(&self, place: &[usize]) -> Option<&Term<V, O>> {
+    #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
+    pub fn at(&self, place: &Place) -> Option<&Term> {
+        self.at_helper(&*place)
+    }
+    fn at_helper(&self, place: &[usize]) -> Option<&Term> {
         if place.is_empty() {
             Some(self)
         } else {
             match *self {
                 Term::Variable(_) => None,
                 Term::Application { ref args, .. } => if place[0] <= args.len() {
-                    args[place[0]].at(&place[1..].to_vec())
+                    args[place[0]].at_helper(&place[1..].to_vec())
                 } else {
                     None
                 },
             }
         }
     }
-    /// Return a [`some(term)`], where is a copy of `self` where the [`Term`]
-    /// at [`Place`] `place` has been replaced with `subterm`, otherwise
-    /// [`None`].
+    /// Create a copy of `self` where the term at the given [`Place`] has been replaced with
+    /// `subterm`.
     ///
-    /// [`Some(term)`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.Some
     /// [`Place`]: type.Place.html
-    /// [`Term`]: enum.Term.html
-    /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
-    pub fn replace(&self, place: &[usize], subterm: Term<V, O>) -> Option<Term<V, O>> {
+    #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
+    pub fn replace(&self, place: &Place, subterm: Term) -> Option<Term> {
+        self.replace_helper(&*place, subterm)
+    }
+    fn replace_helper(&self, place: &[usize], subterm: Term) -> Option<Term> {
         if place.is_empty() {
             Some(subterm)
         } else {
             match *self {
-                Term::Variable(_) => None,
-                Term::Application { ref head, ref args } => if place[0] <= args.len() {
-                    if let Some(term) = args[place[0]].replace(&place[1..].to_vec(), subterm) {
+                Term::Application { op, ref args } if place[0] <= args.len() => {
+                    if let Some(term) = args[place[0]].replace_helper(&place[1..].to_vec(), subterm)
+                    {
                         let mut new_args = args.clone();
                         new_args.remove(place[0]);
                         new_args.insert(place[0], term);
-                        Some(Term::Application {
-                            head: head.clone(),
-                            args: new_args,
-                        })
+                        Some(Term::Application { op, args: new_args })
                     } else {
                         None
                     }
-                } else {
-                    None
-                },
+                }
+                _ => None,
             }
         }
     }
-    /// Return a [`Vec`] referencing every unbound [`Variable`] that occurs in `self`.
+    /// Given a mapping from [`Variable`]s to [`Term`]s, perform a substitution.
     ///
-    /// [`Vec`]: https://doc.rust-lang.org/std/vec/struct.Vec.html
-    /// [`Variable`]: trait.Variable.html
-    pub fn free_vars(&self) -> Vec<&V> {
-        self.variables()
-    }
-    /// Given a mapping from [`Variable`s] to [`Term`s], perform a substitution on a [`Term`].
-    ///
-    /// [`Variable`s]: trait.Variable.html
-    /// [`Term`s]: enum.Term.html
+    /// [`Variable`]: struct.Variable.html
     /// [`Term`]: enum.Term.html
-    pub fn substitute(&self, sub: &HashMap<V, Term<V, O>>) -> Term<V, O> {
+    pub fn substitute(&self, sub: &HashMap<Variable, Term>) -> Term {
         match *self {
             Term::Variable(ref v) => sub.get(v).unwrap_or(self).clone(),
-            Term::Application { ref head, ref args } => Term::Application {
-                head: head.clone(),
-                args: args.iter().map(|x| x.substitute(sub)).collect(),
+            Term::Application { op, ref args } => Term::Application {
+                op,
+                args: args.iter().map(|t| t.substitute(sub)).collect(),
             },
         }
     }
     /// Take a vector of pairs of terms and perform a substitution on each term.
     fn constraint_substitute(
-        cs: &[(Term<V, O>, Term<V, O>)],
-        sub: &HashMap<V, Term<V, O>>,
-    ) -> Vec<(Term<V, O>, Term<V, O>)> {
+        cs: &[(Term, Term)],
+        sub: &HashMap<Variable, Term>,
+    ) -> Vec<(Term, Term)> {
         cs.iter()
             .map(|&(ref s, ref t)| (s.substitute(sub), t.substitute(sub)))
             .collect()
     }
     /// Compose two substitutions.
     fn compose(
-        sub1: Option<HashMap<V, Term<V, O>>>,
-        sub2: Option<HashMap<V, Term<V, O>>>,
-    ) -> Option<HashMap<V, Term<V, O>>> {
+        sub1: Option<HashMap<Variable, Term>>,
+        sub2: Option<HashMap<Variable, Term>>,
+    ) -> Option<HashMap<Variable, Term>> {
         match (sub1, sub2) {
-            (Some(ref s1), Some(ref s2)) => {
-                let mut sub = s1.clone();
+            (Some(mut s1), Some(s2)) => {
                 for (k, v) in s2 {
-                    sub.insert(k.clone(), v.substitute(s1));
+                    let v = v.substitute(&s1);
+                    s1.insert(k, v);
                 }
-                Some(sub)
+                Some(s1)
             }
             _ => None,
         }
     }
-    /// Given two terms, return `true` if they are [alpha equivalent], else `false`.
+    /// Whether two terms are [alpha equivalent].
     ///
     /// [alpha equivalent]: https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
-    pub fn alpha_equivalent(t1: &Term<V, O>, t2: &Term<V, O>) -> bool {
+    pub fn alpha_equivalent(t1: &Term, t2: &Term) -> bool {
         Term::pmatch(vec![(t1.clone(), t2.clone())]).is_some()
             && Term::pmatch(vec![(t2.clone(), t1.clone())]).is_some()
     }
-    pub fn shape_equivalent(t1: &Term<V, O>, t2: &Term<V, O>) -> bool {
+    pub fn shape_equivalent(t1: &Term, t2: &Term) -> bool {
         let mut vmap = HashMap::new();
         let mut omap = HashMap::new();
         Term::se_helper(t1, t2, &mut vmap, &mut omap)
     }
-    pub fn se_helper(
-        t1: &Term<V, O>,
-        t2: &Term<V, O>,
-        vmap: &mut HashMap<V, V>,
-        omap: &mut HashMap<O, O>,
+    fn se_helper(
+        t1: &Term,
+        t2: &Term,
+        vmap: &mut HashMap<Variable, Variable>,
+        omap: &mut HashMap<Operator, Operator>,
     ) -> bool {
         match (t1, t2) {
-            (&Term::Variable(ref v1), &Term::Variable(ref v2)) => {
-                v2 == vmap.entry(v1.clone()).or_insert_with(|| v2.clone())
-            }
+            (&Term::Variable(v1), &Term::Variable(v2)) => v2 == *vmap.entry(v1).or_insert(v2),
             (
                 &Term::Application {
-                    head: ref h1,
-                    args: ref as1,
+                    op: op1,
+                    args: ref args1,
                 },
                 &Term::Application {
-                    head: ref h2,
-                    args: ref as2,
+                    op: op2,
+                    args: ref args2,
                 },
             ) => {
-                h2 == omap.entry(h1.clone()).or_insert_with(|| h2.clone())
-                    && as1.iter()
-                        .zip(as2.iter())
+                op2 == *omap.entry(op1).or_insert(op2)
+                    && args1
+                        .into_iter()
+                        .zip(args2)
                         .all(|(a1, a2)| Term::se_helper(a1, a2, vmap, omap))
             }
             _ => false,
         }
     }
-    /// Given a vector of contraints, return [`Some(sigma)`] if the constraints
-    /// can be satisfied, where `sigma` is a substitution, otherwise [`None`].
-    ///
-    /// [`Some(sigma)`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.Some
-    /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
-    pub fn pmatch(cs: Vec<(Term<V, O>, Term<V, O>)>) -> Option<HashMap<V, Term<V, O>>> {
+    /// Given a vector of contraints, return a substitution which satisfies the constrants.
+    /// If the constraints are not satisfiable, `None` is retuned. Constraints are in the form of
+    /// patterns, where substitutions are only considered for variables in the first term of each
+    /// pair.
+    pub fn pmatch(cs: Vec<(Term, Term)>) -> Option<HashMap<Variable, Term>> {
         Term::unify_internal(cs, Unification::Match)
     }
-    /// Given a vector of contraints, return [`Some(sigma)`] if the constraints
-    /// can be satisfied, where `sigma` is a substitution, otherwise [`None`].
-    ///
-    /// [`Some(sigma)`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.Some
-    /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
-    pub fn unify(cs: Vec<(Term<V, O>, Term<V, O>)>) -> Option<HashMap<V, Term<V, O>>> {
+    /// Given a vector of contraints, return a substitution which satisfies the constrants.
+    /// If the constraints are not satisfiable, `None` is retuned.
+    pub fn unify(cs: Vec<(Term, Term)>) -> Option<HashMap<Variable, Term>> {
         Term::unify_internal(cs, Unification::Unify)
     }
     /// the internal implementation of unify and match.
     fn unify_internal(
-        mut cs: Vec<(Term<V, O>, Term<V, O>)>,
+        mut cs: Vec<(Term, Term)>,
         utype: Unification,
-    ) -> Option<HashMap<V, Term<V, O>>> {
+    ) -> Option<HashMap<Variable, Term>> {
         let c = cs.pop();
         match c {
             None => Some(HashMap::new()),
             Some((ref s, ref t)) if s == t => Term::unify_internal(cs, utype),
             Some((
                 Term::Application {
-                    head: ref h1,
+                    op: h1,
                     args: ref a1,
                 },
                 Term::Application {
-                    head: ref h2,
+                    op: h2,
                     args: ref a2,
                 },
             )) if h1 == h2 =>
@@ -466,17 +556,17 @@ impl<V: Variable, O: Operator> Term<V, O> {
                 cs.append(&mut a1.clone().into_iter().zip(a2.clone().into_iter()).collect());
                 Term::unify_internal(cs, utype)
             }
-            Some((Term::Variable(ref var), ref t)) if !Term::free_vars(t).contains(&var) => {
+            Some((Term::Variable(var), ref t)) if !t.variables().contains(&&var) => {
                 let mut st = HashMap::new();
-                st.insert(var.clone(), t.clone());
+                st.insert(var, t.clone());
                 let mut cs = Term::constraint_substitute(&cs, &st);
                 Term::compose(Term::unify_internal(cs, utype), Some(st))
             }
-            Some((ref s, Term::Variable(ref var)))
-                if !Term::free_vars(s).contains(&var) && utype != Unification::Match =>
+            Some((ref s, Term::Variable(var)))
+                if !s.variables().contains(&&var) && utype != Unification::Match =>
             {
                 let mut ts = HashMap::new();
-                ts.insert(var.clone(), s.clone());
+                ts.insert(var, s.clone());
                 let mut cs = Term::constraint_substitute(&cs, &ts);
                 Term::compose(Term::unify_internal(cs, utype), Some(ts))
             }
@@ -485,45 +575,43 @@ impl<V: Variable, O: Operator> Term<V, O> {
     }
 }
 
-/// Represents a rewrite rule equating a left-hand-side [`Term`] with one or
-/// more right-hand-side [`Term`]s.
+/// A rewrite rule equating a left-hand-side [`Term`] with one or more
+/// right-hand-side [`Term`]s.
 ///
 /// [`Term`]: enum.Term.html
 #[derive(Debug, PartialEq)]
-pub struct Rule<V: Variable, O: Operator> {
-    lhs: Term<V, O>,
-    rhs: Vec<Term<V, O>>,
+pub struct Rule {
+    lhs: Term,
+    rhs: Vec<Term>,
 }
-impl<V: Variable, O: Operator> Rule<V, O> {
+impl Rule {
     /// logic ensuring that the `lhs` and `rhs` are compatible.
-    fn is_valid(lhs: &Term<V, O>, rhs: &[Term<V, O>]) -> bool {
+    fn is_valid(lhs: &Term, rhs: &[Term]) -> bool {
         // the lhs must be an application
         if let Term::Application { .. } = *lhs {
             // variables(rhs) must be a subset of variables(lhs)
-            let lhs_vars: HashSet<&V> = lhs.variables().into_iter().collect();
-            let rhs_vars: HashSet<&V> = rhs.iter().flat_map(|r| r.variables()).collect();
+            let lhs_vars: HashSet<_> = lhs.variables().into_iter().collect();
+            let rhs_vars: HashSet<_> = rhs.iter().flat_map(Term::variables).collect();
             rhs_vars.is_subset(&lhs_vars)
         } else {
             false
         }
     }
     /// Construct a rewrite rule from a left-hand-side (LHS) [`Term`] with one
-    /// or more right-hand-side (RHS) [`Term`]s. Returns [`Some(Rule{lhs, rhs})`]
-    /// if `Rule{lhs, rhs}` is valid, and [`None`] otherwise.
+    /// or more right-hand-side (RHS) [`Term`]s. Returns `None` if the rule is
+    /// not valid.
     ///
     /// Valid rules meet two conditions:
     ///
     /// 1. `lhs` is an [`Application`]. This prevents a single rule from
-    /// matching all possible terms
+    ///    matching all possible terms
     /// 2. A [`Term`] in `rhs` can only use a [`Variable`] if it appears in
-    /// `lhs`. This prevents rewrites from inventing arbitrary terms.
+    ///    `lhs`. This prevents rewrites from inventing arbitrary terms.
     ///
     /// [`Term`]: enum.Term.html
     /// [`Application`]: enum.Term.html#variant.Application
-    /// [`Variable`]: trait.Variable.html
-    /// [`Some(Rule{lhs, rhs})`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.Some
-    /// [`None`]: https://doc.rust-lang.org/std/option/enum.Option.html#variant.None
-    pub fn new(lhs: Term<V, O>, rhs: Vec<Term<V, O>>) -> Option<Rule<V, O>> {
+    /// [`Variable`]: struct.Variable.html
+    pub fn new(lhs: Term, rhs: Vec<Term>) -> Option<Rule> {
         if Rule::is_valid(&lhs, &rhs) {
             Some(Rule { lhs, rhs })
         } else {
@@ -532,18 +620,18 @@ impl<V: Variable, O: Operator> Rule<V, O> {
     }
 }
 
-/// Represents a first-order term rewriting system.
+/// A first-order term rewriting system.
 #[derive(Debug, PartialEq)]
-pub struct TRS<V: Variable, O: Operator> {
-    rules: Vec<Rule<V, O>>,
+pub struct TRS {
+    rules: Vec<Rule>,
 }
-impl<V: Variable, O: Operator> TRS<V, O> {
+impl TRS {
     /// Constructs a term rewriting system from a list of rules.
-    pub fn new(rules: Vec<Rule<V, O>>) -> TRS<V, O> {
+    pub fn new(rules: Vec<Rule>) -> TRS {
         TRS { rules }
     }
     // Return rewrites modifying the entire term, if possible, else None.
-    fn rewrite_head(&self, term: &Term<V, O>) -> Option<Vec<Term<V, O>>> {
+    fn rewrite_head(&self, term: &Term) -> Option<Vec<Term>> {
         for rule in &self.rules {
             if let Some(ref sub) = Term::pmatch(vec![(rule.lhs.clone(), term.clone())]) {
                 return Some(rule.rhs.iter().map(|x| x.substitute(sub)).collect());
@@ -552,16 +640,15 @@ impl<V: Variable, O: Operator> TRS<V, O> {
         None
     }
     // Return rewrites modifying subterms, if possible, else None.
-    fn rewrite_args(&self, term: &Term<V, O>) -> Option<Vec<Term<V, O>>> {
-        if let Term::Application { ref head, ref args } = *term {
+    fn rewrite_args(&self, term: &Term) -> Option<Vec<Term>> {
+        if let Term::Application { op, ref args } = *term {
             for (i, arg) in args.iter().enumerate() {
                 if let Some(v) = self.rewrite(arg) {
                     let res = v.iter()
                         .map(|x| {
-                            let head = head.clone();
                             let mut args = args.clone();
                             args[i] = x.clone();
-                            Term::Application { head, args }
+                            Term::Application { op, args }
                         })
                         .collect();
                     return Some(res);
@@ -574,17 +661,15 @@ impl<V: Variable, O: Operator> TRS<V, O> {
     }
     /// Perform a single rewrite step using a normal-order (leftmost-outermost)
     /// rewrite strategy.
-    pub fn rewrite(&self, term: &Term<V, O>) -> Option<Vec<Term<V, O>>> {
-        match term {
-            &Term::Variable(_) => None,
-            app => self.rewrite_head(app).or_else(|| self.rewrite_args(app)),
+    pub fn rewrite(&self, term: &Term) -> Option<Vec<Term>> {
+        match *term {
+            Term::Variable(_) => None,
+            ref app => self.rewrite_head(app).or_else(|| self.rewrite_args(app)),
         }
     }
 }
 
-/// Parse a string as a [`TRS`], `trs`, and a [`Term`] list, `terms`, to be
-/// evaluated. Returns [`Ok((trs, terms))`] if parsing succeeds and an
-/// [`Err`] otherwise.
+/// Parse a string as a [`TRS`] and a list of [`Term`]s.
 ///
 /// # TRS syntax
 ///
@@ -618,25 +703,22 @@ impl<V: Variable, O: Operator> TRS<V, O> {
 ///
 /// [`TRS`]: struct.TRS.html
 /// [`Term`]: enum.Term.html
-/// [`Ok((trs, terms))`]:  https://doc.rust-lang.org/std/result/enum.Result.html#variant.Ok
-/// [`Err`]:  https://doc.rust-lang.org/std/result/enum.Result.html#variant.Err
-pub fn parse(
-    operators: &[Op],
-    input: &str,
-) -> Result<(TRS<Var, Op>, Vec<Term<Var, Op>>), parser::ParseError> {
-    parser::parse(input, operators)
+pub fn parse(sig: &mut Signature, input: &str) -> Result<(TRS, Vec<Term>), parser::ParseError> {
+    parser::parse(sig, input)
 }
-/// Similar to `parse`, but produces only a [`TRS`].
+/// Similar to [`parse`], but produces only a [`TRS`].
 ///
+/// [`parse`]: fn.parse.html
 /// [`TRS`]: struct.TRS.html
-pub fn parse_trs(operators: &[Op], input: &str) -> Result<TRS<Var, Op>, parser::ParseError> {
-    parser::parse_trs(input, operators)
+pub fn parse_trs(sig: &mut Signature, input: &str) -> Result<TRS, parser::ParseError> {
+    parser::parse_trs(sig, input)
 }
-/// Similar to `parse`, but produces only a [`Term`].
+/// Similar to [`parse`], but produces only a [`Term`].
 ///
-/// [`Term`]: struct.Term.html
-pub fn parse_term(operators: &[Op], input: &str) -> Result<Term<Var, Op>, parser::ParseError> {
-    parser::parse_term(input, operators)
+/// [`parse`]: fn.parse.html
+/// [`Term`]: enum.Term.html
+pub fn parse_term(sig: &mut Signature, input: &str) -> Result<Term, parser::ParseError> {
+    parser::parse_term(sig, input)
 }
 
 #[cfg(test)]
