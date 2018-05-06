@@ -3,10 +3,8 @@
 //! # Example
 //!
 //! ```
-//! # extern crate term_rewriting;
-//! use term_rewriting::types::*;
+//! use term_rewriting::{Signature, Term, parse_trs, parse_term};
 //!
-//! # fn main() {
 //! // We can parse a string representation of SK combinatory logic,
 //! let mut sig = Signature::default();
 //! let sk_rules = "S x_ y_ z_ = (x_ z_) (y_ z_); K x_ y_ = x_;";
@@ -57,7 +55,6 @@
 //!
 //! // This is the same output the parser produces.
 //! assert_eq!(parsed_term, constructed_term);
-//! # }
 //! ```
 //!
 //! # Term Rewriting Systems
@@ -99,4 +96,7 @@ extern crate itertools;
 extern crate nom;
 
 mod parser;
-pub mod types;
+mod types;
+
+pub use parser::{parse, parse_term, parse_trs, ParseError};
+pub use types::*;
