@@ -17,6 +17,10 @@ pub enum ParseError {
     ParseFailed,
 }
 
+/// Similar to [`parse`], but produces only a [`TRS`].
+///
+/// [`parse`]: fn.parse.html
+/// [`TRS`]: struct.TRS.html
 pub fn parse_trs(sig: &mut Signature, input: &str) -> Result<TRS, ParseError> {
     let (_parser, result) = Parser::new(sig).trs(CompleteStr(input));
     match result {
@@ -26,6 +30,10 @@ pub fn parse_trs(sig: &mut Signature, input: &str) -> Result<TRS, ParseError> {
     }
 }
 
+/// Similar to [`parse`], but produces only a [`Term`].
+///
+/// [`parse`]: fn.parse.html
+/// [`Term`]: enum.Term.html
 pub fn parse_term(sig: &mut Signature, input: &str) -> Result<Term, ParseError> {
     let (_parser, result) = Parser::new(sig).top_term(CompleteStr(input));
     match result {
@@ -35,6 +43,40 @@ pub fn parse_term(sig: &mut Signature, input: &str) -> Result<Term, ParseError> 
     }
 }
 
+/// Parse a string as a [`TRS`] and a list of [`Term`]s.
+///
+/// # TRS syntax
+///
+/// `input` is parsed as a `<program>`, defined as follows:
+///
+/// ```text
+/// <program> ::= ( <comment>* <statement> ";" <comment>* )*
+///
+/// <comment> ::= "#" <any-char-but-newline> "\n"
+///
+/// <statement> ::= <rule> | <top-level-term>
+///
+/// <rule> ::= <top-level-term> "=" <top-level-term> ( "|" <top-level-term> )
+///
+/// <top-level-term) ::= ( <term> | ( "(" <top-level-term> ")" ) ) (" "  ( <term> | ( "(" <top-level-term> ")" ) ) )*
+///
+/// <term> ::= <variable> | <application>
+///
+/// <variable> ::= <identifier>"_"
+///
+/// <application> ::= <constant> | <binary-application> | <standard-application>
+///
+/// <constant> ::= <identifier>
+///
+/// <binary-application> ::= "(" <term> " " <term> ")"
+///
+/// <standard-application> ::= <identifier> "(" <term>* ")"
+///
+/// <identifier> ::= <alphanumeric>+
+/// ```
+///
+/// [`TRS`]: struct.TRS.html
+/// [`Term`]: enum.Term.html
 pub fn parse(sig: &mut Signature, input: &str) -> Result<(TRS, Vec<Term>), ParseError> {
     let (_parser, result) = Parser::new(sig).program(CompleteStr(input));
     match result {

@@ -2,8 +2,6 @@ use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 use std::iter;
 
-use super::parser;
-
 /// Represents a place in a [`Term`].
 ///
 /// [`Term`]: enum.Term.html
@@ -152,7 +150,7 @@ impl Signature {
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::types::{MergeStrategy, Signature, parse_term, parse_trs};
+    /// # use term_rewriting::{MergeStrategy, Signature, parse_term, parse_trs};
     /// let (mut sig1, _ops) = Signature::new(vec![
     ///     (2, Some(".".to_string())),
     ///     (0, Some("S".to_string())),
@@ -669,57 +667,117 @@ impl TRS {
     }
 }
 
-/// Parse a string as a [`TRS`] and a list of [`Term`]s.
-///
-/// # TRS syntax
-///
-/// `input` is parsed as a `<program>`, defined as follows:
-///
-/// ```text
-/// <program> ::= ( <comment>* <statement> ";" <comment>* )*
-///
-/// <comment> ::= "#" <any-char-but-newline> "\n"
-///
-/// <statement> ::= <rule> | <top-level-term>
-///
-/// <rule> ::= <top-level-term> "=" <top-level-term> ( "|" <top-level-term> )
-///
-/// <top-level-term) ::= ( <term> | ( "(" <top-level-term> ")" ) ) (" "  ( <term> | ( "(" <top-level-term> ")" ) ) )*
-///
-/// <term> ::= <variable> | <application>
-///
-/// <variable> ::= <identifier>"_"
-///
-/// <application> ::= <constant> | <binary-application> | <standard-application>
-///
-/// <constant> ::= <identifier>
-///
-/// <binary-application> ::= "(" <term> " " <term> ")"
-///
-/// <standard-application> ::= <identifier> "(" <term>* ")"
-///
-/// <identifier> ::= <alphanumeric>+
-/// ```
-///
-/// [`TRS`]: struct.TRS.html
-/// [`Term`]: enum.Term.html
-pub fn parse(sig: &mut Signature, input: &str) -> Result<(TRS, Vec<Term>), parser::ParseError> {
-    parser::parse(sig, input)
-}
-/// Similar to [`parse`], but produces only a [`TRS`].
-///
-/// [`parse`]: fn.parse.html
-/// [`TRS`]: struct.TRS.html
-pub fn parse_trs(sig: &mut Signature, input: &str) -> Result<TRS, parser::ParseError> {
-    parser::parse_trs(sig, input)
-}
-/// Similar to [`parse`], but produces only a [`Term`].
-///
-/// [`parse`]: fn.parse.html
-/// [`Term`]: enum.Term.html
-pub fn parse_term(sig: &mut Signature, input: &str) -> Result<Term, parser::ParseError> {
-    parser::parse_term(sig, input)
-}
-
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
+
+    #[test]
+    fn variable_show() {
+        let mut sig = Signature::default();
+
+        let v1 = sig.new_var(None);
+        let v2 = sig.new_var(Some("blah".to_string()));
+
+        assert_eq!(v1.display(&sig), "<var 0>".to_string());
+        assert_eq!(v1.name(&sig), None);
+        assert_eq!(v2.display(&sig), "blah".to_string());
+        assert_eq!(v2.name(&sig), Some("blah"));
+    }
+    #[test]
+    fn variable_eq() {
+        let mut sig = Signature::default();
+
+        let v1 = sig.new_var(Some("blah".to_string()));
+        let v2 = sig.new_var(None);
+        let v3 = Variable { id: 0 };
+
+        assert_eq!(v1, v1);
+        assert_ne!(v1, v2);
+        assert_eq!(v1, v3);
+    }
+
+    #[test]
+    fn rule_is_valid_yes() {
+        let mut sig = Signature::default();
+        let lhs: Term = Term::Application {
+            op: sig.new_op(0, None),
+            args: vec![],
+        };
+
+        let rhs: Vec<Term> = vec![Term::Application {
+            op: sig.new_op(0, None),
+            args: vec![],
+        }];
+
+        assert!(Rule::is_valid(&lhs, &rhs));
+    }
+    #[test]
+    fn rule_is_valid_lhs_var() {
+        let mut sig = Signature::default();
+
+        let lhs = Term::Variable(sig.new_var(None));
+        let rhs = vec![Term::Application {
+            op: sig.new_op(0, None),
+            args: vec![],
+        }];
+
+        assert!(!Rule::is_valid(&lhs, &rhs));
+    }
+    #[test]
+    fn rule_is_valid_rhs_var() {
+        let mut sig = Signature::default();
+
+        let lhs = Term::Application {
+            op: sig.new_op(0, None),
+            args: vec![],
+        };
+        let rhs = vec![Term::Variable(sig.new_var(None))];
+
+        assert!(!Rule::is_valid(&lhs, &rhs));
+    }
+    #[test]
+    fn rule_new_some() {
+        let mut sig = Signature::default();
+
+        let lhs = Term::Application {
+            op: sig.new_op(0, None),
+            args: vec![],
+        };
+        let rhs = vec![Term::Application {
+            op: sig.new_op(0, None),
+            args: vec![],
+        }];
+
+        let rule = Rule {
+            lhs: lhs.clone(),
+            rhs: rhs.clone(),
+        };
+
+        assert_eq!(Rule::new(lhs, rhs), Some(rule));
+    }
+    #[test]
+    fn rule_is_valid_none() {
+        let mut sig = Signature::default();
+
+        let lhs = Term::Application {
+            op: sig.new_op(0, None),
+            args: vec![],
+        };
+
+        let rhs = vec![Term::Variable(sig.new_var(None))];
+
+        assert_eq!(Rule::new(lhs, rhs), None);
+    }
+
+    #[test]
+    fn trs_new() {
+        let trs1: TRS = TRS::new(vec![]);
+        let trs2 = TRS { rules: vec![] };
+        assert_eq!(trs1, trs2);
+    }
+    #[test]
+    fn trs_debug() {
+        let trs: TRS = TRS::new(vec![]);
+        assert_eq!(format!("{:?}", trs), "TRS { rules: [] }");
+    }
+}
