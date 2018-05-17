@@ -1,4 +1,4 @@
-//! A [Rust][0] library for representing and parsing first-order [term rewriting systems][1].
+//! A [Rust][0] library for representing, parsing, and computing with first-order [term rewriting systems][1].
 //!
 //! # Example
 //!
