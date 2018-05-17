@@ -1,9 +1,11 @@
-[![Build
-Status](https://travis-ci.org/joshrule/term-rewriting-rs.svg?branch=master)](https://travis-ci.org/joshrule/term-rewriting-rs)
-
 # [term-rewriting-rs][0]
 
-A [Rust][1] library for representing and parsing first-order [term rewriting systems][2].
+[![Travis-CI.org](https://img.shields.io/travis/joshrule/term-rewriting-rs.svg?maxAge=3600)](https://travis-ci.org/joshrule/term-rewriting-rs)
+[![Crates.io](https://img.shields.io/crates/v/term_rewriting.svg?maxAge=3600)](https://crates.io/crates/term_rewriting)
+[![Codecov](https://img.shields.io/codecov/c/github/joshrule/term-rewriting-rs.svg?maxAge=3600)](https://codecov.io/gh/joshrule/term-rewriting-rs)
+[![docs.rs](https://docs.rs/term_rewriting/badge.svg)](https://docs.rs/term_rewriting)
+
+A [Rust][1] library for representing, parsing, and computing with first-order [term rewriting systems][2].
 
 ## Usage
 
@@ -17,67 +19,60 @@ term-rewriting = "0.1"
 To actually make use of the library:
 
 ```rust
-    extern crate term_rewriting;
-    use term_rewriting::types::*;
+extern crate term_rewriting;
+use term_rewriting::{Signature, Term, parse_trs, parse_term};
 
-    fn main() {
-    // A string representation of SK combinatory logic, including:
-
-    // a rule for the S combinator,
-    let s_rule = "S x_ y_ z_ = (x_ z_) (y_ z_);".to_string();
-
-    // the rule for the K combinator,
-    let k_rule = "K x_ y_ = x_;";
-
-    // and an arbitrary term,
-    let term = "S K K (K S K);";
-
-    // can be parsed to give back the TRS and a term.
+fn main() {
+    // We can parse a string representation of SK combinatory logic,
     let mut sig = Signature::default();
-    let (parsed_trs, parsed_term_vec) = sig.parse(&(s_rule + k_rule + term)).expect("successful parse");
+    let sk_rules = "S x_ y_ z_ = (x_ z_) (y_ z_); K x_ y_ = x_;";
+    let trs = parse_trs(&mut sig, sk_rules).expect("parsed TRS");
 
-    // These can also be constructed by hand. Let's look at the term:
+    // and we can also parse an arbitrary term.
     let mut sig = Signature::default();
-    let app = sig.get_op(".", 2);
-    let s = sig.get_op("S", 0);
-    let k = sig.get_op("K", 0);
+    let term = "S K K (K S K)";
+    let parsed_term = parse_term(&mut sig, term).expect("parsed term");
 
-    let term = Term::Application {
-        head: app.clone(),
+    // These can also be constructed by hand.
+    let mut sig = Signature::default();
+    let app = sig.new_op(2, Some(".".to_string()));
+    let s = sig.new_op(0, Some("S".to_string()));
+    let k = sig.new_op(0, Some("K".to_string()));
+
+    let constructed_term = Term::Application {
+        op: app,
         args: vec![
             Term::Application {
-                head: app.clone(),
+                op: app,
                 args: vec![
                     Term::Application {
-                        head: app.clone(),
+                        op: app,
                         args: vec![
-                            Term::Application { head: s.clone(), args: vec![] },
-                            Term::Application { head: k.clone(), args: vec![] },
+                            Term::Application { op: s, args: vec![] },
+                            Term::Application { op: k, args: vec![] },
                         ]
                     },
-                    Term::Application { head: k.clone(), args: vec![] }
+                    Term::Application { op: k, args: vec![] }
                 ]
             },
             Term::Application {
-                head: app.clone(),
+                op: app,
                 args: vec![
                     Term::Application {
-                        head: app.clone(),
+                        op: app,
                         args: vec![
-                            Term::Application { head: k.clone(), args: vec![] },
-                            Term::Application { head: s.clone(), args: vec![] },
+                            Term::Application { op: k, args: vec![] },
+                            Term::Application { op: s, args: vec![] },
                         ]
                     },
-                    Term::Application { head: k.clone(), args: vec![] }
+                    Term::Application { op: k, args: vec![] }
                 ]
             }
         ]
     };
 
-    let constructed_term_vec = vec![term];
-
     // This is the same output the parser produces.
-    assert_eq!(parsed_term_vec, constructed_term_vec);
+    assert_eq!(parsed_term, constructed_term);
 }
 ```
 

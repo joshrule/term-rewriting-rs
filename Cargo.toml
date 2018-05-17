@@ -1,15 +1,16 @@
 [package]
 name = "term_rewriting"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Joshua S. Rule <joshua.s.rule@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/joshrule/term-rewriting-rs"
 homepage = "https://github.com/joshrule/term-rewriting-rs"
-documentation = "https://docs.rs/polytype"
-description = "A Rust library for representing and parsing first-order term rewriting systems."
+documentation = "https://docs.rs/term_rewriting"
+description = "A Rust library for representing, parsing, and computing with first-order term rewriting systems."
 keywords = ["term-rewriting", "language", "rewriting", "parser"]
-categories = ["science", "data-structures", "algorithms", "parser implementations", "science"]
+categories = ["science", "data-structures", "algorithms", "parser-implementations"]
 
 [dependencies]
 nom = "4.0.0-beta2"
+itertools = "0.7.8"
