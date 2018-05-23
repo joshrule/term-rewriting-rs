@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use std::iter;
 
@@ -322,6 +323,19 @@ impl Context {
     // takes in a term and a context, returns a list of Terms fitting the holes.
     //
     // pub fn slice(&self, c: Context<V, O>, t: Term<V, O>) -> Option<Vec<Term<V, O>>>
+
+    /// Describe the Context as a human-readable string
+    pub fn display(&self, sig: &Signature) -> String {
+        match self {
+            Context::Hole => "<H>".to_string(),
+            Context::Variable(v) => v.display(sig),
+            Context::Application { op, args } => {
+                let op_str = op.display(sig);
+                let args_str = args.iter().map(|arg| arg.display(sig)).join(" ");
+                format!("{}({})", op_str, args_str)
+            }
+        }
+    }
 }
 impl From<Term> for Context {
     fn from(t: Term) -> Context {
@@ -349,6 +363,17 @@ pub enum Term {
     Application { op: Operator, args: Vec<Term> },
 }
 impl Term {
+    /// Describe the Term as a human-readable string
+    pub fn display(&self, sig: &Signature) -> String {
+        match self {
+            Term::Variable(v) => v.display(sig),
+            Term::Application { op, args } => {
+                let op_str = op.display(sig);
+                let args_str = args.iter().map(|arg| arg.display(sig)).join(" ");
+                format!("{}({})", op_str, args_str)
+            }
+        }
+    }
     /// Every [`Variable`] used in the term.
     ///
     /// [`Variable`]: struct.Variable.html
@@ -392,6 +417,10 @@ impl Term {
                 here.chain(subterms).collect()
             }
         }
+    }
+    /// The number of distinct places in the term
+    pub fn size(&self) -> usize {
+        self.subterms().len()
     }
     /// Get the subterm at the given [`Place`], or `None` if the place does not exist in the term.
     ///
@@ -480,12 +509,15 @@ impl Term {
             _ => None,
         }
     }
-    /// Whether two terms are [alpha equivalent].
+    /// Compute the [alpha equivalence] for two terms.
     ///
-    /// [alpha equivalent]: https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
-    pub fn alpha_equivalent(t1: &Term, t2: &Term) -> bool {
-        Term::pmatch(vec![(t1.clone(), t2.clone())]).is_some()
-            && Term::pmatch(vec![(t2.clone(), t1.clone())]).is_some()
+    /// [alpha equivalence]: https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
+    pub fn alpha(t1: &Term, t2: &Term) -> Option<HashMap<Variable, Term>> {
+        if Term::pmatch(vec![(t2.clone(), t1.clone())]).is_some() {
+            Term::pmatch(vec![(t1.clone(), t2.clone())])
+        } else {
+            None
+        }
     }
     pub fn shape_equivalent(t1: &Term, t2: &Term) -> bool {
         let mut vmap = HashMap::new();
@@ -577,12 +609,45 @@ impl Term {
 /// right-hand-side [`Term`]s.
 ///
 /// [`Term`]: enum.Term.html
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Rule {
     lhs: Term,
     rhs: Vec<Term>,
 }
 impl Rule {
+    /// Describe the Rule with a human-readable string.
+    pub fn display(&self, sig: &Signature) -> String {
+        let lhs_str = self.lhs.display(sig);
+        let rhs_str = self.rhs.iter().map(|rhs| rhs.display(sig)).join(" | ");
+        format!("{} = {}", lhs_str, rhs_str)
+    }
+    /// Return the total number of subterms across all terms in the rule.
+    pub fn size(&self) -> usize {
+        self.lhs.size() + self.rhs.iter().map(Term::size).sum::<usize>()
+    }
+    /// Return the number of RHSs in the rule
+    pub fn len(&self) -> usize {
+        self.rhs.len()
+    }
+    /// Is the rule empty?
+    pub fn is_empty(&self) -> bool {
+        self.rhs.is_empty()
+    }
+    /// Give the lone RHS, if it exists
+    pub fn rhs(&self) -> Option<Term> {
+        if self.rhs.len() == 1 {
+            Some(self.rhs[0].clone())
+        } else {
+            None
+        }
+    }
+    /// Return a list of the clauses in the `Rule`.
+    pub fn clauses(&self) -> Vec<Rule> {
+        self.rhs
+            .iter()
+            .map(|rhs| Rule::new(self.lhs.clone(), vec![rhs.clone()]).unwrap())
+            .collect()
+    }
     /// logic ensuring that the `lhs` and `rhs` are compatible.
     fn is_valid(lhs: &Term, rhs: &[Term]) -> bool {
         // the lhs must be an application
@@ -616,18 +681,147 @@ impl Rule {
             None
         }
     }
+    /// Add a clause to the rule from a term.
+    pub fn add(&mut self, t: Term) {
+        let self_vars = self.lhs.variables();
+        if t.variables().iter().all(|x| self_vars.contains(x)) {
+            self.rhs.push(t)
+        }
+    }
+    /// Add clauses to the rule from another rule.
+    pub fn merge(&mut self, r: &Rule) {
+        if let Some(s) = Term::alpha(&self.lhs, &r.lhs) {
+            for rhs in r.rhs.clone() {
+                self.rhs.push(rhs.substitute(&s));
+            }
+        }
+    }
+    /// Discard clauses from the rule.
+    pub fn discard(&mut self, r: &Rule) -> bool {
+        if let Some(sub) = Term::alpha(&self.lhs, &r.lhs) {
+            let terms = r.rhs
+                .iter()
+                .map(|rhs| rhs.substitute(&sub))
+                .collect::<Vec<Term>>();
+            self.rhs.retain(|x| !terms.contains(x));
+            true
+        } else {
+            false
+        }
+    }
+    /// Check whether the rule contains certain clauses.
+    pub fn contains(&self, r: &Rule) -> bool {
+        if let Some(sub) = Term::alpha(&self.lhs, &r.lhs) {
+            r.rhs
+                .iter()
+                .all(|rhs| self.rhs.contains(&rhs.substitute(&sub)))
+        } else {
+            false
+        }
+    }
+
+    // TODO: unify
+    // TODO: alpha
 }
 
 /// A first-order term rewriting system.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct TRS {
-    rules: Vec<Rule>,
+    pub rules: Vec<Rule>,
 }
 impl TRS {
     /// Constructs a term rewriting system from a list of rules.
     pub fn new(rules: Vec<Rule>) -> TRS {
         TRS { rules }
     }
+    /// The number of rules in the TRS.
+    pub fn len(&self) -> usize {
+        self.rules.len()
+    }
+    /// Are there any rules in the TRS?
+    pub fn is_empty(&self) -> bool {
+        self.rules.is_empty()
+    }
+    /// Return the number of total number of subterms across all rules.
+    pub fn size(&self) -> usize {
+        self.rules.iter().map(Rule::size).sum()
+    }
+    /// Remove the rule at index `i`.
+    pub fn remove(&mut self, i: usize) {
+        self.rules.remove(i);
+    }
+    /// Delete `r` if it exists in `self`.
+    pub fn delete(&mut self, r: &Rule) {
+        for rule in &mut self.rules {
+            if rule.discard(&r) {
+                break;
+            }
+        }
+        self.rules.retain(|rule| !rule.is_empty());
+    }
+    /// Get `r` if it exists in `self`.
+    pub fn get(&self, r: &Rule) -> Option<(usize, Rule)> {
+        for (i, rule) in self.rules.iter().enumerate() {
+            // TODO: return just the requested clauses
+            if rule.contains(r) {
+                return Some((i, rule.clone()));
+            }
+        }
+        None
+    }
+    /// Put `r` at index `i` in `self`.
+    pub fn set(&mut self, i: usize, r: Rule) {
+        if let Some(idx) = self.rules
+            .iter()
+            .position(|rule| Term::alpha(&rule.lhs, &r.lhs).is_some())
+        {
+            self.rules[idx].merge(&r);
+            let rule = self.rules.remove(idx);
+            self.rules.insert(i, rule);
+        } else {
+            self.rules.insert(i, r);
+        }
+    }
+    /// Put `r` in the TRS as the first Rule.
+    pub fn push(&mut self, r: Rule) {
+        self.set(0, r)
+    }
+    /// Push a series of rules into the TRS.
+    pub fn pushes(&mut self, rs: Vec<Rule>) {
+        for r in rs {
+            self.push(r);
+        }
+    }
+    /// Represent the TRS as a human-readable string.
+    pub fn display(&self, sig: &Signature) -> String {
+        self.rules.iter().map(|r| r.display(sig)).join("\n")
+    }
+    /// All the clauses in the TRS.
+    pub fn clauses(&self) -> Vec<Rule> {
+        self.rules.iter().flat_map(Rule::clauses).collect()
+    }
+    /// Move rule `i` to index `j`
+    pub fn move_rule(&mut self, i: usize, j: usize) -> bool {
+        if self.rules.len() > max(i, j) {
+            let rule = self.rules.remove(i);
+            self.rules.insert(j, rule);
+            true
+        } else {
+            false
+        }
+    }
+    /// Replace Rule `r1` with Rule `r2`
+    pub fn replace(&mut self, r1: &Rule, r2: Rule) {
+        if let Some((idx, mut rule)) = self.get(r1) {
+            rule.discard(r1);
+            self.push(r2);
+            if rule.is_empty() {
+                self.remove(idx);
+            }
+        }
+    }
+    // TODO: pub fn make_deterministic
+    // TODO: pub fn operators
     // Return rewrites modifying the entire term, if possible, else None.
     fn rewrite_head(&self, term: &Term) -> Option<Vec<Term>> {
         for rule in &self.rules {
