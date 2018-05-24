@@ -365,6 +365,7 @@ pub enum Term {
 impl Term {
     /// Describe the Term as a human-readable string
     pub fn display(&self, sig: &Signature) -> String {
+        // TODO: pretty_printing
         match self {
             Term::Variable(v) => v.display(sig),
             Term::Application { op, args } => {
@@ -373,6 +374,14 @@ impl Term {
                 format!("{}({})", op_str, args_str)
             }
         }
+    }
+    /// Every [`Atom`] used in the term.
+    ///
+    /// [`Atom`]: enum.Atom.html
+    pub fn atoms(&self) -> Vec<Atom> {
+        let vars = self.variables().into_iter().map(Atom::Variable);
+        let ops = self.operators().into_iter().map(Atom::Operator);
+        vars.chain(ops).collect()
     }
     /// Every [`Variable`] used in the term.
     ///
@@ -426,7 +435,7 @@ impl Term {
     ///
     /// [`Place`]: type.Place.html
     #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
-    pub fn at(&self, place: &Place) -> Option<&Term> {
+    pub fn at(&self, place: &[usize]) -> Option<&Term> {
         self.at_helper(&*place)
     }
     fn at_helper(&self, place: &[usize]) -> Option<&Term> {
@@ -448,7 +457,7 @@ impl Term {
     ///
     /// [`Place`]: type.Place.html
     #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
-    pub fn replace(&self, place: &Place, subterm: Term) -> Option<Term> {
+    pub fn replace(&self, place: &[usize], subterm: Term) -> Option<Term> {
         self.replace_helper(&*place, subterm)
     }
     fn replace_helper(&self, place: &[usize], subterm: Term) -> Option<Term> {
@@ -719,9 +728,77 @@ impl Rule {
             false
         }
     }
-
-    // TODO: unify
-    // TODO: alpha
+    /// Get all the Variables in the Rule.
+    pub fn variables(&self) -> Vec<Variable> {
+        self.lhs.variables()
+    }
+    /// Get all the Operators in the Rule.
+    pub fn operators(&self) -> Vec<Operator> {
+        let lhs = self.lhs.operators().into_iter();
+        let rhs = self.rhs.iter().flat_map(Term::operators);
+        lhs.chain(rhs).unique().collect()
+    }
+    /// Get all the subterms and places in a Rule.
+    pub fn subterms(&self) -> Vec<(usize, &Term, Place)> {
+        let lhs = self.lhs.subterms().into_iter().map(|(t, p)| (0, t, p));
+        let rhs = self.rhs.iter().enumerate().flat_map(|(i, rhs)| {
+            iter::repeat(i + 1)
+                .zip(rhs.subterms())
+                .into_iter()
+                .map(|(i, (t, p))| (i, t, p))
+        });
+        lhs.chain(rhs).collect()
+    }
+    /// Get a specific subterm in a Rule
+    pub fn at(&self, p: &[usize]) -> Option<&Term> {
+        if p[0] == 0 {
+            self.lhs.at(&p[1..].to_vec())
+        } else {
+            self.rhs[p[1]].at(&p[2..].to_vec())
+        }
+    }
+    /// Replace one subterm with another in a Rule
+    pub fn replace(&self, place: &[usize], subterm: Term) -> Option<Rule> {
+        if place[0] == 0 {
+            if let Some(lhs) = self.lhs.replace(&place[1..].to_vec(), subterm) {
+                Rule::new(lhs, self.rhs.clone())
+            } else {
+                None
+            }
+        } else if let Some(an_rhs) = self.rhs[place[1]].replace(&place[2..].to_vec(), subterm) {
+            let mut rhs = self.rhs.clone();
+            rhs.remove(place[1]);
+            rhs.insert(place[1], an_rhs);
+            Rule::new(self.lhs.clone(), rhs)
+        } else {
+            None
+        }
+    }
+    /// Match one rule against another.
+    pub fn pmatch(r1: Rule, r2: Rule) -> Option<HashMap<Variable, Term>> {
+        let cs = iter::once((r1.lhs, r2.lhs)).chain(r1.rhs.into_iter().zip(r2.rhs));
+        Term::pmatch(cs.collect())
+    }
+    /// Unify two rules.
+    pub fn unify(r1: Rule, r2: Rule) -> Option<HashMap<Variable, Term>> {
+        let cs = iter::once((r1.lhs, r2.lhs)).chain(r1.rhs.into_iter().zip(r2.rhs));
+        Term::unify(cs.collect())
+    }
+    /// Compute the alpha equivalence between two rules.
+    pub fn alpha(r1: &Rule, r2: &Rule) -> Option<HashMap<Variable, Term>> {
+        if Rule::pmatch(r2.clone(), r1.clone()).is_some() {
+            Rule::pmatch(r1.clone(), r2.clone())
+        } else {
+            None
+        }
+    }
+    /// Substitute through a rule
+    pub fn substitute(&self, sub: &HashMap<Variable, Term>) -> Rule {
+        Rule::new(
+            self.lhs.substitute(sub),
+            self.rhs.iter().map(|rhs| rhs.substitute(sub)).collect(),
+        ).unwrap()
+    }
 }
 
 /// A first-order term rewriting system.
@@ -820,8 +897,34 @@ impl TRS {
             }
         }
     }
-    // TODO: pub fn make_deterministic
-    // TODO: pub fn operators
+    /// Do two TRSs unify?
+    pub fn unifies(trs1: TRS, trs2: TRS) -> bool {
+        trs1.len() == trs2.len()
+            && trs1.rules
+                .into_iter()
+                .zip(trs2.rules)
+                .all(|(r1, r2)| Rule::unify(r1, r2).is_some())
+    }
+    /// Does one TRS match another?
+    pub fn pmatches(trs1: TRS, trs2: TRS) -> bool {
+        trs1.len() == trs2.len()
+            && trs1.rules
+                .into_iter()
+                .zip(trs2.rules)
+                .all(|(r1, r2)| Rule::pmatch(r1, r2).is_some())
+    }
+    /// Are two TRSs alpha equivalent?
+    pub fn alphas(trs1: &TRS, trs2: &TRS) -> bool {
+        TRS::pmatches(trs2.clone(), trs1.clone()) && TRS::pmatches(trs1.clone(), trs2.clone())
+    }
+    /// All the operators in the TRS?
+    pub fn operators(&self) -> Vec<Operator> {
+        self.rules
+            .iter()
+            .flat_map(Rule::operators)
+            .unique()
+            .collect()
+    }
     // Return rewrites modifying the entire term, if possible, else None.
     fn rewrite_head(&self, term: &Term) -> Option<Vec<Term>> {
         for rule in &self.rules {
@@ -859,6 +962,7 @@ impl TRS {
             ref app => self.rewrite_head(app).or_else(|| self.rewrite_args(app)),
         }
     }
+    // TODO: pub fn make_deterministic
 }
 
 #[cfg(test)]
