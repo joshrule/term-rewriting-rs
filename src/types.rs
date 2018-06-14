@@ -128,6 +128,14 @@ impl Signature {
             .map(|id| Variable { id })
             .collect()
     }
+    /// Returns every [`Atom`] known to the signature.
+    ///
+    /// [`Atom`]: enum.Atom.html
+    pub fn atoms(&self) -> Vec<Atom> {
+        let vars = self.variables().into_iter().map(Atom::Variable);
+        let ops = self.operators().into_iter().map(Atom::Operator);
+        vars.chain(ops).collect()
+    }
     /// Create a new [`Operator`] distinct from all existing operators.
     ///
     /// [`Operator`]: struct.Operator.html
@@ -407,6 +415,20 @@ impl Term {
                 .collect(),
         }
     }
+    /// The head of the Term.
+    pub fn head(&self) -> Atom {
+        match self {
+            Term::Variable(v) => Atom::Variable(*v),
+            Term::Application { op, .. } => Atom::Operator(*op),
+        }
+    }
+    /// The head of the Term.
+    pub fn args(&self) -> Vec<Term> {
+        match self {
+            Term::Variable(_) => vec![],
+            Term::Application { args, .. } => args.clone(),
+        }
+    }
     /// Every subterm and its place, starting with the original term itself.
     pub fn subterms(&self) -> Vec<(&Term, Place)> {
         match *self {
@@ -620,8 +642,8 @@ impl Term {
 /// [`Term`]: enum.Term.html
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Rule {
-    lhs: Term,
-    rhs: Vec<Term>,
+    pub lhs: Term,
+    pub rhs: Vec<Term>,
 }
 impl Rule {
     /// Describe the Rule with a human-readable string.
@@ -719,13 +741,18 @@ impl Rule {
         }
     }
     /// Check whether the rule contains certain clauses.
-    pub fn contains(&self, r: &Rule) -> bool {
+    pub fn contains(&self, r: &Rule) -> Option<HashMap<Variable, Term>> {
         if let Some(sub) = Term::alpha(&self.lhs, &r.lhs) {
-            r.rhs
+            if r.rhs
                 .iter()
                 .all(|rhs| self.rhs.contains(&rhs.substitute(&sub)))
+            {
+                Some(sub)
+            } else {
+                None
+            }
         } else {
-            false
+            None
         }
     }
     /// Get all the Variables in the Rule.
@@ -839,9 +866,8 @@ impl TRS {
     /// Get `r` if it exists in `self`.
     pub fn get(&self, r: &Rule) -> Option<(usize, Rule)> {
         for (i, rule) in self.rules.iter().enumerate() {
-            // TODO: return just the requested clauses
-            if rule.contains(r) {
-                return Some((i, rule.clone()));
+            if let Some(sub) = rule.contains(r) {
+                return Some((i, r.substitute(&sub)));
             }
         }
         None
@@ -917,7 +943,7 @@ impl TRS {
     pub fn alphas(trs1: &TRS, trs2: &TRS) -> bool {
         TRS::pmatches(trs2.clone(), trs1.clone()) && TRS::pmatches(trs1.clone(), trs2.clone())
     }
-    /// All the operators in the TRS?
+    /// All the operators in the TRS
     pub fn operators(&self) -> Vec<Operator> {
         self.rules
             .iter()
