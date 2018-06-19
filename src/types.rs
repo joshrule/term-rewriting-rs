@@ -29,6 +29,7 @@ impl Variable {
     /// let mut sig = Signature::default();
     /// let var = sig.new_var(Some("Z".to_string()));
     /// assert_eq!(var.name(&sig),Some("Z"));
+    /// ```
     pub fn name<'sig>(&self, sig: &'sig Signature) -> Option<&'sig str> {
         let opt = &sig.variables[self.id];
         opt.as_ref().map(|s| s.as_str())
@@ -42,6 +43,7 @@ impl Variable {
     /// let mut sig = Signature::default();
     /// let var = sig.new_var(Some("Z".to_string()));
     /// assert_eq!(var.display(&sig),"Z");
+    /// ```
     pub fn display(&self, sig: &Signature) -> String {
         if let Some(ref name) = sig.variables[self.id] {
             name.clone()
