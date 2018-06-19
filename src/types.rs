@@ -542,6 +542,11 @@ impl Context {
         Pretty::pretty(self, sig)
     }
 }
+/// Creates a new [`Context`] from a [`Term`].
+///
+/// [`Context`]: struct.Context.html
+/// [`Term`]: struct.Term.html
+///
 impl From<Term> for Context {
     fn from(t: Term) -> Context {
         match t {
@@ -561,6 +566,9 @@ impl From<Term> for Context {
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Term {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`)
+    /// see [`Variable`] for more information
+    ///
+    /// [`Variable`]: struct.Variable.html
     Variable(Variable),
     /// An [`Operator`] applied to zero or more `Term`s (e.g. (`f(x, y)`, `g()`)
     ///
@@ -569,6 +577,20 @@ pub enum Term {
 }
 impl Term {
     /// A serialized representation of the Term.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature,Term};
+    /// let mut sig = Signature::default();
+    /// let var = sig.new_var(Some("Z".to_string()));
+    /// let op = sig.new_op(2,Some("A".to_string()));
+    ///
+    /// let var_term = Term::Variable(var);
+    // let op_term = Term::Operator(op);
+    /// assert_eq!(var.display(&sig), "Z");
+    /// assert_eq!(var.display(&sig), var_term.display(&sig));
+    /// ```
     pub fn display(&self, sig: &Signature) -> String {
         match self {
             Term::Variable(v) => v.display(sig),
@@ -590,6 +612,21 @@ impl Term {
     /// Every [`Atom`] used in the term.
     ///
     /// [`Atom`]: enum.Atom.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature,Term};
+    /// let mut sig = Signature::default();
+    /// let var = sig.new_var(Some("Z".to_string()));
+    /// let op = sig.new_op(2,Some("A".to_string()));
+    ///
+    /// let var_term = Term::Variable(var);
+    // let op_term = Term::Operator(op);
+    ///
+    /// let atoms_of_var = var_term.atoms();
+    //add comparison
+    /// ```
     pub fn atoms(&self) -> Vec<Atom> {
         let vars = self.variables().into_iter().map(Atom::Variable);
         let ops = self.operators().into_iter().map(Atom::Operator);
@@ -661,14 +698,25 @@ impl Term {
                 .collect(),
         }
     }
-    /// The head of the Term.
+    /// The head of the [`Term`].
+    ///
+    /// [`Term`]: struct.Term.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::Signature;
+    /// let mut sig = Signature::default();
+    /// ```
     pub fn head(&self) -> Atom {
         match self {
             Term::Variable(v) => Atom::Variable(*v),
             Term::Application { op, .. } => Atom::Operator(*op),
         }
     }
-    /// The head of the Term.
+    /// The (body?)arguments of the [`Term`].
+    ///
+    /// [`Term`]: struct.Term.html
     pub fn args(&self) -> Vec<Term> {
         match self {
             Term::Variable(_) => vec![],
@@ -709,7 +757,10 @@ impl Term {
             }
         }
     }
-    /// The number of distinct places in the term
+    /// The number of distinct [`Place`]s in the [`Term`]
+    ///
+    /// [`Place`]: type.Place.html
+    /// [`Term`]: struct.Term.html
     pub fn size(&self) -> usize {
         self.subterms().len()
     }
@@ -859,7 +910,9 @@ impl Term {
             None
         }
     }
-    /// Returns whether two terms are shape equivalent
+    /// Returns whether two terms are shape equivalent.
+    /// Shape equivalence is where two terms may not contain the same subterms, but they share the same structure(a.k.a. shape).
+    ///
     /// # Examples
     ///
     /// ```
