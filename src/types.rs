@@ -22,6 +22,8 @@ pub struct Variable {
 impl Variable {
     /// A function to return a [`Variable`]'s name
     ///
+    /// [`Variable`]: struct.Variable.html
+    ///
     /// # Examples
     ///
     /// ```
@@ -35,6 +37,8 @@ impl Variable {
         opt.as_ref().map(|s| s.as_str())
     }
     /// A function to return a string representation of a [`Variable`]
+    ///
+    /// [`Variable`]: struct.Variable.html
     ///
     /// # Examples
     ///
@@ -67,6 +71,8 @@ pub struct Operator {
 impl Operator {
     /// A function to return an [`Operator`]'s arity
     ///
+    /// [`Operator`]: struct.Operator.html
+    ///
     /// # Examples
     ///
     /// ```
@@ -79,6 +85,8 @@ impl Operator {
         sig.operators[self.id].0
     }
     /// A function to return an [`Operator`]'s name
+    ///
+    /// [`Operator`]: struct.Operator.html
     ///
     /// # Examples
     ///
@@ -93,6 +101,8 @@ impl Operator {
         opt.as_ref().map(|s| s.as_str())
     }
     /// A function to return an [`Operator`]'s arity
+    ///
+    /// [`Operator`]: struct.Operator.html
     ///
     /// # Examples
     ///
@@ -114,6 +124,7 @@ impl Operator {
 /// [`Atom`] enum which represents the elementary data unit, the smallest item that is not constructed from smaller parts.
 /// An Atom can hold either a [`Variable`] or an [`Operator`].
 ///
+/// [`Atom`]: enum.Atom.html
 /// [`Variable`]: struct.Variable.html
 /// [`Operator`]: struct.Operator.hmtl
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -121,11 +132,19 @@ pub enum Atom {
     Variable(Variable),
     Operator(Operator),
 }
+/// Constructs an [`Atom`] of type [`Variable`]
+///
+/// [`Atom`]: enum.Atom.html
+/// [`Variable`]: struct.Variable.html
 impl From<Variable> for Atom {
     fn from(var: Variable) -> Atom {
         Atom::Variable(var)
     }
 }
+/// Constructs an [`Atom`] of type [`Operator`]
+///
+/// [`Atom`]: enum.Atom.html
+/// [`Operator`]: operator.Variable.html
 impl From<Operator> for Atom {
     fn from(op: Operator) -> Atom {
         Atom::Operator(op)
@@ -296,7 +315,7 @@ impl Signature {
         self.variables.push(name);
         Variable { id }
     }
-    /// Merge two ['Signature']s. All terms, contexts, rules, and TRSs associated
+    /// Merge two [`Signature`]s. All terms, contexts, rules, and TRSs associated
     /// with the `other` signature should be `reified` using methods provided
     /// by the returned [`SignatureChange`].
     ///
@@ -321,7 +340,7 @@ impl Signature {
     /// let trs = sigchange.reify_trs(trs);
     /// // now term and rule both exist with symbols according to sig1.
     /// ```
-    ///
+    /// [`Signature`]: struct.Signature.html
     /// [`SignatureChange`]: struct.SignatureChange.html
     pub fn merge(&mut self, mut other: Signature, strategy: MergeStrategy) -> SignatureChange {
         let delta_op = match strategy {
@@ -424,9 +443,9 @@ pub struct SignatureChange {
 }
 impl SignatureChange {
     /// Reifies term for use with another signature
-    /// See ['SignatureChange']
+    /// See [`SignatureChange`]
     ///
-    /// ['SignatureChange']: struct.SignatureChange
+    /// [`SignatureChange`]: struct.SignatureChange
     pub fn reify_term(&self, term: Term) -> Term {
         match term {
             Term::Variable(Variable { id }) => {
@@ -446,9 +465,9 @@ impl SignatureChange {
         }
     }
     /// Reifies context for use with another signature
-    /// See ['SignatureChange']
+    /// See [`SignatureChange`]
     ///
-    /// ['SignatureChange']: struct.SignatureChange
+    /// [`SignatureChange`]: struct.SignatureChange
     pub fn reify_context(&self, context: Context) -> Context {
         match context {
             Context::Hole => Context::Hole,
@@ -469,9 +488,9 @@ impl SignatureChange {
         }
     }
     /// Reifies rule for use with another signature
-    /// See ['SignatureChange']
+    /// See [`SignatureChange`]
     ///
-    /// ['SignatureChange']: struct.SignatureChange
+    /// [`SignatureChange`]: struct.SignatureChange
     pub fn reify_rule(&self, rule: Rule) -> Rule {
         let Rule { lhs, rhs } = rule;
         let lhs = self.reify_term(lhs);
@@ -479,9 +498,9 @@ impl SignatureChange {
         Rule { lhs, rhs }
     }
     /// Reifies TRS for use with another signature
-    /// See ['SignatureChange']
+    /// See [`SignatureChange`]
     ///
-    /// ['SignatureChange']: struct.SignatureChange
+    /// [`SignatureChange`]: struct.SignatureChange
     pub fn reify_trs(&self, trs: TRS) -> TRS {
         let rules = trs.rules.into_iter().map(|r| self.reify_rule(r)).collect();
         TRS { rules }
