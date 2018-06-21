@@ -10,19 +10,16 @@ pub type Place = Vec<usize>;
 
 /// A symbol for an unspecified term. Only carries meaning alongside a [`Signature`].
 ///
-/// To construct an [`Variable`], use [`Signature::new_var`]
+/// To construct an `Variable`, use [`Signature::new_var`]
 ///
 /// [`Signature`]: struct.Signature.html
-/// [`Variable`]: struct.Variable.html
 /// [`Signature::new_var`]: struct.Signature.html#method.new_var
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Variable {
     pub(crate) id: usize,
 }
 impl Variable {
-    /// A function to return a [`Variable`]'s name
-    ///
-    /// [`Variable`]: struct.Variable.html
+    /// A function to return a `Variable`'s name
     ///
     /// # Examples
     ///
@@ -36,9 +33,7 @@ impl Variable {
         let opt = &sig.variables[self.id];
         opt.as_ref().map(|s| s.as_str())
     }
-    /// A function to return a string representation of a [`Variable`]
-    ///
-    /// [`Variable`]: struct.Variable.html
+    /// A function to return a string representation of a `Variable`
     ///
     /// # Examples
     ///
@@ -59,19 +54,16 @@ impl Variable {
 
 /// A symbol with fixed arity. Only carries meaning alongside a [`Signature`].
 ///
-/// To construct an [`Operator`], use [`Signature::new_op`]
+/// To construct an `Operator`, use [`Signature::new_op`]
 ///
 /// [`Signature`]: struct.Signature.html
-/// [`Operator`]: struct.Operator.html
 /// [`Signature::new_op`]: struct.Signature.html#method.new_op
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Operator {
     pub(crate) id: usize,
 }
 impl Operator {
-    /// A function to return an [`Operator`]'s arity
-    ///
-    /// [`Operator`]: struct.Operator.html
+    /// A function to return an `Operator`'s arity
     ///
     /// # Examples
     ///
@@ -84,9 +76,7 @@ impl Operator {
     pub fn arity(self, sig: &Signature) -> u32 {
         sig.operators[self.id].0
     }
-    /// A function to return an [`Operator`]'s name
-    ///
-    /// [`Operator`]: struct.Operator.html
+    /// A function to return an `Operator`'s name
     ///
     /// # Examples
     ///
@@ -100,9 +90,7 @@ impl Operator {
         let opt = &sig.operators[self.id].1;
         opt.as_ref().map(|s| s.as_str())
     }
-    /// A function to return an [`Operator`]'s arity
-    ///
-    /// [`Operator`]: struct.Operator.html
+    /// A function to return an `Operator`'s arity
     ///
     /// # Examples
     ///
@@ -121,10 +109,9 @@ impl Operator {
     }
 }
 
-/// [`Atom`] enum which represents the elementary data unit, the smallest item that is not constructed from smaller parts.
+/// `Atom` enum which represents the elementary data unit, the smallest item that is not constructed from smaller parts.
 /// An Atom can hold either a [`Variable`] or an [`Operator`].
 ///
-/// [`Atom`]: enum.Atom.html
 /// [`Variable`]: struct.Variable.html
 /// [`Operator`]: struct.Operator.hmtl
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -132,18 +119,16 @@ pub enum Atom {
     Variable(Variable),
     Operator(Operator),
 }
-/// Constructs an [`Atom`] of type [`Variable`]
+/// Constructs an `Atom` of type [`Variable`]
 ///
-/// [`Atom`]: enum.Atom.html
 /// [`Variable`]: struct.Variable.html
 impl From<Variable> for Atom {
     fn from(var: Variable) -> Atom {
         Atom::Variable(var)
     }
 }
-/// Constructs an [`Atom`] of type [`Operator`]
+/// Constructs an `Atom` of type [`Operator`]
 ///
-/// [`Atom`]: enum.Atom.html
 /// [`Operator`]: operator.Variable.html
 impl From<Operator> for Atom {
     fn from(op: Operator) -> Atom {
