@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use std::iter;
 
@@ -19,11 +20,31 @@ pub struct Variable {
     pub(crate) id: usize,
 }
 impl Variable {
-    pub fn name<'sig>(&self, sig: &'sig Signature) -> Option<&'sig str> {
+    /// A function to return a [`Variable`]'s name
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::Signature;
+    /// let mut sig = Signature::default();
+    /// let var = sig.new_var(Some("Z".to_string()));
+    /// assert_eq!(var.name(&sig),Some("Z"));
+    /// ```
+    pub fn name(self, sig: &Signature) -> Option<&str> {
         let opt = &sig.variables[self.id];
         opt.as_ref().map(|s| s.as_str())
     }
-    pub fn display(&self, sig: &Signature) -> String {
+    /// A function to return a string representation of a [`Variable`]
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::Signature;
+    /// let mut sig = Signature::default();
+    /// let var = sig.new_var(Some("Z".to_string()));
+    /// assert_eq!(var.display(&sig),"Z");
+    /// ```
+    pub fn display(self, sig: &Signature) -> String {
         if let Some(ref name) = sig.variables[self.id] {
             name.clone()
         } else {
@@ -44,14 +65,44 @@ pub struct Operator {
     pub(crate) id: usize,
 }
 impl Operator {
-    pub fn arity(&self, sig: &Signature) -> u32 {
+    /// A function to return an [`Operator`]'s arity
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::Signature;
+    /// let mut sig = Signature::default();
+    /// let op = sig.new_op(2, Some("Z".to_string()));
+    /// assert_eq!(op.arity(&sig), 2);
+    /// ```
+    pub fn arity(self, sig: &Signature) -> u32 {
         sig.operators[self.id].0
     }
-    pub fn name<'sig>(&self, sig: &'sig Signature) -> Option<&'sig str> {
+    /// A function to return an [`Operator`]'s name
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::Signature;
+    /// let mut sig = Signature::default();
+    /// let op = sig.new_op(2, Some("Z".to_string()));
+    /// assert_eq!(op.name(&sig),Some("Z"));
+    /// ```
+    pub fn name(self, sig: &Signature) -> Option<&str> {
         let opt = &sig.operators[self.id].1;
         opt.as_ref().map(|s| s.as_str())
     }
-    pub fn display(&self, sig: &Signature) -> String {
+    /// A function to return an [`Operator`]'s arity
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::Signature;
+    /// let mut sig = Signature::default();
+    /// let op = sig.new_op(2, Some("Z".to_string()));
+    /// assert_eq!(op.display(&sig),"Z");
+    /// ```
+    pub fn display(self, sig: &Signature) -> String {
         if let (_, Some(ref name)) = sig.operators[self.id] {
             name.clone()
         } else {
@@ -60,6 +111,11 @@ impl Operator {
     }
 }
 
+/// [`Atom`] enum which represents the elementary data unit, the smallest item that is not constructed from smaller parts.
+/// An Atom can hold either a [`Variable`] or an [`Operator`].
+///
+/// [`Variable`]: struct.Variable.html
+/// [`Operator`]: struct.Operator.hmtl
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Atom {
     Variable(Variable),
@@ -102,6 +158,31 @@ impl Signature {
     /// The returned vector of [`Operator`]s corresponds to the supplied spec.
     ///
     /// [`Operator`]: struct.Operator.html
+    ///
+    /// # Examples
+    ///
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature};
+    /// // Constructs a new signature with the operators ".","S","K' from the vector
+    /// let (mut sig,ops) = Signature:: new(vec![
+    ///     (2, Some(".".to_string())),
+    ///     (0, Some("S".to_string())),
+    ///     (0, Some("K".to_string())),
+    /// ]);
+    /// let (mut sig2,ops2) = Signature:: new(vec![
+    ///     (2, Some(".".to_string())),
+    ///     (0, Some("S".to_string())),
+    ///     (0, Some("K".to_string())),
+    /// ]);
+    /// let (mut sig3,ops3) = Signature:: new(vec![
+    ///     (2, Some(".".to_string())),
+    ///     (0, Some("S".to_string())),
+    /// ]);
+    ///
+    /// assert_eq!(sig,sig2);
+    /// assert_ne!(sig,sig3);
+    ///```
     pub fn new(operator_spec: Vec<(u32, Option<String>)>) -> (Signature, Vec<Operator>) {
         let variables = Vec::new();
         let sig = Signature {
@@ -114,6 +195,23 @@ impl Signature {
     /// Returns every [`Operator`] known to the signature, in the order they were created.
     ///
     /// [`Operator`]: struct.Operator.html
+    ///
+    /// # Examples
+    ///
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature};
+    /// // Constructs a new signature with the operators ".","S","K' from the vector
+    /// let (mut sig,ops) = Signature:: new(vec![
+    ///     (2, Some(".".to_string())),
+    ///     (0, Some("S".to_string())),
+    ///     (0, Some("K".to_string())),
+    /// ]);
+    /// // Returns the operators in the signature above
+    /// let example_ops = sig.operators();
+    ///
+    /// assert_eq!(ops,example_ops);
+    ///```
     pub fn operators(&self) -> Vec<Operator> {
         (0..self.operators.len())
             .map(|id| Operator { id })
@@ -122,14 +220,58 @@ impl Signature {
     /// Returns every [`Variable`] known to the signature, in the order they were created.
     ///
     /// [`Variable`]: struct.Variable.html
+    ///
+    /// # Examples
+    ///
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature};
+    /// // Constructs a new signature with the variables ".","S","K' from the vector
+    /// let (mut sig,ops) = Signature:: new(vec![
+    ///     (2, Some(".".to_string())),
+    ///     (0, Some("S".to_string())),
+    ///     (0, Some("K".to_string())),
+    /// ]);
+    ///
+    /// // Returns the variables in the signature above
+    /// let vars = sig.variables();
+    /// let vars2 = sig.variables();
+    ///
+    /// let newVar = sig.new_var(Some("A".to_string()));
+    /// let vars3 = sig.variables();
+    ///
+    /// assert_eq!(vars,vars2);
+    /// assert_ne!(vars,vars3);
+    ///```
     pub fn variables(&self) -> Vec<Variable> {
         (0..self.variables.len())
             .map(|id| Variable { id })
             .collect()
     }
+    /// Returns every [`Atom`] known to the signature.
+    ///
+    /// [`Atom`]: enum.Atom.html
+    pub fn atoms(&self) -> Vec<Atom> {
+        let vars = self.variables().into_iter().map(Atom::Variable);
+        let ops = self.operators().into_iter().map(Atom::Operator);
+        vars.chain(ops).collect()
+    }
     /// Create a new [`Operator`] distinct from all existing operators.
     ///
     /// [`Operator`]: struct.Operator.html
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature};
+    /// let mut sig = Signature::default();
+    /// let a = sig.new_op(1, Some(".".to_string()));
+    /// let s = sig.new_op(2, Some("S".to_string()));
+    /// let s2 = sig.new_op(2, Some("S".to_string()));
+    ///
+    /// assert_ne!(a,s);
+    /// assert_ne!(a,s2);
+    /// assert_ne!(s,s2);
+    /// ```
     pub fn new_op(&mut self, arity: u32, name: Option<String>) -> Operator {
         let id = self.operators.len();
         self.operators.push((arity, name));
@@ -138,12 +280,23 @@ impl Signature {
     /// Create a new [`Variable`] distinct from all existing variables.
     ///
     /// [`Variable`]: struct.Variable.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature};
+    /// let mut sig = Signature::default();
+    /// let z = sig.new_var(Some("Z".to_string()));
+    /// let z2 = sig.new_var(Some("Z".to_string()));
+    ///
+    /// assert_ne!(z,z2);
+    /// ```
     pub fn new_var(&mut self, name: Option<String>) -> Variable {
         let id = self.variables.len();
         self.variables.push(name);
         Variable { id }
     }
-    /// Merge two signatures. All terms, contexts, rules, and TRSs associated
+    /// Merge two ['Signature']s. All terms, contexts, rules, and TRSs associated
     /// with the `other` signature should be `reified` using methods provided
     /// by the returned [`SignatureChange`].
     ///
@@ -196,6 +349,22 @@ impl Signature {
         }
     }
 }
+/// Creates a new Signature without any Operators or Variables
+///
+/// # Usage
+///
+/// ```
+/// # use term_rewriting::{Signature};
+/// let mut sig = Signature::default();
+/// let (mut sig2,ops) = Signature::new(vec![]);
+/// let (mut sig3,ops) = Signature::new(vec![
+///     (2, Some(".".to_string())),
+///     (0, Some("S".to_string())),
+///     (0, Some("K".to_string())),
+///     ]);
+/// assert_eq!(sig,sig2);
+/// assert_ne!(sig,sig3);
+/// ```
 impl Default for Signature {
     fn default() -> Signature {
         Signature {
@@ -204,6 +373,17 @@ impl Default for Signature {
         }
     }
 }
+/// Compares two Signatures to test if they should be considered equal
+///
+/// # Examples
+///
+/// ```
+/// # use term_rewriting::{Signature};
+/// let mut sig = Signature::default();
+/// let mut sig2 = Signature::default();
+///
+/// assert!(sig.eq(&sig2));
+/// ```
 impl PartialEq for Signature {
     fn eq(&self, other: &Signature) -> bool {
         self.variables.len() == other.variables.len()
@@ -243,6 +423,10 @@ pub struct SignatureChange {
     delta_var: usize,
 }
 impl SignatureChange {
+    /// Reifies term for use with another signature
+    /// See ['SignatureChange']
+    ///
+    /// ['SignatureChange']: struct.SignatureChange
     pub fn reify_term(&self, term: Term) -> Term {
         match term {
             Term::Variable(Variable { id }) => {
@@ -261,6 +445,10 @@ impl SignatureChange {
             }
         }
     }
+    /// Reifies context for use with another signature
+    /// See ['SignatureChange']
+    ///
+    /// ['SignatureChange']: struct.SignatureChange
     pub fn reify_context(&self, context: Context) -> Context {
         match context {
             Context::Hole => Context::Hole,
@@ -280,12 +468,20 @@ impl SignatureChange {
             }
         }
     }
+    /// Reifies rule for use with another signature
+    /// See ['SignatureChange']
+    ///
+    /// ['SignatureChange']: struct.SignatureChange
     pub fn reify_rule(&self, rule: Rule) -> Rule {
         let Rule { lhs, rhs } = rule;
         let lhs = self.reify_term(lhs);
         let rhs = rhs.into_iter().map(|t| self.reify_term(t)).collect();
         Rule { lhs, rhs }
     }
+    /// Reifies TRS for use with another signature
+    /// See ['SignatureChange']
+    ///
+    /// ['SignatureChange']: struct.SignatureChange
     pub fn reify_trs(&self, trs: TRS) -> TRS {
         let rules = trs.rules.into_iter().map(|r| self.reify_rule(r)).collect();
         TRS { rules }
@@ -322,6 +518,19 @@ impl Context {
     // takes in a term and a context, returns a list of Terms fitting the holes.
     //
     // pub fn slice(&self, c: Context<V, O>, t: Term<V, O>) -> Option<Vec<Term<V, O>>>
+
+    /// Describe the Context as a human-readable string
+    pub fn display(&self, sig: &Signature) -> String {
+        match self {
+            Context::Hole => "<H>".to_string(),
+            Context::Variable(v) => v.display(sig),
+            Context::Application { op, args } => {
+                let op_str = op.display(sig);
+                let args_str = args.iter().map(|arg| arg.display(sig)).join(" ");
+                format!("{}({})", op_str, args_str)
+            }
+        }
+    }
 }
 impl From<Term> for Context {
     fn from(t: Term) -> Context {
@@ -349,9 +558,50 @@ pub enum Term {
     Application { op: Operator, args: Vec<Term> },
 }
 impl Term {
+    /// Describe the Term as a human-readable string
+    pub fn display(&self, sig: &Signature) -> String {
+        match self {
+            Term::Variable(v) => v.display(sig),
+            Term::Application { op, args } => {
+                let op_str = op.display(sig);
+                let args_str = args.iter().map(|arg| arg.display(sig)).join(" ");
+                format!("{}({})", op_str, args_str)
+            }
+        }
+    }
+    /// Every [`Atom`] used in the term.
+    ///
+    /// [`Atom`]: enum.Atom.html
+    pub fn atoms(&self) -> Vec<Atom> {
+        let vars = self.variables().into_iter().map(Atom::Variable);
+        let ops = self.operators().into_iter().map(Atom::Operator);
+        vars.chain(ops).collect()
+    }
     /// Every [`Variable`] used in the term.
     ///
     /// [`Variable`]: struct.Variable.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_term,Term};
+    /// let mut sig = Signature::default();
+    /// let a = sig.new_op(2, Some(".".to_string()));
+    /// let s = sig.new_op(0, Some("S".to_string()));
+    /// let k = sig.new_op(0, Some("K".to_string()));
+    ///
+    /// let t = parse_term(&mut sig, "S K y_ z_").expect("parse of S K y_ z_");
+    /// let t2 = parse_term(&mut sig, "S K y_ z_").expect("parse of S K y_ z_");
+    /// let t3 = parse_term(&mut sig, "S K y_").expect("parse of S K y_");
+    ///
+    /// let vars = t.variables();
+    /// let vars2 = t2.variables();
+    /// let vars3 = t3.variables();
+    ///
+    /// assert_ne!(vars,vars2);
+    /// assert_ne!(vars2,vars3);
+    /// assert_ne!(vars,vars3);
+    /// ```
     pub fn variables(&self) -> Vec<Variable> {
         match *self {
             Term::Variable(v) => vec![v],
@@ -363,6 +613,26 @@ impl Term {
     /// Every [`Operator`] used in the term.
     ///
     /// [`Operator`]: struct.Operator.html
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_term,Term};
+    /// let mut sig = Signature::default();
+    /// let a = sig.new_op(2, Some(".".to_string()));
+    /// let s = sig.new_op(0, Some("S".to_string()));
+    /// let k = sig.new_op(0, Some("K".to_string()));
+    ///
+    /// let t = parse_term(&mut sig, "S K y_ z_").expect("parse of S K y_ z_");
+    /// let t2 = parse_term(&mut sig, "S K y_ z_").expect("parse of S K y_ z_");
+    /// let t3 = parse_term(&mut sig, "S K y_").expect("parse of S K y_");
+    ///
+    /// let ops = t.operators();
+    /// let ops2 = t2.operators();
+    /// let ops3 = t3.operators();
+    ///
+    /// assert_eq!(ops,ops2);
+    /// assert_eq!(ops2,ops3);
+    /// ```
     pub fn operators(&self) -> Vec<Operator> {
         match *self {
             Term::Variable(_) => vec![],
@@ -373,7 +643,35 @@ impl Term {
                 .collect(),
         }
     }
+    /// The head of the Term.
+    pub fn head(&self) -> Atom {
+        match self {
+            Term::Variable(v) => Atom::Variable(*v),
+            Term::Application { op, .. } => Atom::Operator(*op),
+        }
+    }
+    /// The head of the Term.
+    pub fn args(&self) -> Vec<Term> {
+        match self {
+            Term::Variable(_) => vec![],
+            Term::Application { args, .. } => args.clone(),
+        }
+    }
     /// Every subterm and its place, starting with the original term itself.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_term,Term};
+    /// let mut sig = Signature::default();
+    /// let a = sig.new_op(2, Some(".".to_string()));
+    /// let s = sig.new_op(0, Some("S".to_string()));
+    /// let k = sig.new_op(0, Some("K".to_string()));
+    ///
+    /// let t = parse_term(&mut sig, "S K y_ z_").expect("parse of S K y_ z_");
+    ///
+    /// t.subterms();
+    /// ```
     pub fn subterms(&self) -> Vec<(&Term, Place)> {
         match *self {
             Term::Variable(_) => vec![(self, vec![])],
@@ -393,11 +691,15 @@ impl Term {
             }
         }
     }
+    /// The number of distinct places in the term
+    pub fn size(&self) -> usize {
+        self.subterms().len()
+    }
     /// Get the subterm at the given [`Place`], or `None` if the place does not exist in the term.
     ///
     /// [`Place`]: type.Place.html
     #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
-    pub fn at(&self, place: &Place) -> Option<&Term> {
+    pub fn at(&self, place: &[usize]) -> Option<&Term> {
         self.at_helper(&*place)
     }
     fn at_helper(&self, place: &[usize]) -> Option<&Term> {
@@ -419,7 +721,7 @@ impl Term {
     ///
     /// [`Place`]: type.Place.html
     #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
-    pub fn replace(&self, place: &Place, subterm: Term) -> Option<Term> {
+    pub fn replace(&self, place: &[usize], subterm: Term) -> Option<Term> {
         self.replace_helper(&*place, subterm)
     }
     fn replace_helper(&self, place: &[usize], subterm: Term) -> Option<Term> {
@@ -446,6 +748,36 @@ impl Term {
     ///
     /// [`Variable`]: struct.Variable.html
     /// [`Term`]: enum.Term.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_term,Term};
+    /// # use std::collections::{HashMap};
+    /// let (mut sig,ops) = Signature:: new(vec![
+    ///     (2, Some(".".to_string())),
+    ///     (0, Some("S".to_string())),
+    ///     (0, Some("K".to_string())),
+    /// ]);
+    ///
+    /// let term_before = parse_term(&mut sig, "S K y_ z_").expect("parse of S K y_ z_");
+    /// let s_term = parse_term(&mut sig, "S").expect("parse of S");
+    /// let k_term = parse_term(&mut sig, "K").expect("parse of K");
+    ///
+    /// let vars = sig.variables();
+    /// let y = vars[0];
+    /// let z = vars[1];
+    ///
+    /// let mut sub = HashMap::new();
+    /// sub.insert(y,s_term);
+    /// sub.insert(z,k_term);
+    ///
+    /// let term_after = parse_term(&mut sig, "S K S K").expect("parse of S K S K");
+    /// let subbed_term = term_before.substitute(&sub);
+    ///
+    /// assert_eq!(term_after, subbed_term);
+    /// ```
+
     pub fn substitute(&self, sub: &HashMap<Variable, Term>) -> Term {
         match *self {
             Term::Variable(ref v) => sub.get(v).unwrap_or(self).clone(),
@@ -480,13 +812,52 @@ impl Term {
             _ => None,
         }
     }
-    /// Whether two terms are [alpha equivalent].
+    /// Compute the [alpha equivalence] for two terms.
     ///
-    /// [alpha equivalent]: https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
-    pub fn alpha_equivalent(t1: &Term, t2: &Term) -> bool {
-        Term::pmatch(vec![(t1.clone(), t2.clone())]).is_some()
-            && Term::pmatch(vec![(t2.clone(), t1.clone())]).is_some()
+    /// [alpha equivalence]: https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_term,Term};
+    /// let mut sig = Signature::default();
+    /// let a = sig.new_op(2, Some(".".to_string()));
+    /// let s = sig.new_op(0, Some("S".to_string()));
+    /// let k = sig.new_op(0, Some("K".to_string()));
+    ///
+    /// let t = parse_term(&mut sig, "S K y_ z_").expect("parse of S K y_ z_");
+    /// let t2 = parse_term(&mut sig, "S K y_ z_").expect("parse of S K y_ z_");
+    /// let t3 = parse_term(&mut sig, "S K y_").expect("parse of S K y_");
+    ///
+    /// let alpha_1 = Term::alpha(&t,&t2);
+    /// let alpha_2 = Term::alpha(&t,&t3);
+    /// let alpha_3 = Term::alpha(&t2,&t3);
+    /// assert_ne!(alpha_1,alpha_2);
+    /// assert_eq!(alpha_2,alpha_3);
+    /// ```
+    pub fn alpha(t1: &Term, t2: &Term) -> Option<HashMap<Variable, Term>> {
+        if Term::pmatch(vec![(t2.clone(), t1.clone())]).is_some() {
+            Term::pmatch(vec![(t1.clone(), t2.clone())])
+        } else {
+            None
+        }
     }
+    /// Returns whether two terms are shape equivalent
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_term,Term};
+    /// let mut sig = Signature::default();
+    /// let a = sig.new_op(2, Some(".".to_string()));
+    /// let s = sig.new_op(0, Some("S".to_string()));
+    /// let k = sig.new_op(0, Some("K".to_string()));
+    ///
+    /// let t = parse_term(&mut sig, "S K y_ z_").expect("parse of S K y_ z_");
+    /// let t2 = parse_term(&mut sig, "S K y_ z_").expect("parse of S K y_ z_");
+    /// let t3 = parse_term(&mut sig, "S K y_").expect("parse of S K y_");
+    ///
+    /// assert!(Term::shape_equivalent(&t,&t2));
+    /// assert!(! Term::shape_equivalent(&t,&t3));
+    /// ```
     pub fn shape_equivalent(t1: &Term, t2: &Term) -> bool {
         let mut vmap = HashMap::new();
         let mut omap = HashMap::new();
@@ -577,12 +948,45 @@ impl Term {
 /// right-hand-side [`Term`]s.
 ///
 /// [`Term`]: enum.Term.html
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Rule {
-    lhs: Term,
-    rhs: Vec<Term>,
+    pub lhs: Term,
+    pub rhs: Vec<Term>,
 }
 impl Rule {
+    /// Describe the Rule with a human-readable string.
+    pub fn display(&self, sig: &Signature) -> String {
+        let lhs_str = self.lhs.display(sig);
+        let rhs_str = self.rhs.iter().map(|rhs| rhs.display(sig)).join(" | ");
+        format!("{} = {}", lhs_str, rhs_str)
+    }
+    /// Return the total number of subterms across all terms in the rule.
+    pub fn size(&self) -> usize {
+        self.lhs.size() + self.rhs.iter().map(Term::size).sum::<usize>()
+    }
+    /// Return the number of RHSs in the rule
+    pub fn len(&self) -> usize {
+        self.rhs.len()
+    }
+    /// Is the rule empty?
+    pub fn is_empty(&self) -> bool {
+        self.rhs.is_empty()
+    }
+    /// Give the lone RHS, if it exists
+    pub fn rhs(&self) -> Option<Term> {
+        if self.rhs.len() == 1 {
+            Some(self.rhs[0].clone())
+        } else {
+            None
+        }
+    }
+    /// Return a list of the clauses in the `Rule`.
+    pub fn clauses(&self) -> Vec<Rule> {
+        self.rhs
+            .iter()
+            .map(|rhs| Rule::new(self.lhs.clone(), vec![rhs.clone()]).unwrap())
+            .collect()
+    }
     /// logic ensuring that the `lhs` and `rhs` are compatible.
     fn is_valid(lhs: &Term, rhs: &[Term]) -> bool {
         // the lhs must be an application
@@ -616,17 +1020,244 @@ impl Rule {
             None
         }
     }
+    /// Add a clause to the rule from a term.
+    pub fn add(&mut self, t: Term) {
+        let self_vars = self.lhs.variables();
+        if t.variables().iter().all(|x| self_vars.contains(x)) {
+            self.rhs.push(t)
+        }
+    }
+    /// Add clauses to the rule from another rule.
+    pub fn merge(&mut self, r: &Rule) {
+        if let Some(s) = Term::alpha(&self.lhs, &r.lhs) {
+            for rhs in r.rhs.clone() {
+                self.rhs.push(rhs.substitute(&s));
+            }
+        }
+    }
+    /// Discard clauses from the rule.
+    pub fn discard(&mut self, r: &Rule) -> bool {
+        if let Some(sub) = Term::alpha(&self.lhs, &r.lhs) {
+            let terms = r.rhs
+                .iter()
+                .map(|rhs| rhs.substitute(&sub))
+                .collect::<Vec<Term>>();
+            self.rhs.retain(|x| !terms.contains(x));
+            true
+        } else {
+            false
+        }
+    }
+    /// Check whether the rule contains certain clauses.
+    pub fn contains(&self, r: &Rule) -> Option<HashMap<Variable, Term>> {
+        if let Some(sub) = Term::alpha(&self.lhs, &r.lhs) {
+            if r.rhs
+                .iter()
+                .all(|rhs| self.rhs.contains(&rhs.substitute(&sub)))
+            {
+                Some(sub)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+    /// Get all the Variables in the Rule.
+    pub fn variables(&self) -> Vec<Variable> {
+        self.lhs.variables()
+    }
+    /// Get all the Operators in the Rule.
+    pub fn operators(&self) -> Vec<Operator> {
+        let lhs = self.lhs.operators().into_iter();
+        let rhs = self.rhs.iter().flat_map(Term::operators);
+        lhs.chain(rhs).unique().collect()
+    }
+    /// Get all the subterms and places in a Rule.
+    pub fn subterms(&self) -> Vec<(usize, &Term, Place)> {
+        let lhs = self.lhs.subterms().into_iter().map(|(t, p)| (0, t, p));
+        let rhs = self.rhs.iter().enumerate().flat_map(|(i, rhs)| {
+            iter::repeat(i + 1)
+                .zip(rhs.subterms())
+                .into_iter()
+                .map(|(i, (t, p))| (i, t, p))
+        });
+        lhs.chain(rhs).collect()
+    }
+    /// Get a specific subterm in a Rule
+    pub fn at(&self, p: &[usize]) -> Option<&Term> {
+        if p[0] == 0 {
+            self.lhs.at(&p[1..].to_vec())
+        } else {
+            self.rhs[p[1]].at(&p[2..].to_vec())
+        }
+    }
+    /// Replace one subterm with another in a Rule
+    pub fn replace(&self, place: &[usize], subterm: Term) -> Option<Rule> {
+        if place[0] == 0 {
+            if let Some(lhs) = self.lhs.replace(&place[1..].to_vec(), subterm) {
+                Rule::new(lhs, self.rhs.clone())
+            } else {
+                None
+            }
+        } else if let Some(an_rhs) = self.rhs[place[1]].replace(&place[2..].to_vec(), subterm) {
+            let mut rhs = self.rhs.clone();
+            rhs.remove(place[1]);
+            rhs.insert(place[1], an_rhs);
+            Rule::new(self.lhs.clone(), rhs)
+        } else {
+            None
+        }
+    }
+    /// Match one rule against another.
+    pub fn pmatch(r1: Rule, r2: Rule) -> Option<HashMap<Variable, Term>> {
+        let cs = iter::once((r1.lhs, r2.lhs)).chain(r1.rhs.into_iter().zip(r2.rhs));
+        Term::pmatch(cs.collect())
+    }
+    /// Unify two rules.
+    pub fn unify(r1: Rule, r2: Rule) -> Option<HashMap<Variable, Term>> {
+        let cs = iter::once((r1.lhs, r2.lhs)).chain(r1.rhs.into_iter().zip(r2.rhs));
+        Term::unify(cs.collect())
+    }
+    /// Compute the alpha equivalence between two rules.
+    pub fn alpha(r1: &Rule, r2: &Rule) -> Option<HashMap<Variable, Term>> {
+        if Rule::pmatch(r2.clone(), r1.clone()).is_some() {
+            Rule::pmatch(r1.clone(), r2.clone())
+        } else {
+            None
+        }
+    }
+    /// Substitute through a rule
+    pub fn substitute(&self, sub: &HashMap<Variable, Term>) -> Rule {
+        Rule::new(
+            self.lhs.substitute(sub),
+            self.rhs.iter().map(|rhs| rhs.substitute(sub)).collect(),
+        ).unwrap()
+    }
 }
 
 /// A first-order term rewriting system.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct TRS {
-    rules: Vec<Rule>,
+    pub rules: Vec<Rule>,
 }
 impl TRS {
     /// Constructs a term rewriting system from a list of rules.
     pub fn new(rules: Vec<Rule>) -> TRS {
         TRS { rules }
+    }
+    /// The number of rules in the TRS.
+    pub fn len(&self) -> usize {
+        self.rules.len()
+    }
+    /// Are there any rules in the TRS?
+    pub fn is_empty(&self) -> bool {
+        self.rules.is_empty()
+    }
+    /// Return the number of total number of subterms across all rules.
+    pub fn size(&self) -> usize {
+        self.rules.iter().map(Rule::size).sum()
+    }
+    /// Remove the rule at index `i`.
+    pub fn remove(&mut self, i: usize) {
+        self.rules.remove(i);
+    }
+    /// Delete `r` if it exists in `self`.
+    pub fn delete(&mut self, r: &Rule) {
+        for rule in &mut self.rules {
+            if rule.discard(&r) {
+                break;
+            }
+        }
+        self.rules.retain(|rule| !rule.is_empty());
+    }
+    /// Get `r` if it exists in `self`.
+    pub fn get(&self, r: &Rule) -> Option<(usize, Rule)> {
+        for (i, rule) in self.rules.iter().enumerate() {
+            if let Some(sub) = rule.contains(r) {
+                return Some((i, r.substitute(&sub)));
+            }
+        }
+        None
+    }
+    /// Put `r` at index `i` in `self`.
+    pub fn set(&mut self, i: usize, r: Rule) {
+        if let Some(idx) = self.rules
+            .iter()
+            .position(|rule| Term::alpha(&rule.lhs, &r.lhs).is_some())
+        {
+            self.rules[idx].merge(&r);
+            let rule = self.rules.remove(idx);
+            self.rules.insert(i, rule);
+        } else {
+            self.rules.insert(i, r);
+        }
+    }
+    /// Put `r` in the TRS as the first Rule.
+    pub fn push(&mut self, r: Rule) {
+        self.set(0, r)
+    }
+    /// Push a series of rules into the TRS.
+    pub fn pushes(&mut self, rs: Vec<Rule>) {
+        for r in rs {
+            self.push(r);
+        }
+    }
+    /// Represent the TRS as a human-readable string.
+    pub fn display(&self, sig: &Signature) -> String {
+        self.rules.iter().map(|r| r.display(sig)).join("\n")
+    }
+    /// All the clauses in the TRS.
+    pub fn clauses(&self) -> Vec<Rule> {
+        self.rules.iter().flat_map(Rule::clauses).collect()
+    }
+    /// Move rule `i` to index `j`
+    pub fn move_rule(&mut self, i: usize, j: usize) -> bool {
+        if self.rules.len() > max(i, j) {
+            let rule = self.rules.remove(i);
+            self.rules.insert(j, rule);
+            true
+        } else {
+            false
+        }
+    }
+    /// Replace Rule `r1` with Rule `r2`
+    pub fn replace(&mut self, r1: &Rule, r2: Rule) {
+        if let Some((idx, mut rule)) = self.get(r1) {
+            rule.discard(r1);
+            self.push(r2);
+            if rule.is_empty() {
+                self.remove(idx);
+            }
+        }
+    }
+    /// Do two TRSs unify?
+    pub fn unifies(trs1: TRS, trs2: TRS) -> bool {
+        trs1.len() == trs2.len()
+            && trs1.rules
+                .into_iter()
+                .zip(trs2.rules)
+                .all(|(r1, r2)| Rule::unify(r1, r2).is_some())
+    }
+    /// Does one TRS match another?
+    pub fn pmatches(trs1: TRS, trs2: TRS) -> bool {
+        trs1.len() == trs2.len()
+            && trs1.rules
+                .into_iter()
+                .zip(trs2.rules)
+                .all(|(r1, r2)| Rule::pmatch(r1, r2).is_some())
+    }
+    /// Are two TRSs alpha equivalent?
+    pub fn alphas(trs1: &TRS, trs2: &TRS) -> bool {
+        TRS::pmatches(trs2.clone(), trs1.clone()) && TRS::pmatches(trs1.clone(), trs2.clone())
+    }
+    /// All the operators in the TRS
+    pub fn operators(&self) -> Vec<Operator> {
+        self.rules
+            .iter()
+            .flat_map(Rule::operators)
+            .unique()
+            .collect()
     }
     // Return rewrites modifying the entire term, if possible, else None.
     fn rewrite_head(&self, term: &Term) -> Option<Vec<Term>> {
@@ -665,6 +1296,7 @@ impl TRS {
             ref app => self.rewrite_head(app).or_else(|| self.rewrite_args(app)),
         }
     }
+    // TODO: pub fn make_deterministic
 }
 
 #[cfg(test)]
