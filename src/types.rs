@@ -41,13 +41,13 @@ impl Variable {
     /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
     /// let var = sig.new_var(Some("Z".to_string()));
-    /// assert_eq!(var.display(&sig), "Z");
+    /// assert_eq!(var.display(&sig), "Z_");
     /// ```
     pub fn display(self, sig: &Signature) -> String {
         if let Some(ref name) = sig.variables[self.id] {
-            name.clone()
+            format!("{}_", name)
         } else {
-            format!("<var {}>", self.id)
+            format!("var{}_", self.id)
         }
     }
 }
@@ -104,7 +104,7 @@ impl Operator {
         if let (_, Some(ref name)) = sig.operators[self.id] {
             name.clone()
         } else {
-            format!("<op {}>", self.id)
+            format!("op{}", self.id)
         }
     }
 }
@@ -522,7 +522,7 @@ impl Context {
     /// Describe the Context as a human-readable string
     pub fn display(&self, sig: &Signature) -> String {
         match self {
-            Context::Hole => "<H>".to_string(),
+            Context::Hole => "[ ]".to_string(),
             Context::Variable(v) => v.display(sig),
             Context::Application { op, args } => {
                 let op_str = op.display(sig);
@@ -1205,7 +1205,10 @@ impl TRS {
     }
     /// Represent the TRS as a human-readable string.
     pub fn display(&self, sig: &Signature) -> String {
-        self.rules.iter().map(|r| r.display(sig)).join("\n")
+        self.rules
+            .iter()
+            .map(|r| format!("{};", r.display(sig)))
+            .join("\n")
     }
     /// All the clauses in the TRS.
     pub fn clauses(&self) -> Vec<Rule> {
@@ -1310,9 +1313,9 @@ mod tests {
         let v1 = sig.new_var(None);
         let v2 = sig.new_var(Some("blah".to_string()));
 
-        assert_eq!(v1.display(&sig), "<var 0>".to_string());
+        assert_eq!(v1.display(&sig), "var0_".to_string());
         assert_eq!(v1.name(&sig), None);
-        assert_eq!(v2.display(&sig), "blah".to_string());
+        assert_eq!(v2.display(&sig), "blah_".to_string());
         assert_eq!(v2.name(&sig), Some("blah"));
     }
     #[test]
