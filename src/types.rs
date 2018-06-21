@@ -30,7 +30,7 @@ impl Variable {
     /// let var = sig.new_var(Some("Z".to_string()));
     /// assert_eq!(var.name(&sig),Some("Z"));
     /// ```
-    pub fn name<'sig>(&self, sig: &'sig Signature) -> Option<&'sig str> {
+    pub fn name(self, sig: &Signature) -> Option<&str> {
         let opt = &sig.variables[self.id];
         opt.as_ref().map(|s| s.as_str())
     }
@@ -44,7 +44,7 @@ impl Variable {
     /// let var = sig.new_var(Some("Z".to_string()));
     /// assert_eq!(var.display(&sig),"Z");
     /// ```
-    pub fn display(&self, sig: &Signature) -> String {
+    pub fn display(self, sig: &Signature) -> String {
         if let Some(ref name) = sig.variables[self.id] {
             name.clone()
         } else {
@@ -75,7 +75,7 @@ impl Operator {
     /// let op = sig.new_op(2, Some("Z".to_string()));
     /// assert_eq!(op.arity(&sig), 2);
     /// ```
-    pub fn arity(&self, sig: &Signature) -> u32 {
+    pub fn arity(self, sig: &Signature) -> u32 {
         sig.operators[self.id].0
     }
     /// A function to return an [`Operator`]'s name
@@ -88,7 +88,7 @@ impl Operator {
     /// let op = sig.new_op(2, Some("Z".to_string()));
     /// assert_eq!(op.name(&sig),Some("Z"));
     /// ```
-    pub fn name<'sig>(&self, sig: &'sig Signature) -> Option<&'sig str> {
+    pub fn name(self, sig: &Signature) -> Option<&str> {
         let opt = &sig.operators[self.id].1;
         opt.as_ref().map(|s| s.as_str())
     }
@@ -102,7 +102,7 @@ impl Operator {
     /// let op = sig.new_op(2, Some("Z".to_string()));
     /// assert_eq!(op.display(&sig),"Z");
     /// ```
-    pub fn display(&self, sig: &Signature) -> String {
+    pub fn display(self, sig: &Signature) -> String {
         if let (_, Some(ref name)) = sig.operators[self.id] {
             name.clone()
         } else {
