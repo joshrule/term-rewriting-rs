@@ -1307,18 +1307,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn variable_show() {
-        let mut sig = Signature::default();
-
-        let v1 = sig.new_var(None);
-        let v2 = sig.new_var(Some("blah".to_string()));
-
-        assert_eq!(v1.display(&sig), "var0_".to_string());
-        assert_eq!(v1.name(&sig), None);
-        assert_eq!(v2.display(&sig), "blah_".to_string());
-        assert_eq!(v2.name(&sig), Some("blah"));
-    }
-    #[test]
     fn variable_eq() {
         let mut sig = Signature::default();
 
@@ -1329,90 +1317,5 @@ mod tests {
         assert_eq!(v1, v1);
         assert_ne!(v1, v2);
         assert_eq!(v1, v3);
-    }
-
-    #[test]
-    fn rule_is_valid_yes() {
-        let mut sig = Signature::default();
-        let lhs: Term = Term::Application {
-            op: sig.new_op(0, None),
-            args: vec![],
-        };
-
-        let rhs: Vec<Term> = vec![Term::Application {
-            op: sig.new_op(0, None),
-            args: vec![],
-        }];
-
-        assert!(Rule::is_valid(&lhs, &rhs));
-    }
-    #[test]
-    fn rule_is_valid_lhs_var() {
-        let mut sig = Signature::default();
-
-        let lhs = Term::Variable(sig.new_var(None));
-        let rhs = vec![Term::Application {
-            op: sig.new_op(0, None),
-            args: vec![],
-        }];
-
-        assert!(!Rule::is_valid(&lhs, &rhs));
-    }
-    #[test]
-    fn rule_is_valid_rhs_var() {
-        let mut sig = Signature::default();
-
-        let lhs = Term::Application {
-            op: sig.new_op(0, None),
-            args: vec![],
-        };
-        let rhs = vec![Term::Variable(sig.new_var(None))];
-
-        assert!(!Rule::is_valid(&lhs, &rhs));
-    }
-    #[test]
-    fn rule_new_some() {
-        let mut sig = Signature::default();
-
-        let lhs = Term::Application {
-            op: sig.new_op(0, None),
-            args: vec![],
-        };
-        let rhs = vec![Term::Application {
-            op: sig.new_op(0, None),
-            args: vec![],
-        }];
-
-        let rule = Rule {
-            lhs: lhs.clone(),
-            rhs: rhs.clone(),
-        };
-
-        assert_eq!(Rule::new(lhs, rhs), Some(rule));
-    }
-    #[test]
-    fn rule_is_valid_none() {
-        let mut sig = Signature::default();
-
-        let lhs = Term::Application {
-            op: sig.new_op(0, None),
-            args: vec![],
-        };
-
-        let rhs = vec![Term::Variable(sig.new_var(None))];
-
-        assert_eq!(Rule::new(lhs, rhs), None);
-    }
-
-    #[test]
-    fn trs_new() {
-        let trs1: TRS = TRS::new(vec![]);
-        let trs2 = TRS { rules: vec![] };
-        assert_eq!(trs1, trs2);
-    }
-    #[test]
-    fn trs_debug() {
-        let trs: TRS = TRS::new(vec![]);
-        assert_eq!(format!("{:?}", trs), "TRS { rules: [] }");
     }
 }
