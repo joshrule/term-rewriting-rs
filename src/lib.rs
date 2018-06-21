@@ -98,5 +98,5 @@ extern crate nom;
 mod parser;
 mod types;
 
-pub use parser::{parse, parse_term, parse_trs, ParseError};
+pub use parser::{parse, parse_rule, parse_term, parse_trs, ParseError};
 pub use types::*;
