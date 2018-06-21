@@ -526,8 +526,12 @@ impl Context {
             Context::Variable(v) => v.display(sig),
             Context::Application { op, args } => {
                 let op_str = op.display(sig);
-                let args_str = args.iter().map(|arg| arg.display(sig)).join(" ");
-                format!("{}({})", op_str, args_str)
+                if args.is_empty() {
+                    op_str
+                } else {
+                    let args_str = args.iter().map(|arg| arg.display(sig)).join(" ");
+                    format!("{}({})", op_str, args_str)
+                }
             }
         }
     }
@@ -564,8 +568,12 @@ impl Term {
             Term::Variable(v) => v.display(sig),
             Term::Application { op, args } => {
                 let op_str = op.display(sig);
-                let args_str = args.iter().map(|arg| arg.display(sig)).join(" ");
-                format!("{}({})", op_str, args_str)
+                if args.is_empty() {
+                    op_str
+                } else {
+                    let args_str = args.iter().map(|arg| arg.display(sig)).join(" ");
+                    format!("{}({})", op_str, args_str)
+                }
             }
         }
     }
