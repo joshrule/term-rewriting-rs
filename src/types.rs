@@ -10,7 +10,7 @@ pub type Place = Vec<usize>;
 
 /// A symbol for an unspecified term. Only carries meaning alongside a [`Signature`].
 ///
-/// To construct an `Variable`, use [`Signature::new_var`]
+/// To construct a `Variable`, use [`Signature::new_var`]
 ///
 /// [`Signature`]: struct.Signature.html
 /// [`Signature::new_var`]: struct.Signature.html#method.new_var
@@ -19,7 +19,7 @@ pub struct Variable {
     pub(crate) id: usize,
 }
 impl Variable {
-    /// A function to return a `Variable`'s name
+    /// Returns a `Variable`'s name.
     ///
     /// # Examples
     ///
@@ -27,13 +27,13 @@ impl Variable {
     /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
     /// let var = sig.new_var(Some("Z".to_string()));
-    /// assert_eq!(var.name(&sig),Some("Z"));
+    /// assert_eq!(var.name(&sig), Some("Z"));
     /// ```
     pub fn name(self, sig: &Signature) -> Option<&str> {
         let opt = &sig.variables[self.id];
         opt.as_ref().map(|s| s.as_str())
     }
-    /// A function to return a string representation of a `Variable`
+    /// Returns a human-readable, string representation of a `Variable`.
     ///
     /// # Examples
     ///
@@ -41,7 +41,7 @@ impl Variable {
     /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
     /// let var = sig.new_var(Some("Z".to_string()));
-    /// assert_eq!(var.display(&sig),"Z");
+    /// assert_eq!(var.display(&sig), "Z");
     /// ```
     pub fn display(self, sig: &Signature) -> String {
         if let Some(ref name) = sig.variables[self.id] {
@@ -54,7 +54,7 @@ impl Variable {
 
 /// A symbol with fixed arity. Only carries meaning alongside a [`Signature`].
 ///
-/// To construct an `Operator`, use [`Signature::new_op`]
+/// To construct an `Operator`, use [`Signature::new_op`].
 ///
 /// [`Signature`]: struct.Signature.html
 /// [`Signature::new_op`]: struct.Signature.html#method.new_op
@@ -63,7 +63,7 @@ pub struct Operator {
     pub(crate) id: usize,
 }
 impl Operator {
-    /// A function to return an `Operator`'s arity
+    /// Returns an `Operator`'s arity.
     ///
     /// # Examples
     ///
@@ -76,7 +76,7 @@ impl Operator {
     pub fn arity(self, sig: &Signature) -> u32 {
         sig.operators[self.id].0
     }
-    /// A function to return an `Operator`'s name
+    /// Returns an `Operator`'s name.
     ///
     /// # Examples
     ///
@@ -84,13 +84,13 @@ impl Operator {
     /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
     /// let op = sig.new_op(2, Some("Z".to_string()));
-    /// assert_eq!(op.name(&sig),Some("Z"));
+    /// assert_eq!(op.name(&sig), Some("Z"));
     /// ```
     pub fn name(self, sig: &Signature) -> Option<&str> {
         let opt = &sig.operators[self.id].1;
         opt.as_ref().map(|s| s.as_str())
     }
-    /// A function to return an `Operator`'s arity
+    /// Returns a human-readable, string representation of an `Operator`.
     ///
     /// # Examples
     ///
@@ -98,7 +98,7 @@ impl Operator {
     /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
     /// let op = sig.new_op(2, Some("Z".to_string()));
-    /// assert_eq!(op.display(&sig),"Z");
+    /// assert_eq!(op.display(&sig), "Z");
     /// ```
     pub fn display(self, sig: &Signature) -> String {
         if let (_, Some(ref name)) = sig.operators[self.id] {
@@ -109,9 +109,9 @@ impl Operator {
     }
 }
 
-/// `Atom` enum which represents the elementary data unit, the smallest item that is not constructed from smaller parts.
-/// An Atom can hold either a [`Variable`] or an [`Operator`].
+/// `Atom`s are the parts of a [`TRS`] that are not constructed from smaller parts: [`Variable`]s and [`Operators`].
 ///
+/// [`TRS`]: struct.TRS.html
 /// [`Variable`]: struct.Variable.html
 /// [`Operator`]: struct.Operator.hmtl
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -119,17 +119,13 @@ pub enum Atom {
     Variable(Variable),
     Operator(Operator),
 }
-/// Constructs an `Atom` of type [`Variable`]
-///
-/// [`Variable`]: struct.Variable.html
+
 impl From<Variable> for Atom {
     fn from(var: Variable) -> Atom {
         Atom::Variable(var)
     }
 }
-/// Constructs an `Atom` of type [`Operator`]
-///
-/// [`Operator`]: operator.Variable.html
+
 impl From<Operator> for Atom {
     fn from(op: Operator) -> Atom {
         Atom::Operator(op)
