@@ -201,3 +201,101 @@ fn rewrite_test() {
 
     assert_eq!(trs.rewrite(&l_term), Some(vec![r_term]));
 }
+
+#[test]
+fn display_variable() {
+    let mut sig = Signature::default();
+
+    let v1 = sig.new_var(None);
+    let v2 = sig.new_var(Some("blah".to_string()));
+
+    assert_eq!(v1.display(&sig), "var0_".to_string());
+    assert_eq!(v1.name(&sig), None);
+    assert_eq!(v2.display(&sig), "blah_".to_string());
+    assert_eq!(v2.name(&sig), Some("blah"));
+}
+
+#[test]
+fn rule_new_valid() {
+    let mut sig = Signature::default();
+    let lhs: Term = Term::Application {
+        op: sig.new_op(0, None),
+        args: vec![],
+    };
+
+    let rhs: Vec<Term> = vec![Term::Application {
+        op: sig.new_op(0, None),
+        args: vec![],
+    }];
+
+    assert!(Rule::new(lhs, rhs).is_some());
+}
+
+#[test]
+fn rule_new_valid_lhs_var() {
+    let mut sig = Signature::default();
+
+    let lhs = Term::Application {
+        op: sig.new_op(0, None),
+        args: vec![Term::Variable(sig.new_var(None))],
+    };
+    let rhs = vec![Term::Application {
+        op: sig.new_op(1, None),
+        args: vec![],
+    }];
+
+    assert!(Rule::new(lhs, rhs).is_some());
+}
+
+#[test]
+fn rule_new_invalid_lhs_var() {
+    let mut sig = Signature::default();
+
+    let lhs = Term::Variable(sig.new_var(None));
+    let rhs = vec![Term::Application {
+        op: sig.new_op(0, None),
+        args: vec![],
+    }];
+
+    assert!(Rule::new(lhs, rhs).is_none());
+}
+
+#[test]
+fn rule_new_invalid_rhs_var() {
+    let mut sig = Signature::default();
+
+    let lhs = Term::Application {
+        op: sig.new_op(0, None),
+        args: vec![],
+    };
+    let rhs = vec![Term::Variable(sig.new_var(None))];
+
+    assert!(Rule::new(lhs, rhs).is_none());
+}
+
+#[test]
+fn parse_display_roundtrip_term() {
+    let mut sig = Signature::default();
+    let s = "foo(bar(x_) y_ baz)";
+    let term = parse_term(&mut sig, s).unwrap_or_else(|_| panic!("parse of {}", s));
+    let ns = term.display(&sig);
+    assert_eq!(s, ns);
+}
+
+#[test]
+fn parse_display_roundtrip_rule() {
+    let mut sig = Signature::default();
+    let s = "foo(bar(x_) y_ baz) = bar(y_) | buzz";
+    let rule = parse_rule(&mut sig, s).unwrap_or_else(|_| panic!("parse of {}", s));
+    let ns = rule.display(&sig);
+    assert_eq!(s, ns);
+}
+
+#[test]
+fn parse_display_roundtrip_trs() {
+    let mut sig = Signature::default();
+    let s = "foo(bar(x_) y_ baz) = bar(y_) | buzz;\nbar(baz) = foo(bar(baz) bar(baz) baz);";
+    let trs = parse_trs(&mut sig, s).unwrap_or_else(|_| panic!("parse of {}", s));
+    let ns = trs.display(&sig);
+    assert_eq!(s, ns);
+}

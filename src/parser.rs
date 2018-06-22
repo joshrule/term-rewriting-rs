@@ -30,6 +30,19 @@ pub fn parse_trs(sig: &mut Signature, input: &str) -> Result<TRS, ParseError> {
     }
 }
 
+/// Similar to [`parse`], but produces only a [`Rule`].
+///
+/// [`parse`]: fn.parse.html
+/// [`Rule`]: struct.Rule.html
+pub fn parse_rule(sig: &mut Signature, input: &str) -> Result<Rule, ParseError> {
+    let (_parser, result) = Parser::new(sig).rule(CompleteStr(input));
+    match result {
+        Ok((CompleteStr(""), rule)) => Ok(rule),
+        Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
+        Err(_) => Err(ParseError::ParseFailed),
+    }
+}
+
 /// Similar to [`parse`], but produces only a [`Term`].
 ///
 /// [`parse`]: fn.parse.html
