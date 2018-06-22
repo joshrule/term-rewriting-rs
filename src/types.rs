@@ -522,7 +522,7 @@ impl Context {
     /// Describe the Context as a human-readable string
     pub fn display(&self, sig: &Signature) -> String {
         match self {
-            Context::Hole => "[ ]".to_string(),
+            Context::Hole => "[!]".to_string(),
             Context::Variable(v) => v.display(sig),
             Context::Application { op, args } => {
                 let op_str = op.display(sig);
