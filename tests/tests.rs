@@ -299,3 +299,91 @@ fn parse_display_roundtrip_trs() {
     let ns = trs.display(&sig);
     assert_eq!(s, ns);
 }
+
+#[test]
+fn pretty_term_application() {
+    let (mut sig, _) = Signature::new(vec![
+        (2, Some(".".to_string())),
+        (0, Some("S".to_string())),
+        (0, Some("K".to_string())),
+    ]);
+    let t = parse_term(&mut sig, "S K S K").expect("parse of S K S K");
+    assert_eq!(t.display(&sig), ".(.(.(S K) S) K)");
+    assert_eq!(t.pretty(&sig), "(((S K) S) K)");
+}
+
+#[test]
+fn pretty_term_list() {
+    let (mut sig, _) = Signature::new(vec![
+        (2, Some("CONS".to_string())),
+        (0, Some("NIL".to_string())),
+        (0, Some("A".to_string())),
+    ]);
+    let t = parse_term(&mut sig, "CONS(A CONS(A CONS(A NIL)))")
+        .expect("parse of CONS(A CONS(A CONS(A NIL)))");
+    assert_eq!(t.display(&sig), "CONS(A CONS(A CONS(A NIL)))");
+    assert_eq!(t.pretty(&sig), "[A, A, A]");
+}
+
+#[test]
+fn pretty_term_number() {
+    let (mut sig, _) = Signature::new(vec![
+        (1, Some("SUCC".to_string())),
+        (0, Some("ZERO".to_string())),
+        (2, Some("FOO".to_string())),
+    ]);
+    let t = parse_term(&mut sig, "FOO(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO))")
+        .expect("parse of FOO(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO))");
+    assert_eq!(t.display(&sig), "FOO(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO))");
+    assert_eq!(t.pretty(&sig), "FOO(3, 1)");
+}
+
+#[test]
+fn pretty_term_nonspecial() {
+    let (mut sig, _) = Signature::new(vec![
+        (0, Some("FOO".to_string())),
+        (1, Some("BAR".to_string())),
+        (2, Some("BAZ".to_string())),
+    ]);
+    let t = parse_term(&mut sig, "BAZ(BAZ(BAR(BAR(FOO)) FOO) FOO)")
+        .expect("parse of BAZ(BAZ(BAR(BAR(FOO)) FOO) FOO)");
+    assert_eq!(t.display(&sig), "BAZ(BAZ(BAR(BAR(FOO)) FOO) FOO)");
+    assert_eq!(t.pretty(&sig), "BAZ(BAZ(BAR(BAR(FOO)), FOO), FOO)");
+}
+
+#[test]
+fn pretty_trs() {
+    let (mut sig, _) = Signature::new(vec![
+        (2, Some(".".to_string())),
+        (0, Some("S".to_string())),
+        (0, Some("K".to_string())),
+        (2, Some("CONS".to_string())),
+        (0, Some("NIL".to_string())),
+        (1, Some("SUCC".to_string())),
+        (0, Some("ZERO".to_string())),
+        (0, Some("FOO".to_string())),
+        (1, Some("BAR".to_string())),
+        (2, Some("BAz".to_string())),
+    ]);
+    let s = "S x_ y_ z_ = x_ z_ (y_ z_); \
+        K x_ y_ = x_; \
+        CONS(FOO CONS(FOO NIL)) = SUCC(SUCC(ZERO));
+        BAZ(FOO BAR(x_)) = BAZ(x_ FOO) | SUCC(x_);";
+    let (trs, _) = parse(&mut sig, s).expect("parse of pretty_trs");
+    assert_eq!(
+        trs.display(&sig),
+        "\
+.(.(.(S x_) y_) z_) = .(.(x_ z_) .(y_ z_));
+.(.(K x_) y_) = x_;
+CONS(FOO CONS(FOO NIL)) = SUCC(SUCC(ZERO));
+BAZ(FOO BAR(x_)) = BAZ(x_ FOO) | SUCC(x_);"
+    );
+    assert_eq!(
+        trs.pretty(&sig),
+        "\
+(((S x_) y_) z_) = ((x_ z_) (y_ z_));
+((K x_) y_) = x_;
+[FOO, FOO] = 2;
+BAZ(FOO, BAR(x_)) = BAZ(x_, FOO) | SUCC(x_);"
+    );
+}

@@ -96,6 +96,7 @@ extern crate itertools;
 extern crate nom;
 
 mod parser;
+mod pretty;
 mod types;
 
 pub use parser::{parse, parse_rule, parse_term, parse_trs, ParseError};
