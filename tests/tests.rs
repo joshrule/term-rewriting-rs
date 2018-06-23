@@ -309,7 +309,7 @@ fn pretty_term_application() {
     ]);
     let t = parse_term(&mut sig, "S K S K").expect("parse of S K S K");
     assert_eq!(t.display(&sig), ".(.(.(S K) S) K)");
-    assert_eq!(t.pretty(&sig), "(((S K) S) K)");
+    assert_eq!(t.pretty(&sig), "S K S K");
 }
 
 #[test]
@@ -381,8 +381,8 @@ BAZ(FOO BAR(x_)) = BAZ(x_ FOO) | SUCC(x_);"
     assert_eq!(
         trs.pretty(&sig),
         "\
-(((S x_) y_) z_) = ((x_ z_) (y_ z_));
-((K x_) y_) = x_;
+S x_ y_ z_ = x_ z_ (y_ z_);
+K x_ y_ = x_;
 [FOO, FOO] = 2;
 BAZ(FOO, BAR(x_)) = BAZ(x_, FOO) | SUCC(x_);"
     );

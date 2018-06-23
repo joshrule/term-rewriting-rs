@@ -7,6 +7,10 @@ pub trait Pretty: Sized {
     fn display(&self, sig: &Signature) -> String;
 
     fn pretty(&self, sig: &Signature) -> String {
+        self.pretty_inner(sig, true)
+    }
+    /// `spaces_allowed` informs whether most top-level prettified item can contain spaces.
+    fn pretty_inner(&self, sig: &Signature, spaces_allowed: bool) -> String {
         if let Some((op, args)) = self.as_application() {
             let op_str = op.display(sig);
             // the following match `return`s applicable special cases
@@ -29,7 +33,29 @@ pub trait Pretty: Sized {
                         }
                     }
                 }
-                (".", 2) => return format!("({} {})", args[0].pretty(sig), args[1].pretty(sig)),
+                (".", 2) => {
+                    let mut first = &args[0];
+                    let mut rest = vec![&args[1]]; // in reverse order for fast `push`ing
+                    while let Some((op, args)) = first.as_application() {
+                        match (op.display(sig).as_str(), args.len()) {
+                            (".", 2) => {
+                                first = &args[0];
+                                rest.push(&args[1]);
+                            }
+                            _ => break,
+                        }
+                    }
+                    rest.push(first);
+                    rest.reverse();
+                    let interior = rest.into_iter()
+                        .map(|x| x.pretty_inner(sig, false))
+                        .join(" ");
+                    return if spaces_allowed {
+                        interior
+                    } else {
+                        format!("({})", interior)
+                    };
+                }
                 ("CONS", 2) => {
                     let mut items = vec![&args[0]];
                     let mut cdr = &args[1];
@@ -42,7 +68,10 @@ pub trait Pretty: Sized {
                             ("NIL", 0) | ("NULL", 0) => {
                                 return format!(
                                     "[{}]",
-                                    items.into_iter().map(|item| item.pretty(sig)).join(", ")
+                                    items
+                                        .into_iter()
+                                        .map(|item| item.pretty_inner(sig, true))
+                                        .join(", ")
                                 )
                             }
                             // list does not terminate with NIL, so we use the
@@ -53,7 +82,9 @@ pub trait Pretty: Sized {
                 }
                 _ => (),
             }
-            let args_str = args.iter().map(|arg| arg.pretty(sig)).join(", ");
+            let args_str = args.iter()
+                .map(|arg| arg.pretty_inner(sig, true))
+                .join(", ");
             format!("{}({})", op_str, args_str)
         } else {
             self.display(sig)
