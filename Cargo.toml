@@ -12,5 +12,5 @@ keywords = ["term-rewriting", "language", "rewriting", "parser"]
 categories = ["science", "data-structures", "algorithms", "parser-implementations"]
 
 [dependencies]
-nom = "4.0.0-beta2"
-itertools = "0.7.8"
+nom = "4.0"
+itertools = "0.7"
