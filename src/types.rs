@@ -1419,6 +1419,26 @@ pub struct Rule {
 }
 impl Rule {
     /// A serialized representation of the Rule.
+    /// 
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Rule, Term, parse_term};
+    /// 
+    /// let mut sig = Signature::default();
+    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
+    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()")];
+    /// let r = Rule {lhs, rhs};
+    ///
+    /// assert_eq!(r.display(&sig), "A = S");
+    /// 
+    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
+    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()"),
+    ///     parse_term(&mut sig, "K(x)").expect("parse of K(x)")];
+    /// let r = Rule{lhs, rhs};
+    /// 
+    /// assert_eq!(r.display(&sig), "A = S | K(x)");
+    /// ```
     pub fn display(&self, sig: &Signature) -> String {
         let lhs_str = self.lhs.display(sig);
         let rhs_str = self.rhs.iter().map(|rhs| rhs.display(sig)).join(" | ");
@@ -1431,18 +1451,94 @@ impl Rule {
         format!("{} = {}", lhs_str, rhs_str)
     }
     /// Return the total number of subterms across all terms in the rule.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Rule, Term, parse_term};
+    /// 
+    /// let mut sig = Signature::default();
+    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
+    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()"),
+    ///     parse_term(&mut sig, "K(x)").expect("parse of K(x)")];
+    /// let r = Rule{lhs, rhs};
+    /// 
+    /// assert_eq!(r.size(), 4);
+    /// ```
     pub fn size(&self) -> usize {
         self.lhs.size() + self.rhs.iter().map(Term::size).sum::<usize>()
     }
     /// Return the number of RHSs in the rule
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Rule, Term, parse_term};
+    /// 
+    /// let mut sig = Signature::default();
+    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
+    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()"),
+    ///     parse_term(&mut sig, "K(x)").expect("parse of K(x)")];
+    /// let r = Rule{lhs, rhs};
+    /// 
+    /// assert_eq!(r.len(), 2);
+    /// ```
     pub fn len(&self) -> usize {
         self.rhs.len()
     }
     /// Is the rule empty?
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Rule, Term, parse_term};
+    /// 
+    /// let mut sig = Signature::default();
+    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
+    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()"),
+    ///     parse_term(&mut sig, "K(x)").expect("parse of K(x)")];
+    /// let r = Rule{lhs, rhs};
+    /// 
+    /// assert!(!r.is_empty());
+    /// 
+    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
+    /// let rhs : Vec<Term> = vec![];
+    /// let r = Rule{lhs, rhs};
+    ///
+    /// assert!(r.is_empty());
+    /// ```
     pub fn is_empty(&self) -> bool {
         self.rhs.is_empty()
     }
     /// Give the lone RHS, if it exists
+    /// 
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Rule, Term, parse_term};
+    /// 
+    /// let mut sig = Signature::default();
+    /// let s = sig.new_op(0, Some("S".to_string()));
+    ///
+    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
+    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()")];
+    /// let r = Rule {lhs, rhs};
+    ///
+    /// assert_eq!(r.rhs(), Some(Term::Application{op: s, args: vec![]}));
+    /// 
+    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
+    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()"),
+    ///     parse_term(&mut sig, "K(x)").expect("parse of K(x)")];
+    /// let r = Rule{lhs, rhs};
+    /// 
+    /// assert_eq!(r.rhs(), Option::None);
+    ///
+    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
+    /// let rhs = vec![];
+    /// let r = Rule{lhs, rhs};
+    ///
+    /// assert_eq!(r.rhs(), Option::None);
+    /// ```
     pub fn rhs(&self) -> Option<Term> {
         if self.rhs.len() == 1 {
             Some(self.rhs[0].clone())
@@ -1451,6 +1547,44 @@ impl Rule {
         }
     }
     /// Return a list of the clauses in the `Rule`.
+    /// 
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Rule, Term, parse_term};
+    /// 
+    /// let mut sig = Signature::default();
+    /// let a = sig.new_op(0, Some("a".to_string()));
+    /// let s = sig.new_op(0, Some("S".to_string()));
+    /// let k = sig.new_op(0, Some("k".to_string()));
+    ///
+    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
+    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()")];
+    /// let r = Rule {lhs, rhs};
+    ///
+    /// assert_eq!(r.clauses(), vec![r]);
+    /// 
+    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
+    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()"),
+    ///     parse_term(&mut sig, "K()").expect("parse of K()")];
+    /// let r = Rule{lhs, rhs};
+    ///
+    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
+    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()")];
+    /// let r1 = Rule{lhs, rhs};
+    ///
+    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
+    /// let rhs = vec![parse_term(&mut sig, "K()").expect("parse of K()")];
+    /// let r2 = Rule{lhs, rhs};
+    /// 
+    /// assert_eq!(r.clauses(), vec![r1, r2]);
+    ///
+    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
+    /// let rhs = vec![];
+    /// let r = Rule{lhs, rhs};
+    ///
+    /// assert_eq!(r.clauses(), vec![]);
+    /// ```
     pub fn clauses(&self) -> Vec<Rule> {
         self.rhs
             .iter()
@@ -1458,6 +1592,14 @@ impl Rule {
             .collect()
     }
     /// logic ensuring that the `lhs` and `rhs` are compatible.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Term, parse_term, Rule};
+    /// 
+    /// 
+    /// ```
     fn is_valid(lhs: &Term, rhs: &[Term]) -> bool {
         // the lhs must be an application
         if let Term::Application { .. } = *lhs {
