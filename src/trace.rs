@@ -9,6 +9,13 @@ use std::sync::{Arc, RwLock, Weak};
 
 use {Term, TRS};
 
+/// A `Trace` provides first-class control over [`Term`] rewriting.
+///
+/// It gives access to each evaluation step which has already occurred or could
+/// immediately descend from a previously occurring step and provides tools for
+/// introducing new evaluation steps.
+///
+/// [`Term`]: ../enum.Term.html
 pub struct Trace<'a> {
     trs: &'a TRS,
     root: TraceNode,
@@ -25,7 +32,7 @@ impl<'a> Trace<'a> {
         p_observe: f64,
         max_term_size: Option<usize>,
     ) -> Trace<'a> {
-        let root = TraceNode::new(term.clone(), TraceState::Start, 0.0, 0, None, vec![]);
+        let root = TraceNode::new(term.clone(), TraceState::Unobserved, 0.0, 0, None, vec![]);
         let mut unobserved = BinaryHeap::new();
         unobserved.push(root.clone());
         Trace {
@@ -74,7 +81,7 @@ impl<'a> Trace<'a> {
     pub fn mass(&self) -> f64 {
         // the mass is 1 - the mass in unobserved leaves
         let mut masses = self.root.accumulate(|n| {
-            if [TraceState::Start, TraceState::Unobserved].contains(&n.state()) && n.is_leaf() {
+            if [TraceState::Unobserved].contains(&n.state()) && n.is_leaf() {
                 Some(n.log_p())
             } else {
                 None
@@ -89,7 +96,7 @@ impl<'a> Trace<'a> {
         let ws = leaves.iter().map(|x| x.log_p().exp()).collect::<Vec<f64>>();
         weighted_sample(rng, &leaves, &ws).clone()
     }
-    /// Attempt to record rewrites on the highest-scoring unobserved node.
+    /// Attempt to record single-step rewrites on the highest-scoring unobserved node.
     pub fn step(&mut self) -> Option<TraceNode> {
         if let Some(node) = self.unobserved.pop() {
             // scope in for write access to node
@@ -125,21 +132,27 @@ impl<'a> Trace<'a> {
             None
         }
     }
-    /// Run the `Trace` until a fruitful step is reached.
+    /// Run `step`s of the `Trace` until no futher steps are possible.
+    ///
+    /// [`step`]: #method.step
     pub fn run(&mut self, mut max_steps: usize) {
-        while let None = self.step() {
-            max_steps -= 1;
-            if max_steps == 0 {
+        loop {
+            if let Some(_) = self.step() {
+                max_steps -= 1;
+                if max_steps == 0 {
+                    break;
+                }
+            } else if self.unobserved.is_empty() {
                 break;
-            }
+            } // otherwise the term was too big
         }
     }
-    /// Run the `Trace` until a fruitful step is reached and return the leaf terms.
+    /// Run the `Trace` and return the leaf terms.
     pub fn rewrite(&mut self, max_steps: usize, states: &[TraceState]) -> Vec<Term> {
         self.run(max_steps);
         self.root.leaf_terms(states)
     }
-    /// An estimate of the probability that `self` rewrite to `term`.
+    /// A lower bound on the probability that `self` rewrites to `term`.
     pub fn rewrites_to(&mut self, max_steps: usize, term: &Term) -> f64 {
         // NOTE: we only use tree equality and don't consider tree edit distance
         self.run(max_steps);
@@ -155,7 +168,7 @@ impl<'a> Trace<'a> {
     }
 }
 
-/// A single node in a Trace.
+/// All the data pertaining to a single evaluation step in a Trace.
 #[derive(Debug, Clone)]
 struct TraceNodeStore {
     term: Term,
@@ -166,15 +179,38 @@ struct TraceNodeStore {
     children: Vec<TraceNode>,
 }
 
-/// The state of a Node in a Trace
+/// The state of a [`Term`] at a particular evaluation step in a [`Trace`].
+///
+/// [`Term`]: ../enum.Term.html
+/// [`Trace`]: struct.Trace.html
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TraceState {
-    Start,
-    Normal,
+    /// For a [`TraceNode`] which is part of the [`Trace`] but has not yet itself been examined or
+    /// rewritten.
+    ///
+    /// [`Trace`]: struct.Trace.html
+    /// [`TraceNode`]: struct.TraceNode.html
     Unobserved,
+    /// For a [`TraceNode`] which has been examined and found to have a [`Term`] too large for
+    /// efficient rewriting.
+    ///
+    /// [`Term`]: ../struct.Term.html
+    /// [`TraceNode`]: struct.TraceNode.html
     TooBig,
+    /// For a [`TraceNode`] which has been examined and whose [`Term`] is already in normal form.
+    ///
+    /// [`Term`]: ../struct.Term.html
+    /// [`TraceNode`]: struct.TraceNode.html
+    Normal,
+    /// For a [`TraceNode`] which has been examined and is no longer a leaf node.
+    ///
+    /// [`TraceNode`]: struct.TraceNode.html
+    Rewritten,
 }
 
+/// A `TraceNode` describes a specific evaluation step in the [`Trace`].
+///
+/// [`Trace`]: struct.Trace.html
 #[derive(Debug, Clone)]
 pub struct TraceNode(Arc<RwLock<TraceNodeStore>>);
 impl TraceNode {
@@ -196,18 +232,27 @@ impl TraceNode {
             children,
         })))
     }
+    /// The [`TraceState`] associated with this evaluation step.
+    ///
+    /// [`TraceState`]: enum.TraceState.html
     pub fn state(&self) -> TraceState {
         self.0.read().expect("poisoned TraceNode").state
     }
+    /// The [`Term`] associated with this evaluation step.
+    ///
+    /// [`Term`]: ../enum.Term.html
     pub fn term(&self) -> Term {
         self.0.read().expect("poisoned TraceNode").term.clone()
     }
+    /// The log probability of reaching this particular evaluation step.
     pub fn log_p(&self) -> f64 {
         self.0.read().expect("poisoned TraceNode").log_p
     }
+    /// The depth (i.e. number of previous evaluation steps) of this evaluation step.
     pub fn depth(&self) -> usize {
         self.0.read().expect("poisoned TraceNode").depth
     }
+    /// The parent `TraceNode` of this evaluation step.
     pub fn parent(&self) -> Option<TraceNode> {
         self.0
             .read()
@@ -217,9 +262,11 @@ impl TraceNode {
             .and_then(|w| w.upgrade())
             .map(TraceNode)
     }
+    /// The children `TraceNode`s of this evaluation step.
     pub fn children(&self) -> Vec<TraceNode> {
         self.0.read().expect("poisoned TraceNode").children.clone()
     }
+    /// Whether this evaluation step has no associated children.
     pub fn is_leaf(&self) -> bool {
         self.0
             .read()
