@@ -3,6 +3,8 @@ use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use std::iter;
 
+use super::pretty::Pretty;
+
 /// Represents a place in a [`Term`].
 ///
 /// [`Term`]: enum.Term.html
@@ -519,7 +521,7 @@ impl Context {
     //
     // pub fn slice(&self, c: Context<V, O>, t: Term<V, O>) -> Option<Vec<Term<V, O>>>
 
-    /// Describe the Context as a human-readable string
+    /// A serialized representation of the Context.
     pub fn display(&self, sig: &Signature) -> String {
         match self {
             Context::Hole => "[!]".to_string(),
@@ -534,6 +536,10 @@ impl Context {
                 }
             }
         }
+    }
+    /// A human-readable serialization of the Context.
+    pub fn pretty(&self, sig: &Signature) -> String {
+        Pretty::pretty(self, sig)
     }
 }
 impl From<Term> for Context {
@@ -562,7 +568,7 @@ pub enum Term {
     Application { op: Operator, args: Vec<Term> },
 }
 impl Term {
-    /// Describe the Term as a human-readable string
+    /// A serialized representation of the Term.
     pub fn display(&self, sig: &Signature) -> String {
         match self {
             Term::Variable(v) => v.display(sig),
@@ -576,6 +582,10 @@ impl Term {
                 }
             }
         }
+    }
+    /// A human-readable serialization of the Term.
+    pub fn pretty(&self, sig: &Signature) -> String {
+        Pretty::pretty(self, sig)
     }
     /// Every [`Atom`] used in the term.
     ///
@@ -962,10 +972,16 @@ pub struct Rule {
     pub rhs: Vec<Term>,
 }
 impl Rule {
-    /// Describe the Rule with a human-readable string.
+    /// A serialized representation of the Rule.
     pub fn display(&self, sig: &Signature) -> String {
         let lhs_str = self.lhs.display(sig);
         let rhs_str = self.rhs.iter().map(|rhs| rhs.display(sig)).join(" | ");
+        format!("{} = {}", lhs_str, rhs_str)
+    }
+    /// A human-readable serialization of the Rule.
+    pub fn pretty(&self, sig: &Signature) -> String {
+        let lhs_str = self.lhs.pretty(sig);
+        let rhs_str = self.rhs.iter().map(|rhs| rhs.pretty(sig)).join(" | ");
         format!("{} = {}", lhs_str, rhs_str)
     }
     /// Return the total number of subterms across all terms in the rule.
@@ -1211,11 +1227,18 @@ impl TRS {
             self.push(r);
         }
     }
-    /// Represent the TRS as a human-readable string.
+    /// A serialized representation of the TRS.
     pub fn display(&self, sig: &Signature) -> String {
         self.rules
             .iter()
             .map(|r| format!("{};", r.display(sig)))
+            .join("\n")
+    }
+    /// A human-readable serialization of the TRS.
+    pub fn pretty(&self, sig: &Signature) -> String {
+        self.rules
+            .iter()
+            .map(|r| format!("{};", r.pretty(sig)))
             .join("\n")
     }
     /// All the clauses in the TRS.
