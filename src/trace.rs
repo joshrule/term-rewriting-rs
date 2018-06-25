@@ -255,6 +255,10 @@ impl TraceNode {
             child.walk_helper(callback)
         }
     }
+    /// Returns an iterator over all nodes that descend from this node.
+    pub fn iter(&self) -> TraceIter {
+        TraceIter::new(self.clone())
+    }
 
     /// All the nodes descending from this node.
     pub fn progeny(&self, states: &[TraceState]) -> Vec<TraceNode> {
@@ -305,6 +309,37 @@ impl Ord for TraceNode {
         } else {
             Ordering::Equal
         }
+    }
+}
+impl<'a> IntoIterator for &'a TraceNode {
+    type Item = TraceNode;
+    type IntoIter = TraceIter;
+    fn into_iter(self) -> TraceIter {
+        self.iter()
+    }
+}
+impl IntoIterator for TraceNode {
+    type Item = TraceNode;
+    type IntoIter = TraceIter;
+    fn into_iter(self) -> TraceIter {
+        TraceIter::new(self)
+    }
+}
+
+pub struct TraceIter {
+    queue: Vec<TraceNode>,
+}
+impl TraceIter {
+    fn new(root: TraceNode) -> TraceIter {
+        TraceIter { queue: vec![root] }
+    }
+}
+impl Iterator for TraceIter {
+    type Item = TraceNode;
+    fn next(&mut self) -> Option<TraceNode> {
+        let node = self.queue.pop()?;
+        self.queue.append(&mut node.children());
+        Some(node)
     }
 }
 
