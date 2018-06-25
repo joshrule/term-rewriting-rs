@@ -60,36 +60,60 @@ pub fn parse_term(sig: &mut Signature, input: &str) -> Result<Term, ParseError> 
 ///
 /// # TRS syntax
 ///
-/// `input` is parsed as a `<program>`, defined as follows:
+/// The input is parsed as a `program`, defined as follows in [augmented Backus-Naur form]:
 ///
 /// ```text
-/// <program> ::= ( <comment>* <statement> ";" <comment>* )*
+/// program = *wsp *( *comment statement ";" *comment ) *wsp
 ///
-/// <comment> ::= "#" <any-char-but-newline> "\n"
+/// statement = rule / top-level-term
 ///
-/// <statement> ::= <rule> | <top-level-term>
+/// rule = top-level-term *wsp "=" *wsp top-level-term
+/// rule /= rule *wsp "|" *wsp top-level-term
 ///
-/// <rule> ::= <top-level-term> "=" <top-level-term> ( "|" <top-level-term> )
+/// top-level-term = term / "(" top-level-term ")"
+/// top-level-term /= top-level-term 1*wsp top-level-term
 ///
-/// <top-level-term) ::= ( <term> | ( "(" <top-level-term> ")" ) ) (" "  ( <term> | ( "(" <top-level-term> ")" ) ) )*
+/// term = variable / application
 ///
-/// <term> ::= <variable> | <application>
+/// variable = identifier"_"
 ///
-/// <variable> ::= <identifier>"_"
+/// application = identifier "(" *( *wsp term *wsp ) ")"
+/// application /= identifier
+/// application /= binary-application
 ///
-/// <application> ::= <constant> | <binary-application> | <standard-application>
+/// ; binary application is the '.' operator with arity 2.
+/// binary-application = "(" *wsp term *wsp term *wsp ")"
 ///
-/// <constant> ::= <identifier>
+/// identifier = 1*( ALPHA / DIGIT )
 ///
-/// <binary-application> ::= "(" <term> " " <term> ")"
+/// comment = "#" *any-char-but-newline "\n"
 ///
-/// <standard-application> ::= <identifier> "(" <term>* ")"
+/// wsp = SP / TAB / CR / LF
+/// ```
 ///
-/// <identifier> ::= <alphanumeric>+
+/// # Examples
+///
+/// ```
+/// use term_rewriting::{Signature, parse};
+///
+/// let mut sig = Signature::default();
+/// let inp = "
+/// #-- rules:
+///     S x_ y_ z_ = x_ z_ (y_ z_);
+///     K x_ y_ = x_;
+///     PLUS(SUCC(x_) y_) = PLUS(x_ SUCC(y_));
+///     PLUS(ZERO y_) = y_;
+///
+/// #-- terms:
+///     S K S K;
+///     PLUS(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO));
+/// ";
+/// let (trs, terms) = parse(&mut sig, inp).unwrap();
 /// ```
 ///
 /// [`TRS`]: struct.TRS.html
 /// [`Term`]: enum.Term.html
+/// [augmented Backus-Naur form]: https://en.wikipedia.org/wiki/Augmented_Backus–Naur_form
 pub fn parse(sig: &mut Signature, input: &str) -> Result<(TRS, Vec<Term>), ParseError> {
     let (_parser, result) = Parser::new(sig).program(CompleteStr(input));
     match result {
@@ -201,28 +225,22 @@ impl<'a> Parser<'a> {
 
     method!(application<Parser<'a>, CompleteStr, Term>, mut self,
             alt!(call_m!(self.standard_application) |
-                 call_m!(self.constant) |
                  call_m!(self.binary_application))
     );
 
-    // there was a bug in delimited! (or in tuple_parser! closures)
+    // there was a bug in delimited! — see nom#728
     method!(standard_application<Parser<'a>, CompleteStr, Term>, mut self,
             do_parse!(name: identifier >>
-                      lparen >>
-                      args: many0!(ws!(call_m!(self.term))) >>
-                      rparen >>
+                      args: opt!(do_parse!(
+                                    lparen >>
+                                    args: many0!(ws!(call_m!(self.term))) >>
+                                    rparen >>
+                                    (args))) >>
+                      args: expr_opt!(Some(args.unwrap_or_default())) >>
                       op: call_m!(self.get_op_wrapped,
                                     name.0,
                                     args.len() as u32) >>
                       (Term::Application{op, args}))
-    );
-
-    method!(constant<Parser<'a>, CompleteStr, Term>, mut self,
-            do_parse!(name: identifier >>
-                      op: call_m!(self.get_op_wrapped,
-                                    name.0,
-                                    0) >>
-                      (Term::Application{op, args: vec![]}))
     );
 
     method!(binary_application<Parser<'a>, CompleteStr, Term>, mut self,
@@ -239,34 +257,35 @@ impl<'a> Parser<'a> {
     );
 
     method!(top_term<Parser<'a>, CompleteStr, Term>, mut self,
-            map!(do_parse!(op: call_m!(self.get_op_wrapped, ".", 2) >>
-                           args: separated_nonempty_list!(
-                               multispace,
-                               alt!(call_m!(self.term) |
-                                    do_parse!(lparen >>
-                                              term: call_m!(self.top_term) >>
-                                              rparen >>
-                                              (term)))) >>
-                           (op, args)),
-                 |(op, a)| {
-                     let mut it = a.into_iter();
-                     let init = it.next().unwrap();
-                     it.fold(init, |acc, x| {
-                        let args = vec![acc, x];
-                         Term::Application{ op, args }
-                     })
-                 })
+            ws!(map!(
+                    do_parse!(op: call_m!(self.get_op_wrapped, ".", 2) >>
+                              args: separated_nonempty_list!(
+                                  multispace,
+                                  alt!(call_m!(self.term) |
+                                       do_parse!(lparen >>
+                                                 term: call_m!(self.top_term) >>
+                                                 rparen >>
+                                                 (term)))) >>
+                              (op, args)),
+                    |(op, a)| {
+                        let mut it = a.into_iter();
+                        let init = it.next().unwrap();
+                        it.fold(init, |acc, x| {
+                           let args = vec![acc, x];
+                            Term::Application{ op, args }
+                        })
+                    }))
     );
 
     method!(rule<Parser<'a>, CompleteStr, Rule>, mut self,
-            map_opt!(
+            ws!(map_opt!(
                 do_parse!(lhs: call_m!(self.top_term) >>
                           ws!(rule_kw) >>
                           rhs: separated_nonempty_list!(
                               ws!(pipe),
                               call_m!(self.top_term)) >>
                           (lhs, rhs)),
-                |(lhs, rhs)| Rule::new(lhs, rhs))
+                |(lhs, rhs)| Rule::new(lhs, rhs)))
     );
 
     method!(rule_statement<Parser<'a>, CompleteStr, Statement>, mut self,
@@ -286,7 +305,7 @@ impl<'a> Parser<'a> {
     );
 
     method!(trs<Parser<'a>, CompleteStr, TRS>, mut self,
-            add_return_error!(
+            ws!(add_return_error!(
                 ErrorKind::Custom(1),
                 do_parse!(
                     rules: many0!(
@@ -296,18 +315,18 @@ impl<'a> Parser<'a> {
                             ws!(semicolon) >>
                             many0!(ws!(call_m!(self.comment))) >>
                             ({ self.clear_variables(); rule }))) >>
-                    (TRS::new(rules))))
+                    (TRS::new(rules)))))
     );
 
     method!(program<Parser<'a>, CompleteStr, Vec<Statement>>, mut self,
-            add_return_error!(
+            ws!(add_return_error!(
                 ErrorKind::Custom(1),
                 many0!(do_parse!(many0!(ws!(call_m!(self.comment))) >>
                                  statement: alt!(call_m!(self.rule_statement) |
                                                  call_m!(self.term_statement)) >>
                                  ws!(semicolon) >>
                                  many0!(ws!(call_m!(self.comment))) >>
-                                 ({ self.clear_variables(); statement }))))
+                                 ({ self.clear_variables(); statement })))))
     );
 }
 
