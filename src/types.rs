@@ -531,16 +531,24 @@ impl Context {
     /// let mut sig = Signature::default();
     ///
     /// let h = Context::Hole;
-    /// assert_eq!(h.display(&sig), "<H>".to_string());
+    /// assert_eq!(h.display(&sig), "[!]".to_string());
     ///
     /// let var = sig.new_var(Some("y".to_string()));
     /// let context_var = Context::Variable(var);
-    /// assert_eq!(context_var.display(&sig), "y".to_string());
+    /// assert_eq!(context_var.display(&sig), "y_".to_string());
     ///
     /// let op = sig.new_op(0,Some("S".to_string()));
     /// let args = vec![];
-    /// let context_app = Context::Application{op, args};
-    /// assert_eq!(context_app.display(&sig), "S()".to_string());
+    /// let context_app = Context::Application {op, args};
+    /// assert_eq!(context_app.display(&sig), "S".to_string());
+    ///
+    /// let var = sig.new_var(Some("x".to_string()));
+    /// let a = sig.new_op(2, Some("A".to_string()));
+    /// let example_context = Context::Application {
+    ///     op: a,
+    ///     args: vec![Context::Hole, Context::Variable(var)],
+    /// };
+    /// assert_eq!(example_context.display(&sig), "A([!] x_)".to_string());
     /// ```
     pub fn display(&self, sig: &Signature) -> String {
         match self {
@@ -562,7 +570,6 @@ impl Context {
         Pretty::pretty(self, sig)
     }
 }
-
 impl From<Term> for Context {
     fn from(t: Term) -> Context {
         match t {
@@ -585,10 +592,54 @@ pub enum Term {
     /// See [`Variable`] for more information.
     ///
     /// [`Variable`]: struct.Variable.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Term, parse_term};
+    /// let mut sig = Signature::default();
+    ///
+    /// // Constructing a Variable Term manually
+    /// let var = sig.new_var(Some("x_".to_string()));
+    /// let var_term = Term::Variable(var);
+    ///
+    /// // Constructing a Variable Term using the parser
+    /// let var = parse_term(&mut sig, "x_");
+    /// ```
     Variable(Variable),
     /// An [`Operator`] applied to zero or more `Term`s (e.g. (`f(x, y)`, `g()`).
     ///
+    /// A `Term` that is an application of an [`Operator`] with arity 0 applied to 0 `Term`s can be considered a constant.
+    ///
     /// [`Operator`]: struct.Operator.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Term, parse_term};
+    /// let mut sig = Signature::default();
+    ///
+    /// // Constructing a Constant Term manually
+    /// let a = sig.new_op(0, Some("A".to_string()));
+    /// let const_term = Term::Application {
+    ///     op: a,
+    ///      args: vec![],
+    /// };
+    ///
+    /// // Constructing a Constant Term using the parser
+    /// let const_term = parse_term(&mut sig, "A");
+    ///
+    /// // Constructing an Operator Term manually
+    /// let x = sig.new_var(Some("x_".to_string()));
+    /// let b = sig.new_op(1, Some("B".to_string()));
+    /// let op_term = Term::Application {
+    ///     op: b,
+    ///     args: vec![Term::Variable(x)],
+    /// };
+    ///
+    /// // Constructing an Operator Term using the parser
+    /// let op_term = parse_term(&mut sig, "B(x_)");
+    /// ```
     Application { op: Operator, args: Vec<Term> },
 }
 impl Term {
@@ -599,15 +650,22 @@ impl Term {
     /// ```
     /// # use term_rewriting::{Signature, Term};
     /// let mut sig = Signature::default();
-    /// let var = sig.new_var(Some("Z".to_string()));
-    /// let op = sig.new_op(0, Some("A".to_string()));
+    /// let var = sig.new_var(Some("x".to_string()));
+    /// let a = sig.new_op(2, Some("A".to_string()));
+    /// let b = sig.new_op(0, Some("B".to_string()));
     ///
-    /// let var_term = Term::Variable(var);
-    /// let args = vec![];
-    /// let op_term = Term::Application{op, args};
-    /// assert_eq!(var.display(&sig), "Z");
-    /// assert_eq!(var.display(&sig), var_term.display(&sig));
-    /// assert_eq!(op_term.display(&sig), "A()");
+    /// let t = Term::Application {
+    ///     op: a,
+    ///     args: vec![
+    ///         Term::Application {
+    ///             op: b,
+    ///             args: vec![],
+    ///         },
+    ///         Term::Variable(var),
+    ///     ],
+    /// };
+    ///
+    /// assert_eq!(t.display(&sig), "A(B x_)".to_string());
     /// ```
     pub fn display(&self, sig: &Signature) -> String {
         match self {
@@ -641,7 +699,7 @@ impl Term {
     /// let args = vec![];
     ///
     /// let var_term = Term::Variable(var);
-    /// let op_term = Term::Application{op, args};
+    /// let op_term = Term::Application {op, args};
     ///
     /// assert_eq!(var_term.atoms(), vec![Atom::Variable(var)]);
     /// assert_eq!(op_term.atoms(), vec![Atom::Operator(op)]);
@@ -651,7 +709,7 @@ impl Term {
         let ops = self.operators().into_iter().map(Atom::Operator);
         vars.chain(ops).collect()
     }
-    /// Returns every [`Variable`] used in the `Term`.
+    /// Every [`Variable`] used in the `Term`.
     ///
     /// [`Variable`]: struct.Variable.html
     ///
@@ -666,7 +724,7 @@ impl Term {
     /// let vars = t.variables();
     /// let var_names: Vec<String> = vars.iter().map(|v| v.display(&sig)).collect();
     ///
-    /// assert_eq!(var_names, vec!["y".to_string(), "z".to_string()]);
+    /// assert_eq!(var_names, vec!["y_".to_string(), "z_".to_string()]);
     /// ```
     pub fn variables(&self) -> Vec<Variable> {
         match *self {
@@ -676,7 +734,7 @@ impl Term {
             }
         }
     }
-    /// Returns every [`Operator`] used in the `Term`.
+    /// Every [`Operator`] used in the `Term`.
     ///
     /// [`Operator`]: struct.Operator.html
     /// # Examples
@@ -691,7 +749,10 @@ impl Term {
     /// let ops = t.operators();
     /// let op_names: Vec<String> = ops.iter().map(|v| v.display(&sig)).collect();
     ///
-    /// assert_eq!(op_names, vec!["S".to_string(), "K".to_string(), ".".to_string()]);
+    /// assert_eq!(
+    ///     op_names,
+    ///      vec!["S".to_string(), "K".to_string(), ".".to_string()]
+    /// );
     /// ```
     pub fn operators(&self) -> Vec<Operator> {
         match *self {
@@ -703,7 +764,7 @@ impl Term {
                 .collect(),
         }
     }
-    /// Returns the head of the `Term`.
+    /// The head of the `Term`.
     ///
     /// # Examples
     ///
@@ -712,8 +773,8 @@ impl Term {
     ///
     /// let mut sig = Signature::default();
     ///
-    /// let op = sig.new_op(2, Some("S".to_string()));
-    /// let t = parse_term(&mut sig, "S(y_ z_)").expect("parse of S(y_ z_)");
+    /// let op = sig.new_op(2, Some("A".to_string()));
+    /// let t = parse_term(&mut sig, "A(B z_)").expect("parse of A(B z_)");
     ///
     /// assert_eq!(t.atoms().len(), 3);
     /// assert_eq!(t.head(), Atom::Operator(op));
@@ -724,7 +785,7 @@ impl Term {
             Term::Application { op, .. } => Atom::Operator(*op),
         }
     }
-    /// Returns the arguments of the `Term`.
+    /// The arguments of the `Term`.
     ///
     /// # Examples
     ///
@@ -753,7 +814,9 @@ impl Term {
             Term::Application { args, .. } => args.clone(),
         }
     }
-    /// Returns every subterm and its place, starting with the original `Term` itself.
+    /// Every subterm and its [`Place`], starting with `self` and the empty [`Place`].
+    ///
+    /// [`Place`]: struct.Place.html
     ///
     /// # Examples
     ///
@@ -762,17 +825,34 @@ impl Term {
     /// let mut sig = Signature::default();
     /// let k = sig.new_op(0, Some("K".to_string()));
     /// let s = sig.new_op(1, Some("S".to_string()));
-    /// let args: Vec<Term> = vec![];
     ///
     /// let p: Vec<usize> = vec![];
     /// let t = parse_term(&mut sig, "K()").expect("parse of K()");
-    /// assert_eq!(t.subterms(), vec![(&Term::Application{op:k, args: vec![]}, p)]);
+    /// assert_eq!(
+    ///     t.subterms(),
+    ///     vec![(
+    ///         &Term::Application {
+    ///             op: k,
+    ///             args: vec![]
+    ///         },
+    ///         p,
+    ///     )]
+    /// );
     ///
     /// let p: Vec<usize> = vec![];
     /// let p1: Vec<usize> = vec![0];
     /// let t = parse_term(&mut sig, "S(K())").expect("parse of S(K())");
-    /// let subterm0 = Term::Application{op:s, args: vec![Term::Application{op:k, args}]};
-    /// let subterm1 = Term::Application{op:k, args: vec![]};
+    /// let subterm0 = Term::Application {
+    ///     op: s,
+    ///     args: vec![Term::Application {
+    ///         op: k,
+    ///         args: vec![],
+    ///     }],
+    /// };
+    /// let subterm1 = Term::Application {
+    ///     op: k,
+    ///     args: vec![],
+    /// };
     ///
     /// assert_eq!(t.subterms(), vec![(&subterm0, p), (&subterm1, p1)]);
     /// ```
@@ -795,7 +875,7 @@ impl Term {
             }
         }
     }
-    /// Returns the number of distinct [`Place`]s in the `Term`.
+    /// The number of distinct [`Place`]s in the `Term`.
     ///
     /// [`Place`]: type.Place.html
     ///
@@ -806,7 +886,7 @@ impl Term {
     ///
     /// let mut sig = Signature::default();
     /// let t = parse_term(&mut sig, "S K").expect("parse of S K");
-    /// let t2 = parse_term(&mut sig, "A(B())").expect("parse of A(B())");
+    /// let t2 = parse_term(&mut sig, "A(B)").expect("parse of A(B())");
     ///
     /// assert_eq!(t.size(), 3);
     /// assert_eq!(t2.size(), 2);
@@ -814,7 +894,7 @@ impl Term {
     pub fn size(&self) -> usize {
         self.subterms().len()
     }
-    /// Get the subterm at the given [`Place`], or `None` if the place does not exist in the term.
+    /// Get the subterm at the given [`Place`] if possible.  Otherwise, return `None`.
     ///
     /// [`Place`]: type.Place.html
     ///
@@ -825,15 +905,15 @@ impl Term {
     ///
     /// let mut sig = Signature::default();
     /// let op = sig.new_op(0, Some("A".to_string()));
-    /// let t = parse_term(&mut sig, "S(A())").expect("parse of S(A())");
+    /// let t = parse_term(&mut sig, "S(A)").expect("parse of S(A)");
     ///
     /// assert_eq!(t.size(), 2);
     /// let p: &[usize] = &[7];
-    /// assert_eq!(t.at(p), Option::None);
+    /// assert_eq!(t.at(p), None);
     ///
     /// let p: &[usize] = &[0];
     /// let args = vec![];
-    /// assert_eq!(t.at(p), Some(&Term::Application{op, args}));
+    /// assert_eq!(t.at(p), Some(&Term::Application { op, args }));
     /// ```
     #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
     pub fn at(&self, place: &[usize]) -> Option<&Term> {
@@ -865,7 +945,7 @@ impl Term {
     ///
     /// let mut sig = Signature::default();
     ///
-    /// let t = parse_term(&mut sig, "S(A())").expect("parse of S(A())");
+    /// let t = parse_term(&mut sig, "S(A)").expect("parse of S(A)");
     /// let t2 = parse_term(&mut sig, "K").expect("parse of K");
     /// let expected_term = parse_term(&mut sig, "S(K())").expect("parse of S(K())");
     ///
@@ -921,10 +1001,10 @@ impl Term {
     /// sub.insert(y, s_term);
     /// sub.insert(z, k_term);
     ///
-    /// let term_after = parse_term(&mut sig, "S K S K").expect("parse of S K S K");
+    /// let expected_term = parse_term(&mut sig, "S K S K").expect("parse of S K S K");
     /// let subbed_term = term_before.substitute(&sub);
     ///
-    /// assert_eq!(term_after, subbed_term);
+    /// assert_eq!(subbed_term, expected_term);
     /// ```
     pub fn substitute(&self, sub: &HashMap<Variable, Term>) -> Term {
         match *self {
@@ -966,18 +1046,31 @@ impl Term {
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, parse_term, Term};
+    /// # use term_rewriting::{Signature, parse_term, Term, Variable};
+    /// # use std::collections::{HashMap, HashSet};
     /// let mut sig = Signature::default();
+    /// let s = sig.new_op(0, Some("S".to_string()));
     ///
     /// let t = parse_term(&mut sig, "S K y_ z_").expect("parse of S K y_ z_");
-    /// let t2 = parse_term(&mut sig, "S K y_ z_").expect("parse of S K y_ z_");
+    /// let t2 = parse_term(&mut sig, "S K a_ b_").expect("parse of S K a_ b_");
     /// let t3 = parse_term(&mut sig, "S K y_").expect("parse of S K y_");
+    /// 
+    /// let vars = sig.variables();
+    /// let y = vars[0];
+    /// let z = vars[1];
+    /// let a = vars[2];
+    /// let b = vars[3];
+    /// assert_eq!(y.display(&sig), "y_".to_string());
+    /// assert_eq!(z.display(&sig), "z_".to_string());
+    /// assert_eq!(a.display(&sig), "a_".to_string());
+    /// assert_eq!(b.display(&sig), "b_".to_string());
     ///
-    /// let alpha_1 = Term::alpha(&t, &t2);
-    /// let alpha_2 = Term::alpha(&t, &t3);
-    /// let alpha_3 = Term::alpha(&t2, &t3);
-    /// assert_ne!(alpha_1, alpha_2);
-    /// assert_eq!(alpha_2, alpha_3);
+    /// let mut expected_alpha: HashMap<Variable, Term> = HashMap::new();
+    /// expected_alpha.insert(y, Term::Variable(a));
+    /// expected_alpha.insert(z, Term::Variable(b));
+    ///
+    /// assert_eq!(Term::alpha(&t, &t2), Some(expected_alpha));
+    /// assert_eq!(Term::alpha(&t, &t3), None);
     /// ```
     pub fn alpha(t1: &Term, t2: &Term) -> Option<HashMap<Variable, Term>> {
         if Term::pmatch(vec![(t2.clone(), t1.clone())]).is_some() {
@@ -987,6 +1080,7 @@ impl Term {
         }
     }
     /// Returns whether two `Term`s are shape equivalent.
+    ///
     /// Shape equivalence is where two `Term`s may not contain the same subterms, but they share the same structure(a.k.a. shape).
     ///
     /// # Examples
@@ -1000,7 +1094,7 @@ impl Term {
     /// let t3 = parse_term(&mut sig, "S K y_").expect("parse of S K y_");
     ///
     /// assert!(Term::shape_equivalent(&t, &t2));
-    /// assert!(! Term::shape_equivalent(&t, &t3));
+    /// assert!(!Term::shape_equivalent(&t, &t3));
     /// ```
     pub fn shape_equivalent(t1: &Term, t2: &Term) -> bool {
         let mut vmap = HashMap::new();
@@ -1035,7 +1129,7 @@ impl Term {
         }
     }
     /// Given a vector of contraints, return a substitution which satisfies the constrants.
-    /// If the constraints are not satisfiable, `None` is retuned. Constraints are in the form of
+    /// If the constraints are not satisfiable, return `None`. Constraints are in the form of
     /// patterns, where substitutions are only considered for variables in the first term of each
     /// pair.
     ///
@@ -1053,30 +1147,42 @@ impl Term {
     /// let b = sig.new_op(0, Some("B".to_string()));
     ///
     /// let args = vec![];
-    /// // t is equivalent to S(A())
-    /// let t = Term::Application{op:s, args:vec![Term::Application{op:a, args}]};
+    /// // t is equivalent to S(A)
+    /// let t = Term::Application {
+    ///     op: s,
+    ///     args: vec![Term::Application { op: a, args }],
+    /// };
     /// // t2 is equivalent to S(x)
-    /// let t2 = Term::Application{op:s, args:vec![Term::Variable(x)]};
+    /// let t2 = Term::Application {
+    ///     op: s,
+    ///     args: vec![Term::Variable(x)],
+    /// };
     /// // t3 is equivalent to S(y)
-    /// let t3 = Term::Application{op:s, args:vec![Term::Variable(y)]};
+    /// let t3 = Term::Application {
+    ///     op: s,
+    ///     args:vec![Term::Variable(y)],
+    /// };
     /// // t4 is equivalent to A(x)
-    /// let t4 = Term::Application{op:a, args:vec![Term::Variable(x)]};
+    /// let t4 = Term::Application {
+    ///     op: a,
+    ///     args:vec![Term::Variable(x)],
+    /// };
     ///
-    /// assert_eq!(Term::pmatch(vec![(t, t2)]), Option::None);
+    /// assert_eq!(Term::pmatch(vec![(t, t2)]), None);
     ///
-    /// # let t2 = Term::Application{op:s, args:vec![Term::Variable(x)]};
+    /// # let t2 = Term::Application {op:s, args:vec![Term::Variable(x)]};
     /// let mut expected_sub = HashMap::new();
     /// expected_sub.insert(x, Term::Variable(y));
-    /// assert_eq!(Term::pmatch(vec![(t2, t3)]), Option::Some(expected_sub));
+    /// assert_eq!(Term::pmatch(vec![(t2, t3)]), Some(expected_sub));
     ///
-    /// # let t3 = Term::Application{op:s, args:vec![Term::Variable(y)]};
-    /// assert_eq!(Term::pmatch(vec![(t3, t4)]), Option::None);
+    /// # let t3 = Term::Application {op:s, args:vec![Term::Variable(y)]};
+    /// assert_eq!(Term::pmatch(vec![(t3, t4)]), None);
     /// ```
     pub fn pmatch(cs: Vec<(Term, Term)>) -> Option<HashMap<Variable, Term>> {
         Term::unify_internal(cs, Unification::Match)
     }
     /// Given a vector of contraints, return a substitution which satisfies the constrants.
-    /// If the constraints are not satisfiable, `None` is retuned.
+    /// If the constraints are not satisfiable, return `None`.
     ///
     /// # Examples
     ///
@@ -1092,26 +1198,44 @@ impl Term {
     /// let b = sig.new_op(0, Some("B".to_string()));
     ///
     /// let args = vec![];
-    /// // t is equivalent to S(A())
-    /// let t = Term::Application{op:s, args:vec![Term::Application{op:a, args}]};
+    /// // t is equivalent to S(A)
+    /// let t = Term::Application {
+    ///     op: s,
+    ///     args: vec![Term::Application { op: a, args }],
+    /// };
     /// // t2 is equivalent to S(x)
-    /// let t2 = Term::Application{op:s, args:vec![Term::Variable(x)]};
+    /// let t2 = Term::Application {
+    ///     op: s,
+    ///     args: vec![Term::Variable(x)],
+    /// };
     /// // t3 is equivalent to S(y)
-    /// let t3 = Term::Application{op:s, args:vec![Term::Variable(y)]};
+    /// let t3 = Term::Application {
+    ///     op: s,
+    ///     args: vec![Term::Variable(y)],
+    /// };
     /// // t4 is equivalent to A(x)
-    /// let t4 = Term::Application{op:a, args:vec![Term::Variable(x)]};
+    /// let t4 = Term::Application {
+    ///     op: a,
+    ///     args: vec![Term::Variable(x)],
+    /// };
     ///
     /// let mut expected_sub = HashMap::new();
-    /// expected_sub.insert(x, Term::Application{op:a, args:vec![]});
-    /// assert_eq!(Term::unify(vec![(t, t2)]), Option::Some(expected_sub));
+    /// expected_sub.insert(
+    ///     x,
+    ///     Term::Application {
+    ///         op: a,
+    ///         args:vec![],
+    ///     }
+    /// );
+    /// assert_eq!(Term::unify(vec![(t, t2)]), Some(expected_sub));
     ///
-    /// # let t2 = Term::Application{op:s, args:vec![Term::Variable(x)]};
+    /// # let t2 = Term::Application {op:s, args:vec![Term::Variable(x)]};
     /// let mut expected_sub = HashMap::new();
     /// expected_sub.insert(x, Term::Variable(y));
-    /// assert_eq!(Term::unify(vec![(t2, t3)]), Option::Some(expected_sub));
+    /// assert_eq!(Term::unify(vec![(t2, t3)]), Some(expected_sub));
     ///
-    /// # let t3 = Term::Application{op:s, args:vec![Term::Variable(y)]};
-    /// assert_eq!(Term::unify(vec![(t3, t4)]), Option::None);
+    /// # let t3 = Term::Application {op:s, args:vec![Term::Variable(y)]};
+    /// assert_eq!(Term::unify(vec![(t3, t4)]), None);
     /// ```
     pub fn unify(cs: Vec<(Term, Term)>) -> Option<HashMap<Variable, Term>> {
         Term::unify_internal(cs, Unification::Unify)
