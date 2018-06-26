@@ -13,14 +13,18 @@ matrix:
   allow_failures:
     - env: KCOV=1
   include:
-    - rust: nightly-2018-04-11
-      env:
-        - CLIPPY_VERSION=0.0.193
+    - rust: stable
+      env: FMT=1
       before_script:
         - rustup component add rustfmt-preview
-        - cargo install clippy --version $CLIPPY_VERSION || echo "clippy already installed"
       script:
         - cargo fmt --all -- --write-mode=diff
+    - rust: nightly
+      env: CLIPPY=1
+      # using bleeding-edge nightly + clippy so it stays recent and rarely fails
+      before_script:
+        - cargo install clippy --git https://github.com/rust-lang-nursery/rust-clippy || echo "clippy already installed"
+      script:
         - cargo clippy
     - env: KCOV=1
       sudo: required # travis-ci/travis-ci#9061
