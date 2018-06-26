@@ -77,7 +77,7 @@ pub fn parse_term(sig: &mut Signature, input: &str) -> Result<Term, ParseError> 
 ///
 /// variable = identifier"_"
 ///
-/// application = identifier "(" *( *wsp term *wsp ) ")"
+/// application = identifier "(" [ term *( 1*wsp term ) ] ")"
 /// application /= identifier
 /// application /= binary-application
 ///
@@ -232,10 +232,12 @@ impl<'a> Parser<'a> {
     method!(standard_application<Parser<'a>, CompleteStr, Term>, mut self,
             do_parse!(name: identifier >>
                       args: opt!(do_parse!(
-                                    lparen >>
-                                    args: many0!(ws!(call_m!(self.term))) >>
-                                    rparen >>
-                                    (args))) >>
+                              lparen >>
+                              args: separated_list!(
+                                  multispace,
+                                  call_m!(self.term)) >>
+                              rparen >>
+                              (args))) >>
                       args: expr_opt!(Some(args.unwrap_or_default())) >>
                       op: call_m!(self.get_op_wrapped,
                                     name.0,
