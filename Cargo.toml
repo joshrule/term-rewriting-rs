@@ -14,3 +14,4 @@ categories = ["science", "data-structures", "algorithms", "parser-implementation
 [dependencies]
 nom = "4.0"
 itertools = "0.7"
+rand = "0.5"

@@ -16,6 +16,7 @@ pub trait Pretty: Sized {
             // the following match `return`s applicable special cases
             match (op_str.as_str(), args.len()) {
                 ("NIL", 0) | ("NULL", 0) => return "[]".to_string(),
+                ("ZERO", 0) => return "0".to_string(),
                 (_, 0) => return op_str,
                 ("SUCC", 1) => {
                     if let Some(s) = pretty_number(sig, args) {
