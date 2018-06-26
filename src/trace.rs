@@ -158,13 +158,17 @@ impl<'a> Iterator for Trace<'a> {
                         node_w.state = TraceState::TooBig;
                     }
                     _ => match self.trs.rewrite(&node_w.term) {
-                        Some(ref rewrites) if !rewrites.is_empty() => {
+                        None => node_w.state = TraceState::Normal,
+                        Some(ref rewrites) if rewrites.is_empty() => {
+                            node_w.state = TraceState::Normal
+                        }
+                        Some(rewrites) => {
                             let term_selection_p = -(rewrites.len() as f64).ln();
                             for term in rewrites {
                                 let new_p =
                                     node_w.log_p + (1.0 - self.p_observe).ln() - term_selection_p;
                                 let new_node = self.new_node(
-                                    term.clone(),
+                                    term,
                                     Some(&node),
                                     node_w.depth + 1,
                                     TraceState::Unobserved,
@@ -172,10 +176,9 @@ impl<'a> Iterator for Trace<'a> {
                                 );
                                 node_w.children.push(new_node);
                             }
+                            node_w.log_p += self.p_observe.ln();
                             node_w.state = TraceState::Rewritten;
-                            node_w.log_p += self.p_observe.ln()
                         }
-                        _ => node_w.state = TraceState::Normal,
                     },
                 }
             }
