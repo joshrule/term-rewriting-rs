@@ -47,14 +47,10 @@ impl<'a> Trace<'a> {
         &mut self,
         term: Term,
         parent: Option<&TraceNode>,
+        depth: usize,
         state: TraceState,
         log_p: f64,
     ) -> TraceNode {
-        let depth = if let Some(ref n) = parent {
-            n.depth() + 1
-        } else {
-            0
-        };
         let node = TraceNode::new(term, state, log_p, depth, parent, vec![]);
         self.unobserved.push(node.clone());
         node
@@ -117,11 +113,13 @@ impl<'a> Trace<'a> {
                             let new_node = self.new_node(
                                 term.clone(),
                                 Some(&node),
+                                node_w.depth + 1,
                                 TraceState::Unobserved,
                                 new_p,
                             );
                             node_w.children.push(new_node);
                         }
+                        node_w.state = TraceState::Rewritten;
                         node_w.log_p += self.p_observe.ln()
                     }
                     _ => node_w.state = TraceState::Normal,
