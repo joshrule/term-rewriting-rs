@@ -123,44 +123,6 @@ impl<'a> Trace<'a> {
         let ws = leaves.iter().map(|x| x.log_p().exp()).collect::<Vec<f64>>();
         weighted_sample(rng, &leaves, &ws).clone()
     }
-    /// Attempt to record single-step rewrites on the highest-scoring unobserved node.
-    fn step(&mut self) -> Option<TraceNode> {
-        if let Some(node) = self.unobserved.pop() {
-            // scope in for write access to node
-            {
-                let mut node_w = node.0.write().expect("poisoned TraceNode");
-                if let Some(max_term_size) = self.max_term_size {
-                    if node_w.term.size() > max_term_size {
-                        node_w.state = TraceState::TooBig;
-                        return None;
-                    }
-                }
-                match self.trs.rewrite(&node_w.term) {
-                    Some(ref rewrites) if !rewrites.is_empty() => {
-                        let term_selection_p = -(rewrites.len() as f64).ln();
-                        for term in rewrites {
-                            let new_p =
-                                node_w.log_p + (1.0 - self.p_observe).ln() - term_selection_p;
-                            let new_node = self.new_node(
-                                term.clone(),
-                                Some(&node),
-                                node_w.depth + 1,
-                                TraceState::Unobserved,
-                                new_p,
-                            );
-                            node_w.children.push(new_node);
-                        }
-                        node_w.state = TraceState::Rewritten;
-                        node_w.log_p += self.p_observe.ln()
-                    }
-                    _ => node_w.state = TraceState::Normal,
-                }
-            }
-            Some(node)
-        } else {
-            None
-        }
-    }
     /// Run the `Trace` until no further steps are possible, or until `max_steps` is reached.
     pub fn rewrite(&mut self, max_steps: usize) {
         if max_steps > 0 {
@@ -184,13 +146,42 @@ impl<'a> Trace<'a> {
 }
 impl<'a> Iterator for Trace<'a> {
     type Item = TraceNode;
+    /// Record single-step rewrites on the highest-scoring unobserved node. `None` if there are no
+    /// remaining unobserved nodes.
     fn next(&mut self) -> Option<TraceNode> {
-        loop {
-            if let Some(n) = self.step() {
-                return Some(n);
-            } else if self.unobserved.is_empty() {
-                return None;
+        if let Some(node) = self.unobserved.pop() {
+            // scope in for write access to node
+            {
+                let mut node_w = node.0.write().expect("poisoned TraceNode");
+                match self.max_term_size {
+                    Some(max_term_size) if node_w.term.size() > max_term_size => {
+                        node_w.state = TraceState::TooBig;
+                    }
+                    _ => match self.trs.rewrite(&node_w.term) {
+                        Some(ref rewrites) if !rewrites.is_empty() => {
+                            let term_selection_p = -(rewrites.len() as f64).ln();
+                            for term in rewrites {
+                                let new_p =
+                                    node_w.log_p + (1.0 - self.p_observe).ln() - term_selection_p;
+                                let new_node = self.new_node(
+                                    term.clone(),
+                                    Some(&node),
+                                    node_w.depth + 1,
+                                    TraceState::Unobserved,
+                                    new_p,
+                                );
+                                node_w.children.push(new_node);
+                            }
+                            node_w.state = TraceState::Rewritten;
+                            node_w.log_p += self.p_observe.ln()
+                        }
+                        _ => node_w.state = TraceState::Normal,
+                    },
+                }
             }
+            Some(node)
+        } else {
+            None
         }
     }
 }
