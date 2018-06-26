@@ -1,4 +1,33 @@
 //! Record sequences of rewrites.
+//!
+//! # Examples
+//!
+//! A TRS with mutually exclusive rules gives a straightfoward linear record of
+//! rewrites:
+//!
+//! ```
+//! use term_rewriting::{parse, trace::Trace, Signature};
+//!
+//! let mut sig = Signature::default();
+//! let inp = "
+//!     PLUS(SUCC(x_) y_) = PLUS(x_ SUCC(y_));
+//!     PLUS(ZERO x_) = x_;
+//!
+//!     PLUS(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO));"
+//!     .trim();
+//! let (trs, mut terms) = parse(&mut sig, inp).unwrap();
+//! let mut term = terms.pop().unwrap();
+//! let mut trace = Trace::new(&trs, &term, 0.5, None);
+//!
+//! let expected = vec!["PLUS(3, 1)", "PLUS(2, 2)", "PLUS(1, 3)", "PLUS(0, 4)", "4"];
+//! let got = trace
+//!     .by_ref()
+//!     .take(5)
+//!     .map(|n| n.term().pretty(&sig))
+//!     .collect::<Vec<_>>();
+//! assert_eq!(got, expected);
+//! assert!(trace.next().is_none());
+//! ```
 
 use rand::{distributions::{Distribution, Uniform},
            Rng};
@@ -11,11 +40,13 @@ use {Term, TRS};
 
 /// A `Trace` provides first-class control over [`Term`] rewriting.
 ///
-/// It gives access to each evaluation step which has already occurred or could
-/// immediately descend from a previously occurring step and provides tools for
-/// introducing new evaluation steps.
+/// It gives access to each evaluation step which has already occurred or could immediately descend
+/// from a previously occurring step and provides tools for introducing new evaluation steps.
+///
+/// Each evaluation step from a source term gets yielded via the [`Iterator` implementation].
 ///
 /// [`Term`]: ../enum.Term.html
+/// [`Iterator` implementation]: #impl-Iterator
 pub struct Trace<'a> {
     trs: &'a TRS,
     root: TraceNode,
@@ -93,7 +124,7 @@ impl<'a> Trace<'a> {
         weighted_sample(rng, &leaves, &ws).clone()
     }
     /// Attempt to record single-step rewrites on the highest-scoring unobserved node.
-    pub fn step(&mut self) -> Option<TraceNode> {
+    fn step(&mut self) -> Option<TraceNode> {
         if let Some(node) = self.unobserved.pop() {
             // scope in for write access to node
             {
@@ -130,30 +161,16 @@ impl<'a> Trace<'a> {
             None
         }
     }
-    /// Run `step`s of the `Trace` until no futher steps are possible.
-    ///
-    /// [`step`]: #method.step
-    pub fn run(&mut self, mut max_steps: usize) {
-        loop {
-            if let Some(_) = self.step() {
-                max_steps -= 1;
-                if max_steps == 0 {
-                    break;
-                }
-            } else if self.unobserved.is_empty() {
-                break;
-            } // otherwise the term was too big
+    /// Run the `Trace` until no further steps are possible, or until `max_steps` is reached.
+    pub fn rewrite(&mut self, max_steps: usize) {
+        if max_steps > 0 {
+            self.nth(max_steps - 1);
         }
-    }
-    /// Run the `Trace` and return the leaf terms.
-    pub fn rewrite(&mut self, max_steps: usize, states: &[TraceState]) -> Vec<Term> {
-        self.run(max_steps);
-        self.root.leaf_terms(states)
     }
     /// A lower bound on the probability that `self` rewrites to `term`.
     pub fn rewrites_to(&mut self, max_steps: usize, term: &Term) -> f64 {
         // NOTE: we only use tree equality and don't consider tree edit distance
-        self.run(max_steps);
+        self.rewrite(max_steps);
         let lps = self.root.accumulate(|n| {
             let n_r = &n.0.read().expect("poisoned TraceNode");
             Term::alpha(term, &n_r.term).map(|_| n_r.log_p)
@@ -162,6 +179,18 @@ impl<'a> Trace<'a> {
             f64::NEG_INFINITY
         } else {
             logsumexp(&lps)
+        }
+    }
+}
+impl<'a> Iterator for Trace<'a> {
+    type Item = TraceNode;
+    fn next(&mut self) -> Option<TraceNode> {
+        loop {
+            if let Some(n) = self.step() {
+                return Some(n);
+            } else if self.unobserved.is_empty() {
+                return None;
+            }
         }
     }
 }
@@ -301,8 +330,8 @@ impl TraceNode {
         }
     }
     /// Returns an iterator over all nodes that descend from this node.
-    pub fn iter(&self) -> TraceIter {
-        TraceIter::new(self.clone())
+    pub fn iter(&self) -> TraceNodeIter {
+        TraceNodeIter::new(self.clone())
     }
 
     /// All the nodes descending from this node.
@@ -358,28 +387,28 @@ impl Ord for TraceNode {
 }
 impl<'a> IntoIterator for &'a TraceNode {
     type Item = TraceNode;
-    type IntoIter = TraceIter;
-    fn into_iter(self) -> TraceIter {
+    type IntoIter = TraceNodeIter;
+    fn into_iter(self) -> TraceNodeIter {
         self.iter()
     }
 }
 impl IntoIterator for TraceNode {
     type Item = TraceNode;
-    type IntoIter = TraceIter;
-    fn into_iter(self) -> TraceIter {
-        TraceIter::new(self)
+    type IntoIter = TraceNodeIter;
+    fn into_iter(self) -> TraceNodeIter {
+        TraceNodeIter::new(self)
     }
 }
 
-pub struct TraceIter {
+pub struct TraceNodeIter {
     queue: Vec<TraceNode>,
 }
-impl TraceIter {
-    fn new(root: TraceNode) -> TraceIter {
-        TraceIter { queue: vec![root] }
+impl TraceNodeIter {
+    fn new(root: TraceNode) -> TraceNodeIter {
+        TraceNodeIter { queue: vec![root] }
     }
 }
-impl Iterator for TraceIter {
+impl Iterator for TraceNodeIter {
     type Item = TraceNode;
     fn next(&mut self) -> Option<TraceNode> {
         let node = self.queue.pop()?;
