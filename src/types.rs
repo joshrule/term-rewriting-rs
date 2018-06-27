@@ -111,11 +111,11 @@ impl Operator {
     }
 }
 
-/// `Atom`s are the parts of a [`TRS`] that are not constructed from smaller parts: [`Variable`]s and [`Operators`].
+/// `Atom`s are the parts of a [`TRS`] that are not constructed from smaller parts: [`Variable`]s and [`Operator`]s.
 ///
 /// [`TRS`]: struct.TRS.html
 /// [`Variable`]: struct.Variable.html
-/// [`Operator`]: struct.Operator.hmtl
+/// [`Operator`]: struct.Operator.html
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Atom {
     Variable(Variable),
