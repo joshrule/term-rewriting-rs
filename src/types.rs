@@ -497,7 +497,7 @@ enum Unification {
     Unify,
 }
 
-/// A first-order context: a [`Term`] that may have [`Hole`]s.
+/// A first-order context: a [`Term`] that may have [`Hole`]s; a sort of [`Term`] template.
 ///
 /// [`Term`]: enum.Term.html
 /// [`Hole`]: enum.Context.html#variant.Hole
@@ -513,14 +513,6 @@ pub enum Context {
     Application { op: Operator, args: Vec<Context> },
 }
 impl Context {
-    // takes in a term, returns a list of Terms fitting self's holes.
-    //
-    // pub fn prefix(&self, t: Term<V, O>) -> Option<Vec<Term<V, O>>>
-
-    // takes in a term and a context, returns a list of Terms fitting the holes.
-    //
-    // pub fn slice(&self, c: Context<V, O>, t: Term<V, O>) -> Option<Vec<Term<V, O>>>
-
     /// A serialized representation of the Context.
     pub fn display(&self, sig: &Signature) -> String {
         match self {
@@ -540,6 +532,161 @@ impl Context {
     /// A human-readable serialization of the Context.
     pub fn pretty(&self, sig: &Signature) -> String {
         Pretty::pretty(self, sig)
+    }
+    /// Every [`Atom`] used in `self`.
+    ///
+    /// [`Atom`]: enum.Atom.html
+    pub fn atoms(&self) -> Vec<Atom> {
+        let vars = self.variables().into_iter().map(Atom::Variable);
+        let ops = self.operators().into_iter().map(Atom::Operator);
+        vars.chain(ops).collect()
+    }
+    /// Every [`Variable`] used in `self`.
+    ///
+    /// [`Variable`]: struct.Variable.html
+    pub fn variables(&self) -> Vec<Variable> {
+        match *self {
+            Context::Hole => vec![],
+            Context::Variable(v) => vec![v],
+            Context::Application { ref args, .. } => {
+                args.iter().flat_map(Context::variables).unique().collect()
+            }
+        }
+    }
+    /// Every [`Operator`] used in `self`.
+    ///
+    /// [`Operator`]: struct.Operator.html
+    pub fn operators(&self) -> Vec<Operator> {
+        if let Context::Application { op, ref args } = *self {
+            args.iter()
+                .flat_map(Context::operators)
+                .chain(iter::once(op))
+                .unique()
+                .collect()
+        } else {
+            vec![]
+        }
+    }
+    /// A list of the [`Place`]s in `self` that are holes.
+    ///
+    /// [`Place`]: type.Place.html
+    pub fn holes(&self) -> Vec<Place> {
+        self.subcontexts()
+            .into_iter()
+            .filter_map(|(c, p)| {
+                if let Context::Hole = *c {
+                    Some(p)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+    /// The head of the `Context`.
+    pub fn head(&self) -> Option<Atom> {
+        match self {
+            Context::Hole => None,
+            Context::Variable(v) => Some(Atom::Variable(*v)),
+            Context::Application { op, .. } => Some(Atom::Operator(*op)),
+        }
+    }
+    /// The args of the `Context`.
+    pub fn args(&self) -> Vec<Context> {
+        if let Context::Application { args, .. } = self {
+            args.clone()
+        } else {
+            vec![]
+        }
+    }
+    /// Every subcontext and its place, starting with the original context itself.
+    pub fn subcontexts(&self) -> Vec<(&Context, Place)> {
+        if let Context::Application { ref args, .. } = *self {
+            let here = iter::once((self, vec![]));
+            let subcontexts = args.iter().enumerate().flat_map(|(i, arg)| {
+                arg.subcontexts()
+                    .into_iter()
+                    .zip(iter::repeat(i))
+                    .map(|((t, p), i)| {
+                        let mut a = vec![i];
+                        a.extend(p);
+                        (t, a)
+                    })
+            });
+            here.chain(subcontexts).collect()
+        } else {
+            vec![(self, vec![])]
+        }
+    }
+    /// The number of distinct [`Place`]s in `self`.
+    ///
+    /// [`Place`]: type.Place.html
+    pub fn size(&self) -> usize {
+        self.subcontexts().len()
+    }
+    /// Get the subcontext at the given [`Place`], or `None` if the place does not exist.
+    ///
+    /// [`Place`]: type.Place.html
+    #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
+    pub fn at(&self, place: &[usize]) -> Option<&Context> {
+        self.at_helper(&*place)
+    }
+    fn at_helper(&self, place: &[usize]) -> Option<&Context> {
+        if place.is_empty() {
+            return Some(self);
+        }
+        match *self {
+            Context::Application { ref args, .. } if place[0] <= args.len() => {
+                args[place[0]].at_helper(&place[1..].to_vec())
+            }
+            _ => None,
+        }
+    }
+    /// Create a copy of `self` where the `Context` at the given [`Place`] has been replaced with
+    /// `subcontext`.
+    ///
+    /// [`Place`]: type.Place.html
+    pub fn replace(&self, place: &[usize], subcontext: Context) -> Option<Context> {
+        self.replace_helper(&*place, subcontext)
+    }
+    fn replace_helper(&self, place: &[usize], subcontext: Context) -> Option<Context> {
+        if place.is_empty() {
+            Some(subcontext)
+        } else {
+            match *self {
+                Context::Application { op, ref args } if place[0] <= args.len() => {
+                    if let Some(context) =
+                        args[place[0]].replace_helper(&place[1..].to_vec(), subcontext)
+                    {
+                        let mut new_args = args.clone();
+                        new_args.remove(place[0]);
+                        new_args.insert(place[0], context);
+                        Some(Context::Application { op, args: new_args })
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            }
+        }
+    }
+    /// Translate `self` into a [`Term`], if possible.
+    ///
+    /// [`Term`]: enum.Term.html
+    pub fn to_term(&self) -> Result<Term, ()> {
+        match *self {
+            Context::Hole => Err(()),
+            Context::Variable(v) => Ok(Term::Variable(v)),
+            Context::Application { op, ref args } => {
+                let mut mapped_args = vec![];
+                for arg in args {
+                    mapped_args.push(arg.to_term()?);
+                }
+                Ok(Term::Application {
+                    op,
+                    args: mapped_args,
+                })
+            }
+        }
     }
 }
 impl From<Term> for Context {

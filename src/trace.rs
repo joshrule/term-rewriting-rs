@@ -29,8 +29,9 @@
 //! assert!(trace.next().is_none());
 //! ```
 
-use rand::{distributions::{Distribution, Uniform},
-           Rng};
+use rand::{
+    distributions::{Distribution, Uniform}, Rng,
+};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::f64;
