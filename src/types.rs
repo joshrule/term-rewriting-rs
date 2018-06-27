@@ -1307,6 +1307,16 @@ impl Rule {
     }
 }
 
+/// A [`Rule`] with holes; a sort of [`Rule`] template.
+///
+/// [`Context`]: enum.Context.html
+/// [`Rule`]: struct.Rule.html
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RuleContext {
+    pub lhs: Context,
+    pub rhs: Vec<Context>,
+}
+
 /// A first-order term rewriting system.
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct TRS {
