@@ -1,4 +1,6 @@
 use itertools::Itertools;
+use rand::seq::sample_iter;
+use rand::Rng;
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use std::iter;
@@ -486,7 +488,7 @@ impl SignatureChange {
     /// [`SignatureChange`]: struct.SignatureChange
     pub fn reify_trs(&self, trs: TRS) -> TRS {
         let rules = trs.rules.into_iter().map(|r| self.reify_rule(r)).collect();
-        TRS { rules }
+        TRS { rules, ..trs }
     }
 }
 
@@ -1504,16 +1506,17 @@ impl Rule {
         }
     }
     /// Discard clauses from the rule.
-    pub fn discard(&mut self, r: &Rule) -> bool {
+    pub fn discard(&mut self, r: &Rule) -> Option<Rule> {
         if let Some(sub) = Term::alpha(&self.lhs, &r.lhs) {
             let terms = r.rhs
                 .iter()
                 .map(|rhs| rhs.substitute(&sub))
                 .collect::<Vec<Term>>();
             self.rhs.retain(|x| !terms.contains(x));
-            true
+            let lhs = r.lhs.substitute(&sub);
+            Some(Rule::new(lhs, terms).unwrap())
         } else {
-            false
+            None
         }
     }
     /// Check whether the rule contains certain clauses.
@@ -1617,12 +1620,47 @@ pub struct RuleContext {
 /// A first-order term rewriting system.
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct TRS {
+    is_deterministic: bool,
     pub rules: Vec<Rule>,
 }
 impl TRS {
     /// Constructs a term rewriting system from a list of rules.
     pub fn new(rules: Vec<Rule>) -> TRS {
-        TRS { rules }
+        TRS {
+            rules,
+            is_deterministic: false,
+        }
+    }
+    /// Make `self` deterministic and restrict it to be so until further notice.
+    ///
+    /// Return `false` if `self` was changed, otherwise `false`.
+    pub fn make_deterministic<R: Rng>(&mut self, rng: &mut R) -> bool {
+        if !self.is_deterministic {
+            self.rules = self.rules
+                .iter()
+                .cloned()
+                .map(|r| {
+                    let new_rhs = sample_iter(rng, r.rhs, 1).expect("sample_iter failed.");
+                    Rule::new(r.lhs, new_rhs).expect("making new rule from old rule failed")
+                })
+                .collect();
+            self.is_deterministic = true;
+            true
+        } else {
+            false
+        }
+    }
+    /// Remove any determinism restriction `self` might be under.
+    ///
+    /// Return `true` if `self` was changed, otherwise `false`.
+    pub fn make_nondeterministic(&mut self) -> bool {
+        let previous_state = self.is_deterministic;
+        self.is_deterministic = false;
+        !previous_state
+    }
+    /// Report whether `self` is currently deterministic.
+    pub fn is_deterministic(&self) -> bool {
+        self.is_deterministic
     }
     /// The number of rules in the TRS.
     pub fn len(&self) -> usize {
@@ -1635,51 +1673,6 @@ impl TRS {
     /// Return the number of total number of subterms across all rules.
     pub fn size(&self) -> usize {
         self.rules.iter().map(Rule::size).sum()
-    }
-    /// Remove the rule at index `i`.
-    pub fn remove(&mut self, i: usize) {
-        self.rules.remove(i);
-    }
-    /// Delete `r` if it exists in `self`.
-    pub fn delete(&mut self, r: &Rule) {
-        for rule in &mut self.rules {
-            if rule.discard(&r) {
-                break;
-            }
-        }
-        self.rules.retain(|rule| !rule.is_empty());
-    }
-    /// Get `r` if it exists in `self`.
-    pub fn get(&self, r: &Rule) -> Option<(usize, Rule)> {
-        for (i, rule) in self.rules.iter().enumerate() {
-            if let Some(sub) = rule.contains(r) {
-                return Some((i, r.substitute(&sub)));
-            }
-        }
-        None
-    }
-    /// Put `r` at index `i` in `self`.
-    pub fn set(&mut self, i: usize, r: Rule) {
-        if let Some(idx) = self.rules
-            .iter()
-            .position(|rule| Term::alpha(&rule.lhs, &r.lhs).is_some())
-        {
-            self.rules[idx].merge(&r);
-            let rule = self.rules.remove(idx);
-            self.rules.insert(i, rule);
-        } else {
-            self.rules.insert(i, r);
-        }
-    }
-    /// Put `r` in the TRS as the first Rule.
-    pub fn push(&mut self, r: Rule) {
-        self.set(0, r)
-    }
-    /// Push a series of rules into the TRS.
-    pub fn pushes(&mut self, rs: Vec<Rule>) {
-        for r in rs {
-            self.push(r);
-        }
     }
     /// A serialized representation of the TRS.
     pub fn display(&self, sig: &Signature) -> String {
@@ -1699,24 +1692,86 @@ impl TRS {
     pub fn clauses(&self) -> Vec<Rule> {
         self.rules.iter().flat_map(Rule::clauses).collect()
     }
+    /// All the operators in the TRS
+    pub fn operators(&self) -> Vec<Operator> {
+        self.rules
+            .iter()
+            .flat_map(Rule::operators)
+            .unique()
+            .collect()
+    }
+    /// Delete `r` if it exists in `self`.
+    pub fn remove(&mut self, rule: &Rule) -> Option<Rule> {
+        let discarded = self.rules
+            .iter_mut()
+            .filter_map(|r| r.discard(&rule))
+            .next();
+        self.rules.retain(|rule| !rule.is_empty());
+        discarded
+    }
+    /// Get `r` if it exists in `self`.
+    pub fn get(&self, r: &Rule) -> Option<(usize, Rule)> {
+        for (i, rule) in self.rules.iter().enumerate() {
+            if let Some(sub) = rule.contains(r) {
+                return Some((i, r.substitute(&sub)));
+            }
+        }
+        None
+    }
+    /// Put `r` at index `i` in `self`.
+    pub fn set(&mut self, i: usize, r: Rule) -> Result<(), ()> {
+        if self.is_deterministic && r.len() > 1 {
+            return Err(());
+        }
+        match self.rules
+            .iter()
+            .position(|rule| Term::alpha(&rule.lhs, &r.lhs).is_some())
+        {
+            Some(idx) if !self.is_deterministic => {
+                self.rules[idx].merge(&r);
+                let rule = self.rules.remove(idx);
+                self.rules.insert(i, rule);
+                Ok(())
+            }
+            None => {
+                self.rules.insert(i, r);
+                Ok(())
+            }
+            Some(_) => Err(()),
+        }
+    }
+    /// Put `r` in the TRS as the first Rule.
+    pub fn push(&mut self, r: Rule) -> Result<(), ()> {
+        self.set(0, r)
+    }
+    /// Push a series of rules into the TRS.
+    pub fn pushes(&mut self, rs: Vec<Rule>) -> Result<(), ()> {
+        for r in rs {
+            self.push(r)?;
+        }
+        Ok(())
+    }
     /// Move rule `i` to index `j`
-    pub fn move_rule(&mut self, i: usize, j: usize) -> bool {
+    pub fn move_rule(&mut self, i: usize, j: usize) -> Result<(), ()> {
         if self.rules.len() > max(i, j) {
             let rule = self.rules.remove(i);
             self.rules.insert(j, rule);
-            true
+            Ok(())
         } else {
-            false
+            Err(())
         }
     }
     /// Replace Rule `r1` with Rule `r2`
-    pub fn replace(&mut self, r1: &Rule, r2: Rule) {
+    pub fn replace(&mut self, r1: &Rule, r2: Rule) -> Result<(), ()> {
         if let Some((idx, mut rule)) = self.get(r1) {
             rule.discard(r1);
-            self.push(r2);
+            self.set(idx, r2)?;
             if rule.is_empty() {
-                self.remove(idx);
+                self.remove(&rule);
             }
+            Ok(())
+        } else {
+            Err(())
         }
     }
     /// Do two TRSs unify?
@@ -1738,14 +1793,6 @@ impl TRS {
     /// Are two TRSs alpha equivalent?
     pub fn alphas(trs1: &TRS, trs2: &TRS) -> bool {
         TRS::pmatches(trs2.clone(), trs1.clone()) && TRS::pmatches(trs1.clone(), trs2.clone())
-    }
-    /// All the operators in the TRS
-    pub fn operators(&self) -> Vec<Operator> {
-        self.rules
-            .iter()
-            .flat_map(Rule::operators)
-            .unique()
-            .collect()
     }
     // Return rewrites modifying the entire term, if possible, else None.
     fn rewrite_head(&self, term: &Term) -> Option<Vec<Term>> {
@@ -1784,7 +1831,6 @@ impl TRS {
             ref app => self.rewrite_head(app).or_else(|| self.rewrite_args(app)),
         }
     }
-    // TODO: pub fn make_deterministic
 }
 
 #[cfg(test)]
