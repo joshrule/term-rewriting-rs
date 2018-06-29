@@ -1,8 +1,8 @@
 use itertools::Itertools;
 use rand::seq::sample_iter;
 use rand::Rng;
-use std::cmp::max;
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::iter;
 
 use super::pretty::Pretty;
@@ -1700,80 +1700,6 @@ impl TRS {
             .unique()
             .collect()
     }
-    /// Delete `r` if it exists in `self`.
-    pub fn remove(&mut self, rule: &Rule) -> Option<Rule> {
-        let discarded = self.rules
-            .iter_mut()
-            .filter_map(|r| r.discard(&rule))
-            .next();
-        self.rules.retain(|rule| !rule.is_empty());
-        discarded
-    }
-    /// Get `r` if it exists in `self`.
-    pub fn get(&self, r: &Rule) -> Option<(usize, Rule)> {
-        for (i, rule) in self.rules.iter().enumerate() {
-            if let Some(sub) = rule.contains(r) {
-                return Some((i, r.substitute(&sub)));
-            }
-        }
-        None
-    }
-    /// Put `r` at index `i` in `self`.
-    pub fn set(&mut self, i: usize, r: Rule) -> Result<(), ()> {
-        if self.is_deterministic && r.len() > 1 {
-            return Err(());
-        }
-        match self.rules
-            .iter()
-            .position(|rule| Term::alpha(&rule.lhs, &r.lhs).is_some())
-        {
-            Some(idx) if !self.is_deterministic => {
-                self.rules[idx].merge(&r);
-                let rule = self.rules.remove(idx);
-                self.rules.insert(i, rule);
-                Ok(())
-            }
-            None => {
-                self.rules.insert(i, r);
-                Ok(())
-            }
-            Some(_) => Err(()),
-        }
-    }
-    /// Put `r` in the TRS as the first Rule.
-    pub fn push(&mut self, r: Rule) -> Result<(), ()> {
-        self.set(0, r)
-    }
-    /// Push a series of rules into the TRS.
-    pub fn pushes(&mut self, rs: Vec<Rule>) -> Result<(), ()> {
-        for r in rs {
-            self.push(r)?;
-        }
-        Ok(())
-    }
-    /// Move rule `i` to index `j`
-    pub fn move_rule(&mut self, i: usize, j: usize) -> Result<(), ()> {
-        if self.rules.len() > max(i, j) {
-            let rule = self.rules.remove(i);
-            self.rules.insert(j, rule);
-            Ok(())
-        } else {
-            Err(())
-        }
-    }
-    /// Replace Rule `r1` with Rule `r2`
-    pub fn replace(&mut self, r1: &Rule, r2: Rule) -> Result<(), ()> {
-        if let Some((idx, mut rule)) = self.get(r1) {
-            rule.discard(r1);
-            self.set(idx, r2)?;
-            if rule.is_empty() {
-                self.remove(&rule);
-            }
-            Ok(())
-        } else {
-            Err(())
-        }
-    }
     /// Do two TRSs unify?
     pub fn unifies(trs1: TRS, trs2: TRS) -> bool {
         trs1.len() == trs2.len()
@@ -1831,22 +1757,181 @@ impl TRS {
             ref app => self.rewrite_head(app).or_else(|| self.rewrite_args(app)),
         }
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn variable_eq() {
-        let mut sig = Signature::default();
-
-        let v1 = sig.new_var(Some("blah".to_string()));
-        let v2 = sig.new_var(None);
-        let v3 = Variable { id: 0 };
-
-        assert_eq!(v1, v1);
-        assert_ne!(v1, v2);
-        assert_eq!(v1, v3);
+    /// Query a `TRS` for a [`Rule`] based on its left-hand-side; return both
+    /// the [`Rule`] and its index if possible
+    ///
+    /// [`Rule`]: struct.Rule.html
+    pub fn get(&self, lhs: &Term) -> Option<(usize, Rule)> {
+        for (idx, rule) in self.rules.iter().enumerate() {
+            if Term::alpha(lhs, &rule.lhs).is_some() {
+                return Some((idx, rule.clone()));
+            }
+        }
+        None
+    }
+    /// Query a `TRS` for a [`Rule`] based on its index; return the [`Rule`] if
+    /// possible.
+    ///
+    /// [`Rule`]: struct.Rule.html
+    pub fn get_idx(&self, idx: usize) -> Option<Rule> {
+        if self.rules.len() > idx {
+            Some(self.rules[idx].clone())
+        } else {
+            None
+        }
+    }
+    /// Query a `TRS` for specific [`Rule`] clauses; return them if possible.
+    ///
+    /// [`Rule`]: struct.Rule.html
+    pub fn get_clause(&self, rule: &Rule) -> Option<(usize, Rule)> {
+        for (i, r) in self.rules.iter().enumerate() {
+            if let Some(sub) = r.contains(rule) {
+                return Some((i, rule.substitute(&sub)));
+            }
+        }
+        None
+    }
+    /// Query a `TRS` for a [`Rule`] based on its left-hand-side; delete and
+    /// return the [`Rule`] if it exists.
+    ///
+    /// [`Rule`]: struct.Rule.html
+    pub fn remove(&mut self, lhs: &Term) -> Result<Rule, TRSError> {
+        if let Some((idx, _)) = self.get(lhs) {
+            Ok(self.rules.remove(idx))
+        } else {
+            Err(TRSError::NotInTRS)
+        }
+    }
+    /// Query a `TRS` for a [`Rule`] based on its index; delete and return the
+    /// [`Rule`] if it exists.
+    ///
+    /// [`Rule`]: struct.Rule.html
+    pub fn remove_idx(&mut self, idx: usize) -> Result<Rule, TRSError> {
+        if self.rules.len() > idx {
+            Ok(self.rules.remove(idx))
+        } else {
+            Err(TRSError::InvalidIndex(idx, self.rules.len() - 1))
+        }
+    }
+    /// Query a `TRS` for a [`Rule`] based on its left-hand-side; delete and
+    /// return the [`Rule`] if it exists.
+    ///
+    /// [`Rule`]: struct.Rule.html
+    pub fn remove_clauses(&mut self, rule: &Rule) -> Result<Rule, TRSError> {
+        self.rules
+            .iter_mut()
+            .filter_map(|r| r.discard(&rule))
+            .next()
+            .ok_or(TRSError::NotInTRS)
+            .and_then(|discarded| {
+                self.rules.retain(|rule| !rule.is_empty());
+                Ok(discarded)
+            })
+    }
+    /// Try to merge a [`Rule`] with an existing [`Rule`] or else insert it at index `i` in the `TRS` if possible.
+    ///
+    /// [`Rule`]: struct.Rule.html
+    pub fn insert(&mut self, idx: usize, rule: Rule) -> Result<&mut TRS, TRSError> {
+        if self.insert_clauses(&rule).is_err() {
+            self.insert_idx(idx, rule)
+        } else {
+            Ok(self)
+        }
+    }
+    /// Insert a [`Rule`] at index `i` in the `TRS` if possible.
+    ///
+    /// [`Rule`]: struct.Rule.html
+    pub fn insert_idx(&mut self, idx: usize, rule: Rule) -> Result<&mut TRS, TRSError> {
+        if self.is_deterministic && rule.len() > 1 {
+            return Err(TRSError::NondeterministicRule);
+        } else if idx >= self.rules.len() {
+            return Err(TRSError::InvalidIndex(idx, self.rules.len() - 1));
+        } else if self.get(&rule.lhs).is_some() {
+            return Err(TRSError::AlreadyInTRS);
+        }
+        self.rules.insert(idx, rule);
+        Ok(self)
+    }
+    /// Merge a [`Rule`] with an existing [`Rule`] in the `TRS` if possible.
+    ///
+    /// [`Rule`]: struct.Rule.html
+    pub fn insert_clauses(&mut self, rule: &Rule) -> Result<&mut TRS, TRSError> {
+        if self.is_deterministic {
+            Err(TRSError::NondeterministicRule)
+        } else if let Some((_, mut existing_rule)) = self.get(&rule.lhs) {
+            existing_rule.merge(rule);
+            Ok(self)
+        } else {
+            Err(TRSError::NotInTRS)
+        }
+    }
+    /// Insert new [`Rule`] clauses if possible and move the entire [`Rule`] if
+    /// necessary to be the first in the `TRS`.
+    ///
+    /// [`Rule`]: struct.Rule.html
+    pub fn push(&mut self, rule: Rule) -> Result<&mut TRS, TRSError> {
+        let lhs = rule.lhs.clone();
+        self.insert(0, rule)?
+            .get(&lhs)
+            .ok_or(TRSError::NotInTRS)
+            .and_then(move |(idx, _)| self.move_rule(idx, 0))
+    }
+    ///  a series of [`Rule`]s at the beginning of the `TRS` if possible.
+    ///
+    /// [`Rule`]: struct.Rule.html
+    pub fn pushes(&mut self, rules: Vec<Rule>) -> Result<&mut TRS, TRSError> {
+        for rule in rules.into_iter().rev() {
+            self.push(rule)?;
+        }
+        Ok(self)
+    }
+    /// Move a [`Rule`] from index `i` to `j` if possible.
+    ///
+    /// [`Rule`]: struct.Rule.html
+    pub fn move_rule(&mut self, i: usize, j: usize) -> Result<&mut TRS, TRSError> {
+        if i != j {
+            let rule = self.remove_idx(i)?;
+            self.insert(j, rule)
+        } else {
+            Ok(self)
+        }
+    }
+    /// Remove some [`Rule`] clauses while also inserting others if possible.
+    ///
+    /// The index `i` is used only in the case that the new clauses cannot be
+    /// added to an existing [`Rule`].
+    ///
+    /// [`Rule`]: struct.Rule.html
+    pub fn replace(&mut self, idx: usize, rule1: &Rule, rule2: Rule) -> Result<&mut TRS, TRSError> {
+        self.remove_clauses(rule1)?;
+        self.insert(idx, rule2)
     }
 }
+
+#[derive(Debug, Clone)]
+pub enum TRSError {
+    NotInTRS,
+    AlreadyInTRS,
+    NondeterministicRule,
+    InvalidIndex(usize, usize),
+}
+impl fmt::Display for TRSError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            TRSError::NotInTRS => write!(f, "query rule not in TRS"),
+            TRSError::AlreadyInTRS => write!(f, "pre-existing rule with same LHS in TRS"),
+            TRSError::NondeterministicRule => {
+                write!(f, "proposed rule is nondeterministic in deterministic TRS")
+            }
+            TRSError::InvalidIndex(length, max_length) => {
+                write!(f, "index {} greater than max index {}", length, max_length)
+            }
+        }
+    }
+}
+impl ::std::error::Error for TRSError {
+    fn description(&self) -> &'static str {
+        "TRS error"
+    }
+}
+
