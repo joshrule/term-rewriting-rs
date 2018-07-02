@@ -538,7 +538,7 @@ pub enum Context {
     /// let mut sig = Signature::default();
     /// // How to construct a Context Application manually
     /// let a = sig.new_op(0, Some("A".to_string()));
-    /// let app = Context::Application{ op: a, args: vec![] };
+    /// let app = Context::Application { op: a, args: vec![] };
     /// ```
     /// [`Operator`]: struct.Operator.html
     Application { op: Operator, args: Vec<Context> },
@@ -868,7 +868,7 @@ impl Term {
     /// let example_term = Term::Application { 
     ///     op: a,
     ///     args: vec![
-    ///         Term::Application{ op: b, args: vec![] },
+    ///         Term::Application { op: b, args: vec![] },
     ///         Term::Variable(x),
     ///     ],
     /// };
@@ -1294,6 +1294,10 @@ impl Term {
     /// patterns, where substitutions are only considered for variables in the first term of each
     /// pair.
     ///
+    /// For more information see [`Pattern Matching`].
+    ///
+    /// [`Pattern Matching`]: https://en.wikipedia.org/wiki/Pattern_matching
+    ///
     /// # Examples
     ///
     /// ```
@@ -1327,6 +1331,10 @@ impl Term {
     /// Given a vector of contraints, return a substitution which satisfies the constrants.
     /// If the constraints are not satisfiable, return `None`.
     ///
+    /// For more information see [`Unification`].
+    ///
+    /// [`Unification`]: https://en.wikipedia.org/wiki/Unification_(computer_science)
+    /// 
     /// # Examples
     ///
     /// ```
@@ -1414,6 +1422,29 @@ impl Term {
 /// [`Term`]: enum.Term.html
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Rule {
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Term, parse_term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    /// 
+    /// // Constructing a Rule manually
+    /// let a = parse_term(&mut sig, "A(B C)").expect("parse of A(B C)");
+    /// let b = parse_term(&mut sig, "B").expect("parse of B");
+    /// let c = parse_term(&mut sig, "C").expect("parse of C");
+    ///
+    /// let r = Rule::new(a, vec![b, c]);
+    /// 
+    /// // note if constructing a rule with variables, terms must be constructed manually
+    /// // as well to avoid creating multiple variables with the same name
+    /// let x0 = parse_term(&mut sig, "x_").expect("parse of x_");
+    /// let x1 = parse_term(&mut sig, "x_").expect("parse of x_");
+    ///  
+    /// assert_ne!(x0, x1);
+    /// 
+    /// // Constructing a Rule using parser
+    /// let r = parse_rule(&mut sig, "A(x_ y_) = B(x_) | C(y)").expect("parse of A(x_ y_) = B(x_) | C(y_)");
+    /// ```
     pub lhs: Term,
     pub rhs: Vec<Term>,
 }
@@ -1423,21 +1454,17 @@ impl Rule {
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Rule, Term, parse_term};
+    /// # use term_rewriting::{Signature, Rule, Term, parse_term, parse_rule};
     /// 
     /// let mut sig = Signature::default();
-    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
-    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()")];
-    /// let r = Rule {lhs, rhs};
+    /// 
+    /// let r = parse_rule(&mut sig, "A = B").expect("parse of A = B");
     ///
-    /// assert_eq!(r.display(&sig), "A = S");
+    /// assert_eq!(r.display(&sig), "A = B");
     /// 
-    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
-    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()"),
-    ///     parse_term(&mut sig, "K(x)").expect("parse of K(x)")];
-    /// let r = Rule{lhs, rhs};
+    /// let r = parse_rule(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B | C(x_)");
     /// 
-    /// assert_eq!(r.display(&sig), "A = S | K(x)");
+    /// assert_eq!(r.display(&sig), "A(x_) = B | C(x_)");
     /// ```
     pub fn display(&self, sig: &Signature) -> String {
         let lhs_str = self.lhs.display(sig);
@@ -1450,92 +1477,88 @@ impl Rule {
         let rhs_str = self.rhs.iter().map(|rhs| rhs.pretty(sig)).join(" | ");
         format!("{} = {}", lhs_str, rhs_str)
     }
-    /// Return the total number of subterms across all terms in the rule.
+    /// The total number of subterms across all [`Term`]s in the `Rule`.
     ///
+    /// [`Term`]: struct.Term.html
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Rule, Term, parse_term};
+    /// # use term_rewriting::{Signature, Rule, Term, parse_term, parse_rule};
     /// 
     /// let mut sig = Signature::default();
-    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
-    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()"),
-    ///     parse_term(&mut sig, "K(x)").expect("parse of K(x)")];
-    /// let r = Rule{lhs, rhs};
+    ///
+    /// let r = parse_rule(&mut sig, "A(x_) = B(x_) | C").expect("parse of A(x_) = B(x_) | C");
     /// 
-    /// assert_eq!(r.size(), 4);
+    /// assert_eq!(r.size(), 5);
+    ///
+    /// let r = parse_rule(&mut sig, "A = B | C").expect("parse of A = B | C");
+    ///
+    /// assert_eq!(r.size(), 3);
     /// ```
     pub fn size(&self) -> usize {
         self.lhs.size() + self.rhs.iter().map(Term::size).sum::<usize>()
     }
-    /// Return the number of RHSs in the rule
+    /// The number of RHSs in the `Rule`.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Rule, Term, parse_term};
+    /// # use term_rewriting::{Signature, Rule, Term, parse_rule};
     /// 
     /// let mut sig = Signature::default();
-    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
-    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()"),
-    ///     parse_term(&mut sig, "K(x)").expect("parse of K(x)")];
-    /// let r = Rule{lhs, rhs};
+    /// let r = parse_rule(&mut sig, "A(x_) = B(x_) | C").expect("parse of A(x_) = B(x_) | C");
     /// 
     /// assert_eq!(r.len(), 2);
     /// ```
     pub fn len(&self) -> usize {
         self.rhs.len()
     }
-    /// Is the rule empty?
+    /// Is the `Rule` empty?
     ///
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Rule, Term, parse_term};
+    /// # use term_rewriting::{Signature, Rule, Term, parse_term, parse_rule};
     /// 
     /// let mut sig = Signature::default();
-    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
-    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()"),
-    ///     parse_term(&mut sig, "K(x)").expect("parse of K(x)")];
-    /// let r = Rule{lhs, rhs};
+    /// let r = parse_rule(&mut sig, "A(x_) = B(x_) | C").expect("parse of A(x_) = B(x_) | C");
     /// 
     /// assert!(!r.is_empty());
     /// 
-    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
+    /// let lhs = parse_term(&mut sig, "A").expect("parse of A");
     /// let rhs : Vec<Term> = vec![];
-    /// let r = Rule{lhs, rhs};
-    ///
+    /// let r = Rule::new(lhs, rhs).unwrap();
     /// assert!(r.is_empty());
     /// ```
     pub fn is_empty(&self) -> bool {
         self.rhs.is_empty()
     }
-    /// Give the lone RHS, if it exists
+    /// The lone RHS, if it exists. Otherwise, return `None`.
     /// 
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Rule, Term, parse_term};
+    /// # use term_rewriting::{Signature, Rule, Term, parse_term, parse_rule};
     /// 
     /// let mut sig = Signature::default();
-    /// let s = sig.new_op(0, Some("S".to_string()));
+    /// let b = sig.new_op(0, Some("B".to_string()));
+    /// let r = parse_rule(&mut sig, "A = B").expect("parse of A = B");
     ///
-    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
-    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()")];
-    /// let r = Rule {lhs, rhs};
+    /// assert_eq!(
+    ///     r.rhs(), 
+    ///     Some(Term::Application { 
+    ///         op: b, 
+    ///         args: vec![], 
+    ///     }),
+    /// );
     ///
-    /// assert_eq!(r.rhs(), Some(Term::Application{op: s, args: vec![]}));
-    /// 
-    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
-    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()"),
-    ///     parse_term(&mut sig, "K(x)").expect("parse of K(x)")];
-    /// let r = Rule{lhs, rhs};
+    /// let r = parse_rule(&mut sig, "A = B | C").expect("parse of A = B | C");
     /// 
     /// assert_eq!(r.rhs(), Option::None);
     ///
-    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
+    /// let lhs = parse_term(&mut sig, "A").expect("parse of A");
     /// let rhs = vec![];
-    /// let r = Rule{lhs, rhs};
+    /// let r = Rule::new(lhs, rhs).unwrap();
     ///
     /// assert_eq!(r.rhs(), Option::None);
     /// ```
@@ -1546,42 +1569,28 @@ impl Rule {
             None
         }
     }
-    /// Return a list of the clauses in the `Rule`.
+    /// A list of the clauses in the `Rule`.
     /// 
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Rule, Term, parse_term};
+    /// # use term_rewriting::{Signature, Rule, Term, parse_term, parse_rule};
     /// 
     /// let mut sig = Signature::default();
-    /// let a = sig.new_op(0, Some("a".to_string()));
-    /// let s = sig.new_op(0, Some("S".to_string()));
-    /// let k = sig.new_op(0, Some("k".to_string()));
     ///
-    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
-    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()")];
-    /// let r = Rule {lhs, rhs};
+    /// let r = parse_rule(&mut sig, "A = B").expect("parse of A = B");
     ///
     /// assert_eq!(r.clauses(), vec![r]);
-    /// 
-    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
-    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()"),
-    ///     parse_term(&mut sig, "K()").expect("parse of K()")];
-    /// let r = Rule{lhs, rhs};
     ///
-    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
-    /// let rhs = vec![parse_term(&mut sig, "S()").expect("parse of S()")];
-    /// let r1 = Rule{lhs, rhs};
-    ///
-    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
-    /// let rhs = vec![parse_term(&mut sig, "K()").expect("parse of K()")];
-    /// let r2 = Rule{lhs, rhs};
+    /// let r = parse_rule(&mut sig, "A = B | C").expect("parse of A = B | C");
+    /// let r1 = parse_rule(&mut sig, "A = B").expect("parse of A = B");
+    /// let r2 = parse_rule(&mut sig, "A = C").expect("parse of A = C");
     /// 
     /// assert_eq!(r.clauses(), vec![r1, r2]);
     ///
-    /// let lhs = parse_term(&mut sig, "A()").expect("parse of A()");
+    /// let lhs = parse_term(&mut sig, "A").expect("parse of A");
     /// let rhs = vec![];
-    /// let r = Rule{lhs, rhs};
+    /// let r = Rule::new(lhs, rhs).unwrap();
     ///
     /// assert_eq!(r.clauses(), vec![]);
     /// ```
@@ -1592,14 +1601,6 @@ impl Rule {
             .collect()
     }
     /// logic ensuring that the `lhs` and `rhs` are compatible.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use term_rewriting::{Signature, Term, parse_term, Rule};
-    /// 
-    /// 
-    /// ```
     fn is_valid(lhs: &Term, rhs: &[Term]) -> bool {
         // the lhs must be an application
         if let Term::Application { .. } = *lhs {
@@ -1611,20 +1612,35 @@ impl Rule {
             false
         }
     }
-    /// Construct a rewrite rule from a left-hand-side (LHS) [`Term`] with one
-    /// or more right-hand-side (RHS) [`Term`]s. Returns `None` if the rule is
+    /// Construct a rewrite `Rule` from a left-hand-side (LHS) [`Term`] with one
+    /// or more right-hand-side (RHS) [`Term`]s. Returns `None` if the `Rule` is
     /// not valid.
     ///
     /// Valid rules meet two conditions:
     ///
     /// 1. `lhs` is an [`Application`]. This prevents a single rule from
-    ///    matching all possible terms
+    ///    matching all possible [`Term`]s
     /// 2. A [`Term`] in `rhs` can only use a [`Variable`] if it appears in
     ///    `lhs`. This prevents rewrites from inventing arbitrary terms.
     ///
     /// [`Term`]: enum.Term.html
     /// [`Application`]: enum.Term.html#variant.Application
     /// [`Variable`]: struct.Variable.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Term, Rule, parse_term, parse_rule};
+    /// let mut sig = Signature::default();
+    /// 
+    /// let r = parse_rule(&mut sig, "A = B").expect("parse of A = B");
+    ///
+    /// let lhs = parse_term(&mut sig, "A").expect("parse of A");
+    /// let rhs = vec![parse_term(&mut sig, "B").expect("parse of B")];
+    /// let r2 = Rule::new(lhs, rhs).unwrap();
+    ///
+    /// assert_eq!(r, r2);
+    /// ```
     pub fn new(lhs: Term, rhs: Vec<Term>) -> Option<Rule> {
         if Rule::is_valid(&lhs, &rhs) {
             Some(Rule { lhs, rhs })
@@ -1632,14 +1648,44 @@ impl Rule {
             None
         }
     }
-    /// Add a clause to the rule from a term.
+    /// Add a clause to the `Rule` from a [`Term`].
+    ///
+    /// [`Term`]: enum.Term.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Term, Rule, parse_term, parse_rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let c = parse_term(&mut sig, "C").expect("parse of C");
+    ///
+    /// let mut r = parse_rule(&mut sig, "A = B").expect("parse of A = B");
+    /// 
+    /// assert_eq!(r.display(&sig), "A = B");
+    /// r.add(c);
+    /// assert_eq!(r.display(&sig), "A = B | C");
+    /// ```
     pub fn add(&mut self, t: Term) {
         let self_vars = self.lhs.variables();
         if t.variables().iter().all(|x| self_vars.contains(x)) {
             self.rhs.push(t)
         }
     }
-    /// Add clauses to the rule from another rule.
+    /// Add clauses to the `Rule` from another `Rule`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Term, Rule, parse_term, parse_rule};
+    /// let mut sig = Signature::default();
+    /// 
+    /// let mut r = parse_rule(&mut sig, "A = B").expect("parse A = B");
+    /// let r2 = parse_rule(&mut sig, "A = C").expect("parse A = C");
+    /// r.merge(&r2);
+    ///
+    /// assert_eq!(r.display(&sig), "A = B | C");
+    /// ```
     pub fn merge(&mut self, r: &Rule) {
         if let Some(s) = Term::alpha(&self.lhs, &r.lhs) {
             for rhs in r.rhs.clone() {
@@ -1647,7 +1693,22 @@ impl Rule {
             }
         }
     }
-    /// Discard clauses from the rule.
+    /// Discard clauses from the `Rule`.
+    ///
+    /// # Examples
+    /// 
+    /// ```
+    /// # use term_rewriting::{Signature, Term, Rule, parse_term, parse_rule};
+    /// let mut sig = Signature::default();
+    /// 
+    /// let mut r = parse_rule(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B | C(x_)");
+    /// let mut r2 = parse_rule(&mut sig, "A(y_) = C(y_)").expect("parse of A(y_) = C(y_)");
+    ///
+    /// let discarded_rule = r.discard(&r2).unwrap();
+    ///
+    /// assert_eq!(r.display(&sig), "A(x_) = B");
+    /// assert_eq!(discarded_rule.display(&sig), "A(y_) = C(y_)");
+    /// ```
     pub fn discard(&mut self, r: &Rule) -> Option<Rule> {
         if let Some(sub) = Term::alpha(&self.lhs, &r.lhs) {
             let terms = r.rhs
@@ -1661,7 +1722,27 @@ impl Rule {
             None
         }
     }
-    /// Check whether the rule contains certain clauses.
+    /// Check whether the `Rule` contains certain clauses.
+    ///
+    /// # Examples
+    /// 
+    /// ```
+    /// # use term_rewriting::{Signature, Term, Rule, parse_rule};
+    /// # use std::collections::HashMap;
+    /// let mut sig = Signature::default();
+    ///
+    /// let mut r = parse_rule(&mut sig, "A(x_) = B | C").expect("parse of A = B | C");
+    /// let mut r2 = parse_rule(&mut sig, "A(y_) = B").expect("parse of A = B");
+    ///
+    /// assert_eq!(r2.contains(&r), None);
+    ///
+    /// let mut sub = HashMap::default();
+    /// let x = r.variables()[0];
+    /// let y = r2.variables()[0];
+    /// sub.insert(x, Term::Variable(y));
+    ///
+    /// assert_eq!(r.contains(&r2).unwrap(), sub);
+    /// ```
     pub fn contains(&self, r: &Rule) -> Option<HashMap<Variable, Term>> {
         if let Some(sub) = Term::alpha(&self.lhs, &r.lhs) {
             if r.rhs
@@ -1676,17 +1757,100 @@ impl Rule {
             None
         }
     }
-    /// Get all the Variables in the Rule.
+    /// Get all the [`Variable`]s in the `Rule`.
+    ///
+    /// [`Variable`]: struct.Variable.html
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// # use term_rewriting::{Signature, Term, Rule, parse_term, parse_rule};
+    /// let mut sig = Signature::default();
+    /// 
+    /// let r = parse_rule(&mut sig, "A(x_) = C(x_)").expect("parse of A(x_) = C(x_)");
+    /// let r2 = parse_rule(&mut sig, "B(y_ z_) = C").expect("parse of B(y_ z_) = C");
+    /// 
+    /// let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
+    /// let r2_variables: Vec<String> = r2.variables().iter().map(|v| v.display(&sig)).collect();
+    ///
+    /// assert_eq!(r_variables, vec!["x_"]);
+    /// assert_eq!(r2_variables, vec!["y_", "z_"]);
+    /// ```
     pub fn variables(&self) -> Vec<Variable> {
         self.lhs.variables()
     }
-    /// Get all the Operators in the Rule.
+    /// Get all the [`Operator`]s in the `Rule`.
+    ///
+    /// [`Operator`]: struct.Operator.html
+    /// # Examples
+    /// 
+    /// ```
+    /// # use term_rewriting::{Signature, Term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    /// 
+    /// let r = parse_rule(&mut sig, "A(D E) = C").expect("parse of A(D E) = C");
+    /// let r2 = parse_rule(&mut sig, "B(F x_) = C").expect("parse of B(F x_) = C");
+    /// 
+    /// let r_ops: Vec<String> = r.operators().iter().map(|o| o.display(&sig)).collect();
+    /// let r2_ops: Vec<String> = r2.operators().iter().map(|o| o.display(&sig)).collect();
+    ///
+    /// assert_eq!(r_ops, vec!["D", "E", "A", "C"]);
+    /// assert_eq!(r2_ops, vec!["F", "B", "C"]);
+    /// ```
     pub fn operators(&self) -> Vec<Operator> {
         let lhs = self.lhs.operators().into_iter();
         let rhs = self.rhs.iter().flat_map(Term::operators);
         lhs.chain(rhs).unique().collect()
     }
-    /// Get all the subterms and places in a Rule.
+    /// Get all the subterms and places in a `Rule`.
+    ///
+    /// See [`Term`] for more information.
+    ///
+    /// [`Term`]: enum.Term.html
+    ///
+    /// # Examples
+    /// 
+    /// ```
+    /// # use term_rewriting::{Signature, Term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    /// 
+    /// let r = parse_rule(&mut sig, "A = C | D").expect("parse of A = C | D");
+    /// 
+    /// let subterms: Vec<String> = r.subterms()
+    ///     .iter()
+    ///     .map(|(i, t, p)| format!("{},Subterm:{},Place:{:?}", i, t.display(&sig), p))
+    ///     .collect();
+    /// 
+    /// assert_eq!(
+    ///     subterms,
+    ///     vec![
+    ///         "0,Subterm:A,Place:[]",
+    ///         "1,Subterm:C,Place:[]",
+    ///         "2,Subterm:D,Place:[]",
+    ///     ]
+    /// );
+    ///
+    /// let r =
+    ///     parse_rule(&mut sig, "A(x_ B) = C(x_) | D(B)").expect("parse of A(x_ B) = C(x_) | D(B)");
+    ///
+    ///  let subterms: Vec<String> = r.subterms()
+    ///     .iter()
+    ///     .map(|(i, t, p)| format!("{},Subterm:{},Place:{:?}", i, t.display(&sig), p))
+    ///     .collect();
+    /// 
+    /// assert_eq!(
+    ///     subterms,
+    ///     vec![
+    ///         "0,Subterm:A(x_ B),Place:[]",
+    ///         "0,Subterm:x_,Place:[0]",
+    ///         "0,Subterm:B,Place:[1]",
+    ///         "1,Subterm:C(x_),Place:[]",
+    ///         "1,Subterm:x_,Place:[0]",
+    ///         "2,Subterm:D(B),Place:[]",
+    ///         "2,Subterm:B,Place:[0]",
+    ///     ]
+    /// );
+    /// ```
     pub fn subterms(&self) -> Vec<(usize, &Term, Place)> {
         let lhs = self.lhs.subterms().into_iter().map(|(t, p)| (0, t, p));
         let rhs = self.rhs.iter().enumerate().flat_map(|(i, rhs)| {
@@ -1697,7 +1861,25 @@ impl Rule {
         });
         lhs.chain(rhs).collect()
     }
-    /// Get a specific subterm in a Rule
+    /// Get a specific subterm in a `Rule`.
+    ///
+    /// See [`Term`] for more information.
+    ///
+    /// [`Term`]: enum.Term.html
+    ///
+    /// # Examples
+    /// 
+    /// ```
+    /// # use term_rewriting::{Signature, Term, Rule, parse_term, parse_rule};
+    /// let mut sig = Signature::default();
+    /// 
+    /// let r = parse_rule(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B | C(x_)");
+    ///
+    /// assert_eq!(r.at(&[0]).unwrap().display(&sig), "A(x_)");
+    /// assert_eq!(r.at(&[0,0]).unwrap().display(&sig), "x_");
+    /// assert_eq!(r.at(&[1,0]).unwrap().display(&sig), "B");
+    /// assert_eq!(r.at(&[1,1]).unwrap().display(&sig), "C(x_)");
+    /// ```
     pub fn at(&self, p: &[usize]) -> Option<&Term> {
         if p[0] == 0 {
             self.lhs.at(&p[1..].to_vec())
@@ -1705,7 +1887,26 @@ impl Rule {
             self.rhs[p[1]].at(&p[2..].to_vec())
         }
     }
-    /// Replace one subterm with another in a Rule
+    /// Replace one subterm with another in a `Rule`.
+    /// Returns a new `Rule` without changing the original.
+    ///
+    /// See [`Term`] for more information.
+    ///
+    /// [`Term`]: enum.Term.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Term, parse_term, parse_rule, Rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let mut r = parse_rule(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B| C(x_)");
+    /// let new_term = parse_term(&mut sig, "E").expect("parse of E");
+    /// let new_rule = r.replace(&[1,0], new_term);
+    ///
+    /// assert_ne!(r, new_rule.clone().unwrap());
+    /// assert_eq!(new_rule.unwrap().display(&sig), "A(x_) = E | C(x_)");
+    /// ```
     pub fn replace(&self, place: &[usize], subterm: Term) -> Option<Rule> {
         if place[0] == 0 {
             if let Some(lhs) = self.lhs.replace(&place[1..].to_vec(), subterm) {
@@ -1722,17 +1923,109 @@ impl Rule {
             None
         }
     }
-    /// Match one rule against another.
+    /// Pattern match one `Rule` against another.
+    /// 
+    /// See [`Pattern Matching`] for more information.
+    ///
+    /// [`Pattern Matching`]: https://en.wikipedia.org/wiki/Pattern_matching
+    /// 
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Rule, parse_rule, Term, parse_term};
+    /// # use std::collections::HashMap;
+    /// let mut sig = Signature::default();
+    ///
+    /// let r = parse_rule(&mut sig, "A(x_) = B").expect("parse of A(x_) = B");
+    /// let r2 = parse_rule(&mut sig, "A(y_) = y_").expect("parse of A(y_) = y_");
+    /// let r3 = parse_rule(&mut sig, "A(z_) = C").expect("parse of A(z_) = C");
+    /// let r4 = parse_rule(&mut sig, "D(w_) = B").expect("parse of D(w_) = B");
+    /// let r5 = parse_rule(&mut sig, "A(t_) = B").expect("parse of A(t_) = B");
+    ///
+    /// assert_eq!(Rule::pmatch(r.clone(), r2), None);
+    /// assert_eq!(Rule::pmatch(r.clone(), r3), None);
+    /// assert_eq!(Rule::pmatch(r.clone(), r4), None);
+    /// 
+    /// let mut expected_map = HashMap::default();
+    /// expected_map.insert(
+    ///     r.clone().variables()[0],
+    ///     Term::Variable(r5.clone().variables()[0]),
+    /// );
+    ///
+    /// assert_eq!(Rule::pmatch(r, r5), Some(expected_map));
+    /// ```
     pub fn pmatch(r1: Rule, r2: Rule) -> Option<HashMap<Variable, Term>> {
         let cs = iter::once((r1.lhs, r2.lhs)).chain(r1.rhs.into_iter().zip(r2.rhs));
         Term::pmatch(cs.collect())
     }
     /// Unify two rules.
+    ///
+    /// See [`Unification`] for more information.
+    ///
+    /// [`Unification`]: https://en.wikipedia.org/wiki/Unification_(computer_science)
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Rule, parse_rule, Term, parse_term};
+    /// # use std::collections::HashMap;
+    /// let mut sig = Signature::default();
+    ///
+    /// let r = parse_rule(&mut sig, "A(x_) = B").expect("parse of A(x_) = B");
+    /// let r2 = parse_rule(&mut sig, "A(y_) = y_").expect("parse of A(y_) = y_");
+    /// let r3 = parse_rule(&mut sig, "A(z_) = C").expect("parse of A(z_) = C");
+    /// let r4 = parse_rule(&mut sig, "D(w_) = B").expect("parse of D(w_) = B");
+    /// let r5 = parse_rule(&mut sig, "A(t_) = B").expect("parse of A(t_) = B");
+    ///
+    /// let b = parse_term(&mut sig, "B").expect("parse of B");
+    /// let mut expected_map = HashMap::default();
+    /// expected_map.insert(r.clone().variables()[0], b.clone());
+    /// expected_map.insert(r2.clone().variables()[0], b);
+    ///
+    /// assert_eq!(Rule::unify(r.clone(), r2), Some(expected_map));
+    ///
+    /// assert_eq!(Rule::unify(r.clone(), r3), None);
+    /// assert_eq!(Rule::unify(r.clone(), r4), None);
+    /// 
+    /// let mut expected_map = HashMap::default();
+    /// expected_map.insert(
+    ///     r.clone().variables()[0], 
+    ///     Term::Variable(r5.clone().variables()[0]),
+    /// );
+    /// assert_eq!(Rule::unify(r, r5), Some(expected_map));
+    /// ```
     pub fn unify(r1: Rule, r2: Rule) -> Option<HashMap<Variable, Term>> {
         let cs = iter::once((r1.lhs, r2.lhs)).chain(r1.rhs.into_iter().zip(r2.rhs));
         Term::unify(cs.collect())
     }
-    /// Compute the alpha equivalence between two rules.
+    /// Compute the [`Alpha Equivalence`] between two `Rule`s.
+    ///
+    /// [`Alpha Equivalence`]: https://en.wikipedia.org/wiki/lambda_calculus#Alpha_equivalence
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Rule, parse_rule, Term, parse_term};
+    /// # use std::collections::HashMap;
+    /// let mut sig = Signature::default();
+    ///
+    /// let r = parse_rule(&mut sig, "A(x_) = B").expect("parse of A(x_) = B");
+    /// let r2 = parse_rule(&mut sig, "A(y_) = y_").expect("parse of A(y_) = y_");
+    /// let r3 = parse_rule(&mut sig, "A(z_) = C").expect("parse of A(z_) = C");
+    /// let r4 = parse_rule(&mut sig, "D(w_) = B").expect("parse of D(w_) = B");
+    /// let r5 = parse_rule(&mut sig, "A(t_) = B").expect("parse of A(t_) = B");
+    ///
+    /// assert_eq!(Rule::alpha(&r, &r2), None);
+    /// assert_eq!(Rule::alpha(&r, &r3), None);
+    /// assert_eq!(Rule::alpha(&r, &r4), None);
+    /// 
+    /// let mut expected_map = HashMap::default();
+    /// expected_map.insert(
+    ///     r.clone().variables()[0], 
+    ///     Term::Variable(r5.clone().variables()[0])
+    /// );
+    /// assert_eq!(Rule::alpha(&r, &r5), Some(expected_map));
+    /// ```
     pub fn alpha(r1: &Rule, r2: &Rule) -> Option<HashMap<Variable, Term>> {
         if Rule::pmatch(r2.clone(), r1.clone()).is_some() {
             Rule::pmatch(r1.clone(), r2.clone())
@@ -1740,7 +2033,27 @@ impl Rule {
             None
         }
     }
-    /// Substitute through a rule
+    /// Substitute through a `Rule`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Rule, parse_rule, Term, parse_term};
+    /// # use std::collections::HashMap;
+    /// let mut sig = Signature::default();
+    ///
+    /// let mut r = parse_rule(&mut sig, "A(x_ y_) = A(x_) | B(y_)").expect("parse of A(x_ y_) = A(x_) | B(y_)");
+    /// let c = parse_term(&mut sig, "C").expect("parse of C");
+    /// let vars = r.variables();
+    /// let (x, y) = (vars[0], vars[1]);
+    /// 
+    /// let mut substitution = HashMap::default();
+    /// substitution.insert(x, c);
+    ///
+    /// let r2 = r.substitute(&substitution);
+    /// 
+    /// assert_eq!(r2.display(&sig), "A(C y_) = A(C) | B(y_)");
+    /// ```
     pub fn substitute(&self, sub: &HashMap<Variable, Term>) -> Rule {
         Rule::new(
             self.lhs.substitute(sub),
@@ -1762,11 +2075,54 @@ pub struct RuleContext {
 /// A first-order term rewriting system.
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct TRS {
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Rule, parse_rule, TRS, parse_trs};
+    /// let mut sig = Signature::default();
+    /// 
+    /// // Constructing a TRS manually 
+    /// let r0 = parse_rule(&mut sig, "A(x_) = A(B)").expect("parse of A(x_) = A(B)");
+    /// let r1 = parse_rule(&mut sig, "B = C | D").expect("parse of B = C | D");
+    /// let r2 = parse_rule(&mut sig, "E(F) = G").expect("parse of E(F) = G");
+    /// 
+    /// let t = TRS::new(vec![r0, r1, r2]);
+    ///
+    /// // Constructing a TRS using the parser
+    /// let t = parse_trs(&mut sig, "A(x_) = A(B);\nB = C | D;\nE(F) = G;")
+    ///     .expect("parse of A(x_) = A(B); B = C | D; E(F) = G;");
+    /// 
+    /// // or alternatively for readability of the TRS
+    /// let t = parse_trs(&mut sig, 
+    /// "A(x_) = A(B);
+    /// B = C | D;
+    /// E(F) = G;").expect("parse of A(x_) = A(B); B = C | D; E(F) = G;");
+    /// ```
     is_deterministic: bool,
     pub rules: Vec<Rule>,
 }
 impl TRS {
-    /// Constructs a term rewriting system from a list of rules.
+    /// Constructs a [`Term Rewriting System`] from a list of `Rule`s.
+    ///
+    /// [`Term Rewriting System`]: https://en.wikipedia.ord/wiki/Rewriting#Term_rewriting_systems
+    ///
+    /// # Examples 
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Rule, parse_rule, TRS};
+    /// let mut sig = Signature::default();
+    /// 
+    /// let r0 = parse_rule(&mut sig, "A = B").expect("parse of A = B");
+    /// let r1 = parse_rule(&mut sig, "C(x_) = x_").expect("parse of C(x_) = x_");
+    /// let r2 = parse_rule(&mut sig, "D(y_) = D(E)").expect("parse of D(y_) = D(E)");
+    /// let new_trs = TRS::new(vec![r0, r1, r2]);
+    ///
+    /// assert_eq!(new_trs.display(&sig), 
+    /// "A = B;
+    /// C(x_) = x_;
+    /// D(y_) = D(E);"
+    /// );
+    /// ```
     pub fn new(rules: Vec<Rule>) -> TRS {
         TRS {
             rules,
@@ -1775,7 +2131,46 @@ impl TRS {
     }
     /// Make `self` deterministic and restrict it to be so until further notice.
     ///
-    /// Return `false` if `self` was changed, otherwise `false`.
+    /// Return `true` if `self` was changed, otherwise `false`.
+    ///
+    /// See [`Deterministic System`] for more information.
+    ///
+    /// [`Deterministic System`]: http://en.wikipedia.org/wiki/Deterministic_system
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # extern crate rand;
+    /// # extern crate term_rewriting;
+    /// # fn main(){
+    /// # use term_rewriting::{Signature, Rule, parse_rule, TRS, parse_trs};
+    /// # use rand::{thread_rng,Rng};
+    /// let mut sig = Signature::default();
+    /// 
+    /// let mut t = parse_trs(&mut sig, 
+    /// "A = B | C;
+    /// D = E;").expect("parse of A = B | C; D = E");
+    /// let mut r = rand::thread_rng();
+    ///
+    /// let str_before = t.display(&sig);
+    /// assert!(t.make_deterministic(& mut r));
+    /// assert_ne!(t.display(&sig), str_before);
+    ///
+    /// let str_before = t.display(&sig);
+    /// let r = parse_rule(&mut sig, "C = B | D").expect("parse of C = B | D");
+    /// if t.insert_idx(1, r.clone()).is_err() {
+    ///     assert!(true);
+    /// }
+    /// assert_eq!(str_before, t.display(&sig));
+    ///
+    /// assert!((t.display(&sig) ==  
+    /// "A = B;
+    /// D = E;") ||
+    ///     (t.display(&sig) ==
+    /// "A = C;
+    /// D = E;"));
+    /// # }
+    /// ```
     pub fn make_deterministic<R: Rng>(&mut self, rng: &mut R) -> bool {
         if !self.is_deterministic {
             self.rules = self.rules
@@ -1795,46 +2190,222 @@ impl TRS {
     /// Remove any determinism restriction `self` might be under.
     ///
     /// Return `true` if `self` was changed, otherwise `false`.
+    ///
+    /// See [`Deterministic System`] for more information.
+    ///
+    /// [`Deterministic System`]: http://en.wikipedia.org/wiki/Deterministic_system
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # extern crate rand;
+    /// # extern crate term_rewriting;
+    /// # fn main(){
+    /// # use term_rewriting::{Signature, Rule, parse_rule, TRS, parse_trs, TRSError};
+    /// # use rand::{thread_rng,Rng};
+    /// let mut sig = Signature::default();
+    /// 
+    /// let mut t = parse_trs(&mut sig, 
+    /// "A = B | C;
+    /// D = E;").expect("parse of A = B | C; D = E");
+    /// let mut r = rand::thread_rng();
+    ///
+    /// t.make_deterministic(& mut r);
+    ///
+    /// let str_before = t.display(&sig);
+    /// let r = parse_rule(&mut sig, "C = B | D").expect("parse of C = B | D");
+    /// assert!(t.insert_idx(1, r.clone()).is_err());
+    /// assert_eq!(str_before, t.display(&sig));
+    /// 
+    /// assert!(!t.make_nondeterministic());
+    /// t.insert_idx(1, r).expect("inserting C = B | D");
+    /// assert!((t.display(&sig) ==  
+    /// "A = B;
+    /// C = B | D;
+    /// D = E;") ||
+    ///     (t.display(&sig) ==
+    /// "A = C;
+    /// C = B | D;
+    /// D = E;"));
+    /// # }
+    /// ```
     pub fn make_nondeterministic(&mut self) -> bool {
         let previous_state = self.is_deterministic;
         self.is_deterministic = false;
         !previous_state
     }
     /// Report whether `self` is currently deterministic.
+    ///
+    /// See [`Deterministic System`] for more information.
+    ///
+    /// [`Deterministic System`]: http://en.wikipedia.org/wiki/Deterministic_system
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # extern crate rand;
+    /// # extern crate term_rewriting;
+    /// # fn main(){
+    /// # use term_rewriting::{Signature, Rule, parse_rule, TRS, parse_trs};
+    /// # use rand::{thread_rng,Rng};
+    /// let mut sig = Signature::default();
+    /// 
+    /// let mut t = parse_trs(&mut sig, 
+    /// "A = B | C;
+    /// D = E;").expect("parse of A = B | C; D = E");
+    /// let mut r = rand::thread_rng();
+    ///
+    /// assert!(!t.is_deterministic());
+    /// t.make_deterministic(& mut r);
+    /// assert!(t.is_deterministic());
+    /// # }
+    /// ```
     pub fn is_deterministic(&self) -> bool {
         self.is_deterministic
     }
-    /// The number of rules in the TRS.
+    /// The number of [`Rule`]s in the `TRS`.
+    /// 
+    /// [`Rule`]: struct.Rule.html
+    ///
+    /// # Examples
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t = parse_trs(&mut sig,
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    /// 
+    /// assert_eq!(t.len(), 3);
+    /// ```
     pub fn len(&self) -> usize {
         self.rules.len()
     }
-    /// Are there any rules in the TRS?
+    /// Are there any [`Rule`]s in the `TRS`?
+    /// 
+    /// [`Rule`]: struct.Rule.html
+    ///
+    /// # Examples
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t = parse_trs(&mut sig,
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    /// 
+    /// assert!(!t.is_empty());
+    ///
+    /// let t = parse_trs(&mut sig, "").expect("parse of blank string");
+    /// 
+    /// assert!(t.is_empty());
+    /// ```
     pub fn is_empty(&self) -> bool {
         self.rules.is_empty()
     }
-    /// Return the number of total number of subterms across all rules.
+    /// Return the number of total number of subterms across all [`Rule`]s in the `TRS`.
+    ///
+    /// See [`Term`] for more information.
+    ///
+    /// [`Term`]: struct.Term.html
+    /// [`Rule`]: struct.Rule.html
+    /// 
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t = parse_trs(&mut sig,
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    /// 
+    /// assert_eq!(t.size(), 8);
+    /// 
+    /// let t = parse_trs(&mut sig, 
+    /// "A(x_) = B;
+    /// C = D;").expect("parse of A(x_) = B; C = D;");
+    ///
+    /// assert_eq!(t.size(), 5);
+    /// ```
     pub fn size(&self) -> usize {
         self.rules.iter().map(Rule::size).sum()
     }
-    /// A serialized representation of the TRS.
+    /// A serialized representation of the `TRS`.
+    /// 
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t = parse_trs(&mut sig,
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    /// 
+    /// assert_eq!(t.display(&sig), 
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;");
+    /// ```
     pub fn display(&self, sig: &Signature) -> String {
         self.rules
             .iter()
             .map(|r| format!("{};", r.display(sig)))
             .join("\n")
     }
-    /// A human-readable serialization of the TRS.
+    /// A human-readable serialization of the `TRS`.
     pub fn pretty(&self, sig: &Signature) -> String {
         self.rules
             .iter()
             .map(|r| format!("{};", r.pretty(sig)))
             .join("\n")
     }
-    /// All the clauses in the TRS.
+    /// All the clauses in the `TRS`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t = parse_trs(&mut sig,
+    /// "A = B;
+    /// C = D | E;
+    /// F = G;").expect("parse of A = B; C = D | E; F = G;");
+    ///
+    /// let r0 = parse_rule(&mut sig, "A = B").expect("parse of A = B");
+    /// let r1 = parse_rule(&mut sig, "C = D").expect("parse of C = D");
+    /// let r2 = parse_rule(&mut sig, "C = E").expect("parse of C = E");
+    /// let r3 = parse_rule(&mut sig, "F = G").expect("parse of F = G");
+    /// 
+    /// assert_eq!(t.clauses(), vec![r0, r1, r2, r3]);
+    /// ```
     pub fn clauses(&self) -> Vec<Rule> {
         self.rules.iter().flat_map(Rule::clauses).collect()
     }
-    /// All the operators in the TRS
+    /// All the [`Operator`]s in the `TRS`.
+    ///
+    /// [`Operator`]: struct.Operator.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t = parse_trs(&mut sig,
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    /// 
+    /// let ops: Vec<String> = t.operators().iter().map(|o| o.display(&sig)).collect();
+    /// assert_eq!(ops, vec!["A", "B", "C", "D", "E", "F", "G"]);
+    /// ```
     pub fn operators(&self) -> Vec<Operator> {
         self.rules
             .iter()
@@ -1843,6 +2414,34 @@ impl TRS {
             .collect()
     }
     /// Do two TRSs unify?
+    ///
+    /// See [`Unification`] for more information.
+    ///
+    /// [`Unification`]: https://en.wikipedia.org/wiki/Unification_(computer_science)
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t0 = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    ///
+    /// let t1 = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(H) = G;").expect("parse of A = B; C = D | E; F(H) = G;");
+    ///
+    /// let t2 = parse_trs(&mut sig,
+    /// "B = A;
+    /// C = D | E;
+    /// F(y_) = G;").expect("parse of A = B; C = D | E; F(y_) = G;");
+    /// 
+    /// assert!(TRS::unifies(t0.clone(), t1));
+    /// assert!(!TRS::unifies(t0, t2));
+    /// ```
     pub fn unifies(trs1: TRS, trs2: TRS) -> bool {
         trs1.len() == trs2.len()
             && trs1.rules
@@ -1851,6 +2450,47 @@ impl TRS {
                 .all(|(r1, r2)| Rule::unify(r1, r2).is_some())
     }
     /// Does one TRS match another?
+    ///
+    /// See [`Pattern Matching`] for more information.
+    ///
+    /// [`Pattern Matching`]: https://en.wikipedia.org/wiki/Pattern_matching
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t0 = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    ///
+    /// let t1 = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(H) = G;").expect("parse of A = B; C = D | E; F(H) = G;");
+    ///
+    /// let t2 = parse_trs(&mut sig,
+    /// "B = A;
+    /// C = D | E;
+    /// F(y_) = G;").expect("parse of A = B; C = D | E; F(y_) = G;");
+    /// 
+    /// let t3 = parse_trs(&mut sig,
+    /// "A = B | C;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B | C; C = D | E; F(x_) = G");
+    ///
+    /// let t4 = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D;
+    /// D = E;").expect("parse of A = B; C = D; D = E;");
+    /// 
+    /// assert!(TRS::pmatches(t0.clone(), t1));
+    /// assert!(!TRS::pmatches(t0.clone(), t2));
+    /// assert!(TRS::pmatches(t0.clone(), t3));
+    /// assert!(!TRS::pmatches(t0, t4));
+    /// ```
     pub fn pmatches(trs1: TRS, trs2: TRS) -> bool {
         trs1.len() == trs2.len()
             && trs1.rules
@@ -1859,6 +2499,35 @@ impl TRS {
                 .all(|(r1, r2)| Rule::pmatch(r1, r2).is_some())
     }
     /// Are two TRSs alpha equivalent?
+    ///
+    /// See [`Alpha Equivalence`] for more information.
+    ///
+    /// [`Alpha Equivalence`]: https://en.wikipedia.org/wiki/lambda_calculus#Alpha_equivalence
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t0 = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    ///
+    /// let t1 = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(H) = G;").expect("parse of A = B; C = D | E; F(H) = G;");
+    ///
+    /// let t2 = parse_trs(&mut sig,
+    /// "A = B;
+    /// C = D | E;
+    /// F(y_) = G;").expect("parse of A = B; C = D | E; F(y_) = G;");
+    /// 
+    /// assert!(!TRS::alphas(&t0, &t1));
+    /// assert!(TRS::alphas(&t0, &t2));
+    /// ```
     pub fn alphas(trs1: &TRS, trs2: &TRS) -> bool {
         TRS::pmatches(trs2.clone(), trs1.clone()) && TRS::pmatches(trs1.clone(), trs2.clone())
     }
@@ -1893,6 +2562,24 @@ impl TRS {
     }
     /// Perform a single rewrite step using a normal-order (leftmost-outermost)
     /// rewrite strategy.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    ///
+    /// let mut term = parse_term(&mut sig, "J(A K(C A))").expect("parse of J(A K(C A))");
+    /// let expected_term = parse_term(&mut sig, "J(B K(C A))").expect("parse of J(B K(C A))");
+    ///
+    /// let rewriten_term = t.rewrite(&term).unwrap();
+    /// assert_eq!(rewriten_term, vec![expected_term]);
+    /// ```
     pub fn rewrite(&self, term: &Term) -> Option<Vec<Term>> {
         match *term {
             Term::Variable(_) => None,
@@ -1903,6 +2590,27 @@ impl TRS {
     /// the [`Rule`] and its index if possible
     ///
     /// [`Rule`]: struct.Rule.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    ///
+    /// let a = parse_term(&mut sig, "A").expect("parse of A");
+    /// let c = parse_term(&mut sig, "C").expect("parse of C");
+    /// 
+    /// let r0 = parse_rule(&mut sig, "A = B").expect("parse of A = B");
+    /// let r1 = parse_rule(&mut sig, "C = D | E").expect("parse of C = D | E");
+    ///
+    /// assert_eq!(t.get(&a).unwrap().1, r0);
+    /// assert_eq!(t.get(&c).unwrap().1, r1);
+    /// ```
     pub fn get(&self, lhs: &Term) -> Option<(usize, Rule)> {
         for (idx, rule) in self.rules.iter().enumerate() {
             if Term::alpha(lhs, &rule.lhs).is_some() {
@@ -1915,6 +2623,24 @@ impl TRS {
     /// possible.
     ///
     /// [`Rule`]: struct.Rule.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    /// 
+    /// let r0 = parse_rule(&mut sig, "A = B").expect("parse of A = B");
+    /// let r1 = parse_rule(&mut sig, "C = D | E").expect("parse of C = D | E");
+    ///
+    /// assert_eq!(t.get_idx(0).unwrap(), r0);
+    /// assert_eq!(t.get_idx(1).unwrap(), r1);
+    /// ```
     pub fn get_idx(&self, idx: usize) -> Option<Rule> {
         if self.rules.len() > idx {
             Some(self.rules[idx].clone())
@@ -1925,6 +2651,23 @@ impl TRS {
     /// Query a `TRS` for specific [`Rule`] clauses; return them if possible.
     ///
     /// [`Rule`]: struct.Rule.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t = parse_trs(&mut sig, 
+    /// "A(a_ b_) = B(b_ b_);
+    /// D(c_ e_) = D(E F);").expect("parse of A(a_ b_) = B(b_ b_); D(c_ e_) = D(E F);");
+    /// 
+    /// let r = parse_rule(&mut sig, "A(x_ y_) = B(y_ y_)").expect("parse of A(x_ y_) = B(y_ y_)");
+    /// assert_eq!(t.get_clause(&r).unwrap().1.display(&sig), "A(a_ b_) = B(b_ b_)");
+    ///
+    /// let r = parse_rule(&mut sig, "D(w_ q_) = D(E F)").expect("parse of D(w_ q_) = D(E F)");
+    /// assert_eq!(t.get_clause(&r).unwrap().1.display(&sig), "D(w_ q_) = D(E F)");
+    /// ```
     pub fn get_clause(&self, rule: &Rule) -> Option<(usize, Rule)> {
         for (i, r) in self.rules.iter().enumerate() {
             if let Some(sub) = r.contains(rule) {
@@ -1937,6 +2680,28 @@ impl TRS {
     /// return the [`Rule`] if it exists.
     ///
     /// [`Rule`]: struct.Rule.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let mut t = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    ///
+    /// let a = parse_term(&mut sig, "A").expect("parse of A");
+    /// let c = parse_term(&mut sig, "C").expect("parse of C");
+    /// 
+    /// let r0 = parse_rule(&mut sig, "A = B").expect("parse of A = B");
+    /// let r1 = parse_rule(&mut sig, "C = D | E").expect("parse of C = D | E");
+    ///
+    /// assert_eq!(t.remove(&a).expect("removing A = B"), r0);
+    /// assert_eq!(t.remove(&c).expect("removing C = D"), r1);
+    /// assert_eq!(t.display(&sig), "F(x_) = G;");
+    /// ```
     pub fn remove(&mut self, lhs: &Term) -> Result<Rule, TRSError> {
         if let Some((idx, _)) = self.get(lhs) {
             Ok(self.rules.remove(idx))
@@ -1948,6 +2713,25 @@ impl TRS {
     /// [`Rule`] if it exists.
     ///
     /// [`Rule`]: struct.Rule.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let mut t = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    ///
+    /// let r0 = parse_rule(&mut sig, "A = B").expect("parse of A = B");
+    /// let r1 = parse_rule(&mut sig, "C = D | E").expect("parse of C = D | E");
+    ///
+    /// assert_eq!(t.remove_idx(0).expect("removing A = B"), r0);
+    /// assert_eq!(t.remove_idx(0).expect("removing C = D"), r1);
+    /// assert_eq!(t.display(&sig), "F(x_) = G;");
+    /// ```
     pub fn remove_idx(&mut self, idx: usize) -> Result<Rule, TRSError> {
         if self.rules.len() > idx {
             Ok(self.rules.remove(idx))
@@ -1959,6 +2743,26 @@ impl TRS {
     /// return the [`Rule`] if it exists.
     ///
     /// [`Rule`]: struct.Rule.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let mut t = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    ///
+    /// let r = parse_rule(&mut sig, "C = D").expect("parse of C = D");
+    ///
+    /// assert_eq!(t.remove_clauses(&r).expect("removing C = D"), r);
+    /// assert_eq!(t.display(&sig), 
+    /// "A = B;
+    /// C = E;
+    /// F(x_) = G;");
+    /// ```
     pub fn remove_clauses(&mut self, rule: &Rule) -> Result<Rule, TRSError> {
         self.rules
             .iter_mut()
@@ -1973,6 +2777,36 @@ impl TRS {
     /// Try to merge a [`Rule`] with an existing [`Rule`] or else insert it at index `i` in the `TRS` if possible.
     ///
     /// [`Rule`]: struct.Rule.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let mut t = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    ///
+    /// let r = parse_rule(&mut sig, "D = G").expect("parse of D = G");
+    ///
+    /// t.insert(1, r).expect("inserting D = G at index 1");
+    /// assert_eq!(t.display(&sig), 
+    /// "A = B;
+    /// D = G;
+    /// C = D | E;
+    /// F(x_) = G;");
+    ///
+    /// let r = parse_rule(&mut sig, "D = A").expect("parse of D = A");
+    ///
+    /// t.insert(0, r).expect("inserting D = E with D = G");
+    /// assert_eq!(t.display(&sig),
+    /// "A = B;
+    /// D = G | E;
+    /// C = D | E;
+    /// F(x_) = G;");
+    /// ```
     pub fn insert(&mut self, idx: usize, rule: Rule) -> Result<&mut TRS, TRSError> {
         if self.insert_clauses(&rule).is_err() {
             self.insert_idx(idx, rule)
@@ -1983,6 +2817,27 @@ impl TRS {
     /// Insert a [`Rule`] at index `i` in the `TRS` if possible.
     ///
     /// [`Rule`]: struct.Rule.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let mut t = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    ///
+    /// let r = parse_rule(&mut sig, "D = G").expect("parse of D = G");
+    ///
+    /// t.insert_idx(1, r).expect("inserting D = G at index 1");
+    /// assert_eq!(t.display(&sig), 
+    /// "A = B;
+    /// D = G;
+    /// C = D | E;
+    /// F(x_) = G;");
+    /// ```
     pub fn insert_idx(&mut self, idx: usize, rule: Rule) -> Result<&mut TRS, TRSError> {
         if self.is_deterministic && rule.len() > 1 {
             return Err(TRSError::NondeterministicRule);
@@ -1997,6 +2852,26 @@ impl TRS {
     /// Merge a [`Rule`] with an existing [`Rule`] in the `TRS` if possible.
     ///
     /// [`Rule`]: struct.Rule.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let mut t = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    ///
+    /// let r = parse_rule(&mut sig, "A = H").expect("parse of A = H");
+    ///
+    /// let t = t.insert_clauses(&r).expect("inserting A = H with A = B");
+    /// assert_eq!(t.display(&sig),
+    /// "A = B | H;
+    /// C = D | E;
+    /// F(x_) = G;");
+    /// ```
     pub fn insert_clauses(&mut self, rule: &Rule) -> Result<&mut TRS, TRSError> {
         if self.is_deterministic {
             Err(TRSError::NondeterministicRule)
@@ -2011,6 +2886,27 @@ impl TRS {
     /// necessary to be the first in the `TRS`.
     ///
     /// [`Rule`]: struct.Rule.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let mut t = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    ///
+    /// let r = parse_rule(&mut sig, "G(y_) = y_").expect("parse of G(y_) = y_");
+    ///
+    /// t.push(r).expect("inserting G(y_) = y_ at index 0");
+    /// assert_eq!(t.display(&sig), 
+    /// "G(y_) = y_;
+    /// A = B;
+    /// C = D | E;
+    /// F(x_) = G;");
+    /// ```
     pub fn push(&mut self, rule: Rule) -> Result<&mut TRS, TRSError> {
         let lhs = rule.lhs.clone();
         self.insert(0, rule)?
@@ -2018,9 +2914,34 @@ impl TRS {
             .ok_or(TRSError::NotInTRS)
             .and_then(move |(idx, _)| self.move_rule(idx, 0))
     }
-    ///  a series of [`Rule`]s at the beginning of the `TRS` if possible.
+    /// Inserts a series of [`Rule`]s at the beginning of the `TRS` if possible.
     ///
     /// [`Rule`]: struct.Rule.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let mut t = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = H;").expect("parse of A = B; C = D | E; F(x_) = H;");
+    ///
+    /// let r0 = parse_rule(&mut sig, "G(y_) = y_").expect("parse of G(y_) = y_");
+    /// let r1 = parse_rule(&mut sig, "B = C").expect("parse of B = C");
+    /// let r2 = parse_rule(&mut sig, "E = F | B").expect("parse of E = F | B");
+    ///
+    /// t.pushes(vec![r0, r1, r2]).expect("inserting 3 rules at index 0");
+    /// assert_eq!(t.display(&sig), 
+    /// "G(y_) = y_;
+    /// B = C;
+    /// E = F | B;
+    /// A = B;
+    /// C = D | E;
+    /// F(x_) = H;");
+    /// ```
     pub fn pushes(&mut self, rules: Vec<Rule>) -> Result<&mut TRS, TRSError> {
         for rule in rules.into_iter().rev() {
             self.push(rule)?;
@@ -2030,6 +2951,27 @@ impl TRS {
     /// Move a [`Rule`] from index `i` to `j` if possible.
     ///
     /// [`Rule`]: struct.Rule.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let mut t = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;
+    /// H = I;").expect("parse of A = B; C = D | E; F(x_) = G; H = I;");
+    /// 
+    /// t.move_rule(0, 2).expect("moving rule from index 0 to index 2");
+    ///
+    /// assert_eq!(t.display(&sig), 
+    /// "C = D | E;
+    /// F(x_) = G;
+    /// A = B;
+    /// H = I;");
+    /// ```
     pub fn move_rule(&mut self, i: usize, j: usize) -> Result<&mut TRS, TRSError> {
         if i != j {
             let rule = self.remove_idx(i)?;
@@ -2044,6 +2986,27 @@ impl TRS {
     /// added to an existing [`Rule`].
     ///
     /// [`Rule`]: struct.Rule.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let mut t = parse_trs(&mut sig, 
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    ///
+    /// let r = parse_rule(&mut sig, "C = D").expect("parse of C = D");
+    /// let r_new = parse_rule(&mut sig, "C = A").expect("parse of C = A");
+    ///
+    /// t.replace(0, &r, r_new).expect("replaceing C = D with C = A");
+    /// assert_eq!(t.display(&sig), 
+    /// "A = B;
+    /// C = E | A;
+    /// F(x_) = G;");
+    /// ```
     pub fn replace(&mut self, idx: usize, rule1: &Rule, rule2: Rule) -> Result<&mut TRS, TRSError> {
         self.remove_clauses(rule1)?;
         self.insert(idx, rule2)
