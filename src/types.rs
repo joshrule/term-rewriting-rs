@@ -123,13 +123,19 @@ pub enum Atom {
     Variable(Variable),
     Operator(Operator),
 }
-
+impl Atom {
+    pub fn display(&self, sig: &Signature) -> String {
+        match *self {
+            Atom::Variable(v) => v.display(sig),
+            Atom::Operator(o) => o.display(sig),
+        }
+    }
+}
 impl From<Variable> for Atom {
     fn from(var: Variable) -> Atom {
         Atom::Variable(var)
     }
 }
-
 impl From<Operator> for Atom {
     fn from(op: Operator) -> Atom {
         Atom::Operator(op)
@@ -1571,10 +1577,10 @@ impl Rule {
             } else {
                 None
             }
-        } else if let Some(an_rhs) = self.rhs[place[1]].replace(&place[2..].to_vec(), subterm) {
+        } else if let Some(an_rhs) = self.rhs[place[0] - 1].replace(&place[1..].to_vec(), subterm) {
             let mut rhs = self.rhs.clone();
-            rhs.remove(place[1]);
-            rhs.insert(place[1], an_rhs);
+            rhs.remove(place[0] - 1);
+            rhs.insert(place[0] - 1, an_rhs);
             Rule::new(self.lhs.clone(), rhs)
         } else {
             None
@@ -1633,7 +1639,7 @@ impl TRS {
     }
     /// Make `self` deterministic and restrict it to be so until further notice.
     ///
-    /// Return `false` if `self` was changed, otherwise `false`.
+    /// Return `true` if `self` was changed, otherwise `false`.
     pub fn make_deterministic<R: Rng>(&mut self, rng: &mut R) -> bool {
         if !self.is_deterministic {
             self.rules = self.rules
@@ -1656,7 +1662,7 @@ impl TRS {
     pub fn make_nondeterministic(&mut self) -> bool {
         let previous_state = self.is_deterministic;
         self.is_deterministic = false;
-        !previous_state
+        previous_state
     }
     /// Report whether `self` is currently deterministic.
     pub fn is_deterministic(&self) -> bool {
@@ -1810,7 +1816,7 @@ impl TRS {
         if self.rules.len() > idx {
             Ok(self.rules.remove(idx))
         } else {
-            Err(TRSError::InvalidIndex(idx, self.rules.len() - 1))
+            Err(TRSError::InvalidIndex(idx, self.rules.len()))
         }
     }
     /// Query a `TRS` for a [`Rule`] based on its left-hand-side; delete and
@@ -1844,8 +1850,8 @@ impl TRS {
     pub fn insert_idx(&mut self, idx: usize, rule: Rule) -> Result<&mut TRS, TRSError> {
         if self.is_deterministic && rule.len() > 1 {
             return Err(TRSError::NondeterministicRule);
-        } else if idx >= self.rules.len() {
-            return Err(TRSError::InvalidIndex(idx, self.rules.len() - 1));
+        } else if idx > self.rules.len() {
+            return Err(TRSError::InvalidIndex(idx, self.rules.len()));
         } else if self.get(&rule.lhs).is_some() {
             return Err(TRSError::AlreadyInTRS);
         }
