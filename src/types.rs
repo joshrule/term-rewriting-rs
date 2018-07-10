@@ -1451,7 +1451,9 @@ impl Term {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Rule {
+    /// The left hand side (lhs) of the Rule.
     pub lhs: Term,
+    /// The right hand sides (rhs) of the Rule.
     pub rhs: Vec<Term>,
 }
 impl Rule {
@@ -1686,15 +1688,8 @@ impl Rule {
     /// # use term_rewriting::{Signature, Term, Rule, parse_term, parse_rule};
     /// let mut sig = Signature::default();
     /// 
-    // let mut r = parse_rule(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B | C(x_)");
-    // let mut r2 = parse_rule(&mut sig, "A(y_) = C(y_)").expect("parse of A(y_) = C(y_)");
-    ///
-    // let discarded_rule = r.discard(&r2).unwrap();
-    ///
-    // assert_eq!(r.display(&sig), "A(x_) = B");
-    // assert_eq!(discarded_rule.display(&sig), "A(y_) = C(y_)");
-    /// let mut r = parse_rule(&mut sig, "A(x_) = B | C").expect("parse of A(x_) = B | C");
-    /// let mut r2 = parse_rule(&mut sig, "A(y_) = B").expect("parse of A(y_) = B");
+    /// let mut r = parse_rule(&mut sig, "A(x_) = B(x_) | C").expect("parse of A(x_) = B(x_) | C");
+    /// let mut r2 = parse_rule(&mut sig, "A(y_) = B(y_)").expect("parse of A(y_) = B(y_)");
     ///
     /// r.discard(&r2);
     /// assert_eq!(r.display(&sig), "A(x_) = C");
