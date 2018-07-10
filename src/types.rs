@@ -123,13 +123,19 @@ pub enum Atom {
     Variable(Variable),
     Operator(Operator),
 }
-
+impl Atom {
+    pub fn display(&self, sig: &Signature) -> String {
+        match *self {
+            Atom::Variable(v) => v.display(sig),
+            Atom::Operator(o) => o.display(sig),
+        }
+    }
+}
 impl From<Variable> for Atom {
     fn from(var: Variable) -> Atom {
         Atom::Variable(var)
     }
 }
-
 impl From<Operator> for Atom {
     fn from(op: Operator) -> Atom {
         Atom::Operator(op)
@@ -1880,10 +1886,10 @@ impl Rule {
             } else {
                 None
             }
-        } else if let Some(an_rhs) = self.rhs[place[1]].replace(&place[2..].to_vec(), subterm) {
+        } else if let Some(an_rhs) = self.rhs[place[0] - 1].replace(&place[1..].to_vec(), subterm) {
             let mut rhs = self.rhs.clone();
-            rhs.remove(place[1]);
-            rhs.insert(place[1], an_rhs);
+            rhs.remove(place[0] - 1);
+            rhs.insert(place[0] - 1, an_rhs);
             Rule::new(self.lhs.clone(), rhs)
         } else {
             None
@@ -2032,6 +2038,85 @@ impl Rule {
 pub struct RuleContext {
     pub lhs: Context,
     pub rhs: Vec<Context>,
+}
+impl RuleContext {
+    /// A human-readable serialization of the Rule.
+    pub fn pretty(&self, sig: &Signature) -> String {
+        let lhs_str = self.lhs.pretty(sig);
+        let rhs_str = self.rhs.iter().map(|rhs| rhs.pretty(sig)).join(" | ");
+        format!("{} = {}", lhs_str, rhs_str)
+    }
+    /// Get all the subcontexts and places in a Rule.
+    pub fn subcontexts(&self) -> Vec<(&Context, Place)> {
+        let lhs = self.lhs.subcontexts().into_iter().map(|(t, mut p)| {
+            p.insert(0, 0);
+            (t, p)
+        });
+        let rhs = self.rhs.iter().enumerate().flat_map(|(i, rhs)| {
+            iter::repeat(i + 1)
+                .zip(rhs.subcontexts())
+                .into_iter()
+                .map(|(i, (t, mut p))| {
+                    p.insert(0, i);
+                    (t, p)
+                })
+        });
+        lhs.chain(rhs).collect()
+    }
+    pub fn holes(&self) -> Vec<Place> {
+        self.subcontexts().into_iter().filter_map(|(t, p)| {
+            match *t {
+                Context::Hole => Some(p),
+                _ => None,
+            }
+        }).collect()
+    }
+    /// All the `Variables` in a `RuleContext`.
+    pub fn variables(&self) -> Vec<Variable> {
+        self.lhs.variables()
+    }
+    /// All the `Operators` in a `RuleContext`.
+    pub fn operators(&self) -> Vec<Operator> {
+        let lhs = self.lhs.operators().into_iter();
+        let rhs = self.rhs.iter().flat_map(Context::operators);
+        lhs.chain(rhs).unique().collect()
+    }
+    /// Get a specific subcontext in a RuleContext.
+    pub fn at(&self, p: &[usize]) -> Option<&Context> {
+        if p[0] == 0 {
+            self.lhs.at(&p[1..].to_vec())
+        } else {
+            self.rhs[p[1]].at(&p[2..].to_vec())
+        }
+    }
+    /// Replace one subterm with another in a Rule
+    pub fn replace(&self, place: &[usize], subcontext: Context) -> Option<RuleContext> {
+        if place[0] == 0 {
+            if let Some(lhs) = self.lhs.replace(&place[1..].to_vec(), subcontext) {
+                Some(RuleContext {
+                    lhs,
+                    rhs: self.rhs.clone()
+                })
+            } else {
+                None
+            }
+        } else if let Some(an_rhs) = self.rhs[place[0] - 1].replace(&place[1..].to_vec(), subcontext) {
+            let mut rhs = self.rhs.clone();
+            rhs.remove(place[0] - 1);
+            rhs.insert(place[0] - 1, an_rhs);
+            Some(RuleContext {
+                lhs: self.lhs.clone(),
+                rhs
+            })
+        } else {
+            None
+        }
+    }
+    pub fn to_rule(&self) -> Result<Rule, ()> {
+        let lhs = self.lhs.to_term()?;
+        let rhs = self.rhs.iter().map(|rhs| rhs.to_term()).collect::<Result<_, _>>()?;
+        Rule::new(lhs, rhs).ok_or(())
+    }
 }
 
 /// A first-order term rewriting system.
@@ -2193,7 +2278,7 @@ impl TRS {
     pub fn make_nondeterministic(&mut self) -> bool {
         let previous_state = self.is_deterministic;
         self.is_deterministic = false;
-        !previous_state
+        previous_state
     }
     /// Report whether `self` is currently deterministic.
     ///
@@ -2683,7 +2768,7 @@ impl TRS {
         if self.rules.len() > idx {
             Ok(self.rules.remove(idx))
         } else {
-            Err(TRSError::InvalidIndex(idx, self.rules.len() - 1))
+            Err(TRSError::InvalidIndex(idx, self.rules.len()))
         }
     }
     /// Query a `TRS` for a [`Rule`] based on its left-hand-side; delete and
@@ -2788,8 +2873,8 @@ impl TRS {
     pub fn insert_idx(&mut self, idx: usize, rule: Rule) -> Result<&mut TRS, TRSError> {
         if self.is_deterministic && rule.len() > 1 {
             return Err(TRSError::NondeterministicRule);
-        } else if idx >= self.rules.len() {
-            return Err(TRSError::InvalidIndex(idx, self.rules.len() - 1));
+        } else if idx > self.rules.len() {
+            return Err(TRSError::InvalidIndex(idx, self.rules.len()));
         } else if self.get(&rule.lhs).is_some() {
             return Err(TRSError::AlreadyInTRS);
         }
