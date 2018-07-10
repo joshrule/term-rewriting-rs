@@ -1849,14 +1849,14 @@ impl Rule {
     ///
     /// assert_eq!(r.at(&[0]).unwrap().display(&sig), "A(x_)");
     /// assert_eq!(r.at(&[0,0]).unwrap().display(&sig), "x_");
-    /// assert_eq!(r.at(&[1,0]).unwrap().display(&sig), "B");
-    /// assert_eq!(r.at(&[1,1]).unwrap().display(&sig), "C(x_)");
+    /// assert_eq!(r.at(&[1]).unwrap().display(&sig), "B");
+    /// assert_eq!(r.at(&[2]).unwrap().display(&sig), "C(x_)");
     /// ```
     pub fn at(&self, p: &[usize]) -> Option<&Term> {
         if p[0] == 0 {
             self.lhs.at(&p[1..].to_vec())
         } else {
-            self.rhs[p[1]].at(&p[2..].to_vec())
+            self.rhs[p[0] - 1].at(&p[1..].to_vec())
         }
     }
     /// Replace one subterm with another in a `Rule`.
@@ -1874,7 +1874,7 @@ impl Rule {
     ///
     /// let mut r = parse_rule(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B| C(x_)");
     /// let new_term = parse_term(&mut sig, "E").expect("parse of E");
-    /// let new_rule = r.replace(&[1,0], new_term);
+    /// let new_rule = r.replace(&[1], new_term);
     ///
     /// assert_ne!(r, new_rule.clone().unwrap());
     /// assert_eq!(new_rule.unwrap().display(&sig), "A(x_) = E | C(x_)");
@@ -2263,7 +2263,7 @@ impl TRS {
     /// assert!(t.insert_idx(1, r.clone()).is_err());
     /// assert_eq!(str_before, t.display(&sig));
     /// 
-    /// assert!(!t.make_nondeterministic());
+    /// assert!(t.make_nondeterministic());
     /// t.insert_idx(1, r).expect("inserting C = B | D");
     /// assert!((t.display(&sig) ==  
     /// "A = B;
