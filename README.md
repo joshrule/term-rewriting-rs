@@ -13,7 +13,7 @@ To include as a dependency:
 
 ```toml
 [dependencies]
-term-rewriting = "0.1"
+term_rewriting = "0.2"
 ```
 
 To actually make use of the library:

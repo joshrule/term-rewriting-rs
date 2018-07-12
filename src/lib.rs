@@ -1,5 +1,12 @@
 //! A [Rust][0] library for representing, parsing, and computing with first-order [term rewriting systems][1].
 //!
+//! # Usage
+//!
+//! ```toml
+//! [dependencies]
+//! term_rewriting = "0.2"
+//! ```
+//!
 //! # Example
 //!
 //! ```
