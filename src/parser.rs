@@ -12,6 +12,7 @@ named!(underscore<CompleteStr, CompleteStr>, tag!("_"));
 named!(identifier<CompleteStr, CompleteStr>, call!(alphanumeric));
 
 #[derive(Debug, PartialEq)]
+/// The error type for parsing operations.
 pub enum ParseError {
     ParseIncomplete,
     ParseFailed,
@@ -94,9 +95,7 @@ pub fn parse_term(sig: &mut Signature, input: &str) -> Result<Term, ParseError> 
 /// # Examples
 ///
 /// ```
-/// use term_rewriting::{Signature, parse};
-///
-/// let mut sig = Signature::default();
+/// # use term_rewriting::{Signature, parse};
 /// let inp = "
 /// #-- rules:
 ///     S x_ y_ z_ = x_ z_ (y_ z_);
@@ -108,7 +107,7 @@ pub fn parse_term(sig: &mut Signature, input: &str) -> Result<Term, ParseError> 
 ///     S K S K;
 ///     PLUS(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO));
 /// ";
-/// let (trs, terms) = parse(&mut sig, inp).unwrap();
+/// let (trs, terms) = parse(&mut Signature::default(), inp).unwrap();
 /// ```
 ///
 /// [`TRS`]: struct.TRS.html

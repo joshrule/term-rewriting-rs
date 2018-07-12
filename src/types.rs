@@ -512,7 +512,7 @@ enum Unification {
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Context {
     /// An empty place in the `Context`.
-    /// 
+    ///
     /// # Examples
     ///
     /// ```
@@ -522,7 +522,7 @@ pub enum Context {
     /// ```
     Hole,
     /// A concrete but unspecified `Context` (e.g. `x`, `y`)
-    /// 
+    ///
     /// # Examples
     ///
     /// ```
@@ -536,7 +536,7 @@ pub enum Context {
     Variable(Variable),
     /// An [`Operator`] applied to zero or more `Context`s (e.g. (`f(x, y)`, `g()`)
     ///
-    /// 
+    ///
     /// # Examples
     ///
     /// ```
@@ -871,7 +871,7 @@ impl Term {
     /// let a = sig.new_op(2, Some("A".to_string()));
     /// let b = sig.new_op(0, Some("B".to_string()));
     ///
-    /// let example_term = Term::Application { 
+    /// let example_term = Term::Application {
     ///     op: a,
     ///     args: vec![
     ///         Term::Application{ op: b, args: vec![] },
@@ -1223,9 +1223,9 @@ impl Term {
     /// let t = parse_term(&mut sig, "S K y_ z_").expect("parse of S K y_ z_");
     /// let t2 = parse_term(&mut sig, "S K a_ b_").expect("parse of S K a_ b_");
     /// let t3 = parse_term(&mut sig, "S K y_").expect("parse of S K y_");
-    /// 
+    ///
     /// let vars = sig.variables();
-    /// let (y, z, a, b) = (vars[0], vars[1], vars[2], vars[3]); 
+    /// let (y, z, a, b) = (vars[0], vars[1], vars[2], vars[3]);
     ///
     /// assert_eq!(y.display(&sig), "y_".to_string());
     /// assert_eq!(z.display(&sig), "z_".to_string());
@@ -1313,7 +1313,7 @@ impl Term {
     /// let t2 = parse_term(&mut sig, "C(x_)").expect("parse of C(x_)");
     ///
     /// let t3 = parse_term(&mut sig, "C(y_)").expect("parse of C(y_)");
-    /// 
+    ///
     /// let t4 = parse_term(&mut sig, "A(x_)").expect("parse of A(x_)");
     ///
     /// assert_eq!(Term::pmatch(vec![(t, t2)]), None);
@@ -1346,7 +1346,7 @@ impl Term {
     /// let t2 = parse_term(&mut sig, "C(x_)").expect("parse of C(x_)");
     ///
     /// let t3 = parse_term(&mut sig, "C(y_)").expect("parse of C(y_)");
-    /// 
+    ///
     /// let t4 = parse_term(&mut sig, "B(x_)").expect("parse of B(x_)");
     ///
     /// let mut expected_sub = HashMap::new();
@@ -1623,13 +1623,15 @@ pub struct RuleContext {
     pub rhs: Vec<Context>,
 }
 impl RuleContext {
-    /// A human-readable serialization of the Rule.
+    /// A human-readable serialization of the `RuleContext`.
     pub fn pretty(&self, sig: &Signature) -> String {
         let lhs_str = self.lhs.pretty(sig);
         let rhs_str = self.rhs.iter().map(|rhs| rhs.pretty(sig)).join(" | ");
         format!("{} = {}", lhs_str, rhs_str)
     }
-    /// Get all the subcontexts and places in a Rule.
+    /// Get all the subcontexts and [`Place`]s in a `RuleContext`.
+    ///
+    /// [`Place`]: type.Place.html
     pub fn subcontexts(&self) -> Vec<(&Context, Place)> {
         let lhs = self.lhs.subcontexts().into_iter().map(|(t, mut p)| {
             p.insert(0, 0);
@@ -1647,12 +1649,13 @@ impl RuleContext {
         lhs.chain(rhs).collect()
     }
     pub fn holes(&self) -> Vec<Place> {
-        self.subcontexts().into_iter().filter_map(|(t, p)| {
-            match *t {
+        self.subcontexts()
+            .into_iter()
+            .filter_map(|(t, p)| match *t {
                 Context::Hole => Some(p),
                 _ => None,
-            }
-        }).collect()
+            })
+            .collect()
     }
     /// All the `Variables` in a `RuleContext`.
     pub fn variables(&self) -> Vec<Variable> {
@@ -1664,7 +1667,7 @@ impl RuleContext {
         let rhs = self.rhs.iter().flat_map(Context::operators);
         lhs.chain(rhs).unique().collect()
     }
-    /// Get a specific subcontext in a RuleContext.
+    /// Get a specific subcontext in a `RuleContext`.
     pub fn at(&self, p: &[usize]) -> Option<&Context> {
         if p[0] == 0 {
             self.lhs.at(&p[1..].to_vec())
@@ -1672,32 +1675,40 @@ impl RuleContext {
             self.rhs[p[1]].at(&p[2..].to_vec())
         }
     }
-    /// Replace one subterm with another in a Rule
+    /// Replace one subcontext with another in a `RuleContext`.
     pub fn replace(&self, place: &[usize], subcontext: Context) -> Option<RuleContext> {
         if place[0] == 0 {
             if let Some(lhs) = self.lhs.replace(&place[1..].to_vec(), subcontext) {
                 Some(RuleContext {
                     lhs,
-                    rhs: self.rhs.clone()
+                    rhs: self.rhs.clone(),
                 })
             } else {
                 None
             }
-        } else if let Some(an_rhs) = self.rhs[place[0] - 1].replace(&place[1..].to_vec(), subcontext) {
+        } else if let Some(an_rhs) =
+            self.rhs[place[0] - 1].replace(&place[1..].to_vec(), subcontext)
+        {
             let mut rhs = self.rhs.clone();
             rhs.remove(place[0] - 1);
             rhs.insert(place[0] - 1, an_rhs);
             Some(RuleContext {
                 lhs: self.lhs.clone(),
-                rhs
+                rhs,
             })
         } else {
             None
         }
     }
+    /// Convert a `RuleContext` to a [`Rule`] if possible.
+    ///
+    /// [`Rule`]: struct.Rule.html
     pub fn to_rule(&self) -> Result<Rule, ()> {
         let lhs = self.lhs.to_term()?;
-        let rhs = self.rhs.iter().map(|rhs| rhs.to_term()).collect::<Result<_, _>>()?;
+        let rhs = self.rhs
+            .iter()
+            .map(|rhs| rhs.to_term())
+            .collect::<Result<_, _>>()?;
         Rule::new(lhs, rhs).ok_or(())
     }
 }
@@ -1994,6 +2005,9 @@ impl TRS {
 }
 
 #[derive(Debug, Clone)]
+/// The error type for [`TRS`] manipulations.
+///
+/// [`TRS`]: struct.TRS.html
 pub enum TRSError {
     NotInTRS,
     AlreadyInTRS,
@@ -2019,4 +2033,3 @@ impl ::std::error::Error for TRSError {
         "TRS error"
     }
 }
-
