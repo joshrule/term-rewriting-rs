@@ -4,7 +4,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! term_rewriting = "0.2"
+//! term_rewriting = "0.3"
 //! ```
 //!
 //! # Example
