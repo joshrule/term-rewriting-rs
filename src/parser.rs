@@ -57,6 +57,19 @@ pub fn parse_term(sig: &mut Signature, input: &str) -> Result<Term, ParseError> 
     }
 }
 
+/// Similar to [`parse`], but produces only a [`Context`].
+///
+/// [`parse`]: fn.parse.html
+/// [`Term`]: enum.Term.html
+pub fn parse_context(sig: &mut Signature, input: &str) -> Result<Context, ParseError> {
+    let (_parser, result) = Parser::new(sig).top_context(CompleteStr(input));
+    match result {
+        Ok((CompleteStr(""), c)) => Ok(c),
+        Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
+        Err(_) => Err(ParseError::ParseFailed),
+    }
+}
+
 /// Parse a string as a [`TRS`] and a list of [`Term`]s.
 ///
 /// # TRS syntax
@@ -276,6 +289,74 @@ impl<'a> Parser<'a> {
                             Term::Application{ op, args }
                         })
                     }))
+    );
+
+    method!(context_variable<Parser<'a>, CompleteStr, Context>, mut self,
+            map!(terminated!(identifier, underscore),
+                 |v| Context::Variable(self.get_var(v.0)))
+    );
+
+    method!(context_application<Parser<'a>, CompleteStr, Context>, mut self,
+            alt!(call_m!(self.context_standard_application) |
+                 call_m!(self.context_binary_application))
+    );
+
+    // there was a bug in delimited! — see nom#728
+    method!(context_standard_application<Parser<'a>, CompleteStr, Context>, mut self,
+            do_parse!(name: identifier >>
+                      args: opt!(do_parse!(
+                              lparen >>
+                              args: separated_list!(
+                                  multispace,
+                                  call_m!(self.context)) >>
+                              rparen >>
+                              (args))) >>
+                      args: expr_opt!(Some(args.unwrap_or_default())) >>
+                      op: call_m!(self.get_op_wrapped,
+                                    name.0,
+                                    args.len() as u32) >>
+                      (Context::Application{op, args}))
+    );
+
+    method!(context_binary_application<Parser<'a>, CompleteStr, Context>, mut self,
+            do_parse!(lparen >>
+                      t1: ws!(call_m!(self.context)) >>
+                      multispace >>
+                      t2: ws!(call_m!(self.context)) >>
+                      rparen >>
+                      (Context::Application{ op: self.get_op(".", 2), args: vec![t1, t2] }))
+    );
+
+    method!(
+        context_hole<Parser<'a>, CompleteStr, Context>,
+        self,
+        do_parse!(tag!("[!]") >> (Context::Hole))
+    );
+
+    method!(context<Parser<'a>, CompleteStr, Context>, mut self,
+            alt!(call_m!(self.context_variable) |
+                 call_m!(self.context_application) |
+                 call_m!(self.context_hole))
+    );
+
+    method!(top_context<Parser<'a>, CompleteStr, Context>, mut self,
+            ws!(map!(
+                separated_nonempty_list!(
+                    multispace,
+                    alt!(call_m!(self.context) |
+                         do_parse!(lparen >>
+                                   context: call_m!(self.top_context) >>
+                                   rparen >>
+                                   (context)))),
+                |a| {
+                    let mut it = a.into_iter();
+                    let init = it.next().unwrap();
+                    it.fold(init, |acc, x| {
+                        let op = self.get_op(".", 2);
+                        let args = vec![acc, x];
+                        Context::Application{ op, args }
+                    })
+                }))
     );
 
     method!(rule<Parser<'a>, CompleteStr, Rule>, mut self,
