@@ -505,10 +505,32 @@ enum Unification {
     Unify,
 }
 
-/// A first-order context: a [`Term`] that may have [`Hole`]s; a sort of [`Term`] template.
+/// A first-order `Context`: a [`Term`] that may have [`Hole`]s; a sort of [`Term`] template.
 ///
 /// [`Term`]: enum.Term.html
 /// [`Hole`]: enum.Context.html#variant.Hole
+///
+/// Examples
+///
+/// ```
+/// # use term_rewriting::{Signature, Context, parse_context};
+/// let mut sig = Signature::default();
+///
+/// // Constructing a Context manually.
+/// let a = sig.new_op(3, Some("A".to_string()));
+/// let b = sig.new_op(0, Some("B".to_string()));
+/// let x = sig.new_var(Some("x".to_string()));
+///
+/// let b_context = Context::Application { op: b, args: vec![] };
+/// let x_context = Context::Variable(x);
+///
+/// let context = Context::Application { op: a, args: vec![ b_context, x_context, Context::Hole ] };
+///
+/// // Constructing a Context using the Parser.
+/// let context2 = parse_context(&mut sig, "A(B x_ [!])").expect("parse of A(B x_ [!])");
+///
+/// assert_eq!(context.display(&sig), context2.display(&sig));
+/// ```
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Context {
     /// An empty place in the `Context`.
@@ -516,9 +538,15 @@ pub enum Context {
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Term, Context};
-    /// // How to construct a hole manually
+    /// # use term_rewriting::{Signature, parse_context, Context};
+    /// // Constructing a hole manually.
     /// let h = Context::Hole;
+    ///
+    /// // Constructing a hole using the parser.
+    /// let mut sig = Signature::default();
+    /// let h2 = parse_context(&mut sig, "[!]").expect("parse of [!]");
+    ///
+    /// assert_eq!(h.display(&sig), h2.display(&sig));
     /// ```
     Hole,
     /// A concrete but unspecified `Context` (e.g. `x`, `y`)
@@ -526,27 +554,38 @@ pub enum Context {
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Term, Context};
+    /// # use term_rewriting::{Signature, parse_context, Context};
     /// let mut sig = Signature::default();
     ///
-    /// // How to construct a Context Variable manually
-    /// let v = sig.new_var(Some("x_".to_string()));
+    /// // Constructing a Context Variable manually.
+    /// let v = sig.new_var(Some("x".to_string()));
     /// let var = Context::Variable(v);
+    ///
+    /// //Contstructing a Context Variable using the parser.
+    /// let var2 = parse_context(&mut sig, "x_").expect("parse of x_");
+    ///
+    /// assert_eq!(var.display(&sig), var2.display(&sig));
     /// ```
     Variable(Variable),
     /// An [`Operator`] applied to zero or more `Context`s (e.g. (`f(x, y)`, `g()`)
     ///
+    /// [`Operator`]: struct.Operator.html
     ///
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Term, Context};
+    /// # use term_rewriting::{Signature, parse_context, Context};
     /// let mut sig = Signature::default();
-    /// // How to construct a Context Application manually
+    ///
+    /// // Constructing a Context Application manually.
     /// let a = sig.new_op(0, Some("A".to_string()));
     /// let app = Context::Application { op: a, args: vec![] };
+    ///
+    /// // Constructing a Context Application using the parser.
+    /// let app2 = parse_context(&mut sig, "A").expect("parse of A");
+    ///
+    /// assert_eq!(app, app2);
     /// ```
-    /// [`Operator`]: struct.Operator.html
     Application { op: Operator, args: Vec<Context> },
 }
 impl Context {
@@ -556,7 +595,6 @@ impl Context {
     ///
     /// ```
     /// # use term_rewriting::{Signature, Term, Context, Variable, Operator};
-    ///
     /// let mut sig = Signature::default();
     ///
     /// let h = Context::Hole;
@@ -564,11 +602,13 @@ impl Context {
     ///
     /// let var = sig.new_var(Some("y".to_string()));
     /// let context_var = Context::Variable(var);
+    ///
     /// assert_eq!(context_var.display(&sig), "y_".to_string());
     ///
     /// let op = sig.new_op(0,Some("S".to_string()));
     /// let args = vec![];
     /// let context_app = Context::Application {op, args};
+    ///
     /// assert_eq!(context_app.display(&sig), "S".to_string());
     ///
     /// let var = sig.new_var(Some("x".to_string()));
@@ -577,6 +617,7 @@ impl Context {
     ///     op: a,
     ///     args: vec![Context::Hole, Context::Variable(var)],
     /// };
+    ///
     /// assert_eq!(example_context.display(&sig), "A([!] x_)".to_string());
     /// ```
     pub fn display(&self, sig: &Signature) -> String {
@@ -601,6 +642,19 @@ impl Context {
     /// Every [`Atom`] used in `self`.
     ///
     /// [`Atom`]: enum.Atom.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Context, parse_context};
+    /// let mut sig = Signature::default();
+    ///
+    /// let context = parse_context(&mut sig, "A(B x_ [!])").expect("parse of A(B x_ [!])");
+    ///
+    /// let atoms: Vec<String> = context.atoms().iter().map(|a| a.display(&sig)).collect();
+    ///
+    /// assert_eq!(atoms, vec!["x_", "B", "A"]);
+    /// ```
     pub fn atoms(&self) -> Vec<Atom> {
         let vars = self.variables().into_iter().map(Atom::Variable);
         let ops = self.operators().into_iter().map(Atom::Operator);
@@ -609,6 +663,19 @@ impl Context {
     /// Every [`Variable`] used in `self`.
     ///
     /// [`Variable`]: struct.Variable.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_context, Context};
+    /// let mut sig = Signature::default();
+    ///
+    /// let context = parse_context(&mut sig, "A([!]) B y_ z_").expect("parse of A([!]) B y_ z_");
+    ///
+    /// let var_names: Vec<String> = context.variables().iter().map(|v| v.display(&sig)).collect();
+    ///
+    /// assert_eq!(var_names, vec!["y_".to_string(), "z_".to_string()]);
+    /// ```
     pub fn variables(&self) -> Vec<Variable> {
         match *self {
             Context::Hole => vec![],
@@ -621,6 +688,19 @@ impl Context {
     /// Every [`Operator`] used in `self`.
     ///
     /// [`Operator`]: struct.Operator.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_context, Context};
+    /// let mut sig = Signature::default();
+    ///
+    /// let context = parse_context(&mut sig, "A([!]) B y_ z_").expect("parse of A([!]) B y_ z_");
+    ///
+    /// let op_names: Vec<String> = context.operators().iter().map(|v| v.display(&sig)).collect();
+    ///
+    /// assert_eq!(op_names, vec!["A".to_string(), "B".to_string(), ".".to_string()]);
+    /// ```
     pub fn operators(&self) -> Vec<Operator> {
         if let Context::Application { op, ref args } = *self {
             args.iter()
@@ -635,6 +715,20 @@ impl Context {
     /// A list of the [`Place`]s in `self` that are holes.
     ///
     /// [`Place`]: type.Place.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_context, Place};
+    /// let mut sig = Signature::default();
+    ///
+    /// let context = parse_context(&mut sig, "A([!] B([!]) y_ z_)").expect("parse of A([!] B([!]) y_ z_)");
+    ///
+    /// let p: &[usize] = &[0];
+    /// let p2: &[usize] = &[1, 0];
+    ///
+    /// assert_eq!(context.holes(), vec![p, p2]);
+    /// ```
     pub fn holes(&self) -> Vec<Place> {
         self.subcontexts()
             .into_iter()
@@ -648,6 +742,17 @@ impl Context {
             .collect()
     }
     /// The head of the `Context`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Context, parse_context, Atom};
+    /// let mut sig = Signature::default();
+    ///
+    /// let context = parse_context(&mut sig, "A(B([!]) z_)").expect("parse of A(B([!]) z_)");
+    ///
+    /// assert_eq!(context.head().unwrap().display(&sig), "A");
+    /// ```
     pub fn head(&self) -> Option<Atom> {
         match self {
             Context::Hole => None,
@@ -656,6 +761,23 @@ impl Context {
         }
     }
     /// The args of the `Context`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Context, parse_context, Atom};
+    /// let mut sig = Signature::default();
+    ///
+    /// let context = parse_context(&mut sig, "A B").expect("parse of A B");
+    /// let args: Vec<String> = context.args().iter().map(|arg| arg.display(&sig)).collect();
+    ///
+    /// assert_eq!(args, vec!["A", "B"]);
+    ///
+    /// let context = parse_context(&mut sig, "A(y_)").expect("parse of A(y_)");
+    /// let args: Vec<String> = context.args().iter().map(|arg| arg.display(&sig)).collect();
+    ///
+    /// assert_eq!(args, vec!["y_"]);
+    /// ```
     pub fn args(&self) -> Vec<Context> {
         if let Context::Application { args, .. } = self {
             args.clone()
@@ -663,7 +785,29 @@ impl Context {
             vec![]
         }
     }
-    /// Every subcontext and its place, starting with the original context itself.
+    /// Every `subcontext` and its [`Place`], starting with the original `context` itself.
+    ///
+    /// [`Place`]: type.Place.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_context, Context};
+    /// let mut sig = Signature::default();
+    ///
+    /// let context = parse_context(&mut sig, "A(B [!])").expect("parse of A(B [!])");
+    ///
+    /// let p: Vec<usize> = vec![];
+    /// let subcontext0 = parse_context(&mut sig, "A(B [!])").expect("parse of A(B [!])");
+    ///
+    /// let p1: Vec<usize> = vec![0];
+    /// let subcontext1 = parse_context(&mut sig, "B").expect("parse of B");
+    ///
+    /// let p2: Vec<usize> = vec![1];
+    /// let subcontext2 = Context::Hole;
+    ///
+    /// assert_eq!(context.subcontexts(), vec![(&subcontext0, p), (&subcontext1, p1), (&subcontext2, p2)]);
+    /// ```
     pub fn subcontexts(&self) -> Vec<(&Context, Place)> {
         if let Context::Application { ref args, .. } = *self {
             let here = iter::once((self, vec![]));
@@ -685,12 +829,42 @@ impl Context {
     /// The number of distinct [`Place`]s in `self`.
     ///
     /// [`Place`]: type.Place.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Context, parse_context};
+    /// let mut sig = Signature::default();
+    /// let context = parse_context(&mut sig, "A B").expect("parse of A B");
+    ///
+    /// assert_eq!(context.size(), 3);
+    ///
+    /// let context = parse_context(&mut sig, "A(B)").expect("parse of A(B)");
+    ///
+    /// assert_eq!(context.size(), 2);
+    /// ```
     pub fn size(&self) -> usize {
         self.subcontexts().len()
     }
-    /// Get the subcontext at the given [`Place`], or `None` if the place does not exist.
+    /// Get the `subcontext` at the given [`Place`], or `None` if the [`Place`] does not exist.
     ///
     /// [`Place`]: type.Place.html
+    ///         
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Context, parse_context};
+    /// let mut sig = Signature::default();
+    /// let context = parse_context(&mut sig, "B(A)").expect("parse of B(A)");
+    ///
+    /// let p: &[usize] = &[7];
+    ///
+    /// assert_eq!(context.at(p), None);
+    ///
+    /// let p: &[usize] = &[0];
+    ///
+    /// assert_eq!(context.at(p).unwrap().display(&sig), "A");
+    /// ```
     #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
     pub fn at(&self, place: &[usize]) -> Option<&Context> {
         self.at_helper(&*place)
@@ -710,6 +884,21 @@ impl Context {
     /// `subcontext`.
     ///
     /// [`Place`]: type.Place.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Context, parse_context};
+    /// let mut sig = Signature::default();
+    ///
+    /// let context = parse_context(&mut sig, "B(A)").expect("parse of B(A)");
+    /// let context2 = parse_context(&mut sig, "C [!]").expect("parse of C [!]");
+    ///
+    /// let p: &[usize] = &[0];
+    /// let new_context = context.replace(p, context2);
+    ///
+    /// assert_eq!(new_context.unwrap().pretty(&sig), "B(C [!])");
+    /// ```
     pub fn replace(&self, place: &[usize], subcontext: Context) -> Option<Context> {
         self.replace_helper(&*place, subcontext)
     }
@@ -737,6 +926,23 @@ impl Context {
     /// Translate `self` into a [`Term`], if possible.
     ///
     /// [`Term`]: enum.Term.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_context};
+    /// let mut sig = Signature::default();
+    ///
+    /// let context = parse_context(&mut sig, "A(B [!])").expect("parse of A(B [!])");
+    ///
+    /// assert!(context.to_term().is_err());
+    ///
+    /// let context = parse_context(&mut sig, "A(B C)").expect("parse of A(B C)");
+    ///
+    /// let term = context.to_term().expect("converting context to term");
+    ///
+    /// assert_eq!(term.display(&sig), "A(B C)");
+    /// ```
     pub fn to_term(&self) -> Result<Term, ()> {
         match *self {
             Context::Hole => Err(()),
@@ -919,6 +1125,7 @@ impl Term {
     /// Every [`Operator`] used in the `Term`.
     ///
     /// [`Operator`]: struct.Operator.html
+    ///
     /// # Examples
     ///
     /// ```
