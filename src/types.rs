@@ -1426,6 +1426,7 @@ impl Term {
 /// right-hand-side [`Term`]s.
 ///
 /// [`Term`]: enum.Term.html
+///
 /// # Examples
 ///
 /// ```
@@ -1774,6 +1775,7 @@ impl Rule {
     /// All the [`Operator`]s in the `Rule`.
     ///
     /// [`Operator`]: struct.Operator.html
+    ///
     /// # Examples
     ///
     /// ```
@@ -2038,13 +2040,35 @@ impl Rule {
     }
 }
 
-/// A [`Rule`] with holes; a sort of [`Rule`] template.
+/// A [`Rule`] with [`Hole`]s; a sort of [`Rule`] template.
+///
+/// See [`Context`] for more information.
 ///
 /// [`Context`]: enum.Context.html
 /// [`Rule`]: struct.Rule.html
+/// [`Hole`]: enum.Context.html#variant.Hole
+///
+/// # Examples
+///
+/// ```
+/// # use term_rewriting::{Signature, Term, parse_term, Rule, parse_rule, RuleContext, Context};
+/// let mut sig = Signature::default();
+/// 
+/// let a = sig.new_op(2, Some("A".to_string()));
+/// let b = sig.new_op(0, Some("B".to_string()));
+/// let c = sig.new_op(0, Some("C".to_string()));
+///
+/// let b_context = Context::Application { op: b, args: vec![] };
+/// let c_context = Context::Application { op: c, args: vec![] };
+/// let a_context = Context::Application { op: a, args: vec![ b_context.clone(), c_context.clone() ] };
+///
+/// let r = RuleContext { lhs: a_context, rhs: vec![b_context, c_context] };
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RuleContext {
+    /// The left hand side (lhs) of a RuleContext.
     pub lhs: Context,
+    /// The right hand sides (rhs) of a RuleContext.
     pub rhs: Vec<Context>,
 }
 impl RuleContext {
@@ -2074,9 +2098,39 @@ impl RuleContext {
         let rhs_str = self.rhs.iter().map(|rhs| rhs.pretty(sig)).join(" | ");
         format!("{} = {}", lhs_str, rhs_str)
     }
-    /// Get all the subcontexts and [`Place`]s in a `RuleContext`.
+    /// Get all the [`subcontexts`] and [`Place`]s in a `RuleContext`.
+    ///
+    /// [`Subcontexts`]: struct.Context.html
     ///
     /// [`Place`]: type.Place.html
+    ///
+    /// # Examples
+    /// 
+    /// ```
+    /// # use term_rewriting::{Signature, Term, RuleContext, Context};
+    /// let mut sig = Signature::default();
+    ///
+    /// let r =
+    ///     parse_rule(&mut sig, "A(x_ B) = C(x_) | D(B)").expect("parse of A(x_ B) = C(x_) | D(B)");
+    ///
+    /// let subterms: Vec<String> = r.subterms()
+    ///     .iter()
+    ///     .map(|(i, t, p)| format!("{},Subterm:{},Place:{:?}", i, t.display(&sig), p))
+    ///     .collect();
+    /// 
+    /// assert_eq!(
+    ///     subterms,
+    ///     vec![
+    ///         "0,Subterm:A(x_ B),Place:[]",
+    ///         "0,Subterm:x_,Place:[0]",
+    ///         "0,Subterm:B,Place:[1]",
+    ///         "1,Subterm:C(x_),Place:[]",
+    ///         "1,Subterm:x_,Place:[0]",
+    ///         "2,Subterm:D(B),Place:[]",
+    ///         "2,Subterm:B,Place:[0]",
+    ///     ]
+    /// );
+    /// ```
     pub fn subcontexts(&self) -> Vec<(&Context, Place)> {
         let lhs = self.lhs.subcontexts().into_iter().map(|(t, mut p)| {
             p.insert(0, 0);
@@ -2102,17 +2156,67 @@ impl RuleContext {
             })
             .collect()
     }
-    /// All the `Variables` in a `RuleContext`.
+    /// All the [`Variables`] in a `RuleContext`.
+    ///
+    /// [`Variables`]: struct.Variables.html
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// # use term_rewriting::{Signature, Term, Rule, parse_term, parse_rule};
+    /// let mut sig = Signature::default();
+    /// 
+    /// let r = parse_rule(&mut sig, "A(x_) = C(x_)").expect("parse of A(x_) = C(x_)");
+    /// let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
+    /// assert_eq!(r_variables, vec!["x_"]);
+    ///
+    /// let r2 = parse_rule(&mut sig, "B(y_ z_) = C").expect("parse of B(y_ z_) = C");
+    /// let r2_variables: Vec<String> = r2.variables().iter().map(|v| v.display(&sig)).collect();
+    /// assert_eq!(r2_variables, vec!["y_", "z_"]);
+    /// ```
     pub fn variables(&self) -> Vec<Variable> {
         self.lhs.variables()
     }
-    /// All the `Operators` in a `RuleContext`.
+    /// All the [`Operators`] in a `RuleContext`.
+    ///
+    /// [`Operators`]: struct.Operators.html
+    ///
+    /// # Examples
+    /// 
+    /// ```
+    /// # use term_rewriting::{Signature, Term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    /// 
+    /// let r = parse_rule(&mut sig, "A(D E) = C").expect("parse of A(D E) = C");
+    /// let r_ops: Vec<String> = r.operators().iter().map(|o| o.display(&sig)).collect();
+    /// assert_eq!(r_ops, vec!["D", "E", "A", "C"]);
+    ///
+    /// let r2 = parse_rule(&mut sig, "B(F x_) = C").expect("parse of B(F x_) = C"); 
+    /// let r2_ops: Vec<String> = r2.operators().iter().map(|o| o.display(&sig)).collect();
+    /// assert_eq!(r2_ops, vec!["F", "B", "C"]);
+    /// ```
     pub fn operators(&self) -> Vec<Operator> {
         let lhs = self.lhs.operators().into_iter();
         let rhs = self.rhs.iter().flat_map(Context::operators);
         lhs.chain(rhs).unique().collect()
     }
-    /// Get a specific subcontext in a `RuleContext`.
+    /// Get a specific [`subcontext`] in a `RuleContext`.
+    ///
+    /// [`subcontext`]: struct.Context.html
+    ///
+    /// # Examples
+    /// 
+    /// ```
+    /// # use term_rewriting::{Signature, Term, Rule, parse_term, parse_rule};
+    /// let mut sig = Signature::default();
+    /// 
+    /// let r = parse_rule(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B | C(x_)");
+    ///
+    /// assert_eq!(r.at(&[0]).unwrap().display(&sig), "A(x_)");
+    /// assert_eq!(r.at(&[0,0]).unwrap().display(&sig), "x_");
+    /// assert_eq!(r.at(&[1]).unwrap().display(&sig), "B");
+    /// assert_eq!(r.at(&[2]).unwrap().display(&sig), "C(x_)");
+    /// ```
     pub fn at(&self, p: &[usize]) -> Option<&Context> {
         if p[0] == 0 {
             self.lhs.at(&p[1..].to_vec())
@@ -2120,7 +2224,24 @@ impl RuleContext {
             self.rhs[p[1]].at(&p[2..].to_vec())
         }
     }
-    /// Replace one subcontext with another in a `RuleContext`.
+    /// Replace one [`subcontext`] with another [`Context`].
+    ///
+    /// [`subcontext`]: struct.Context.html
+    /// [`Context`]: struct.Context.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Term, parse_term, parse_rule, Rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let mut r = parse_rule(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B| C(x_)");
+    /// let new_term = parse_term(&mut sig, "E").expect("parse of E");
+    /// let new_rule = r.replace(&[1], new_term);
+    ///
+    /// assert_ne!(r, new_rule.clone().unwrap());
+    /// assert_eq!(new_rule.unwrap().display(&sig), "A(x_) = E | C(x_)");
+    /// ```
     pub fn replace(&self, place: &[usize], subcontext: Context) -> Option<RuleContext> {
         if place[0] == 0 {
             if let Some(lhs) = self.lhs.replace(&place[1..].to_vec(), subcontext) {
@@ -2139,7 +2260,7 @@ impl RuleContext {
             rhs.insert(place[0] - 1, an_rhs);
             Some(RuleContext {
                 lhs: self.lhs.clone(),
-                rhs,
+           w     rhs,
             })
         } else {
             None
