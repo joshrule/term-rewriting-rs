@@ -380,9 +380,9 @@ impl Signature {
     /// ]);
     ///
     /// let (mut sig2, _) = Signature::new(vec![
-    ///     (2, Some("A".to_string())),
-    ///     (1, Some("B".to_string())),
-    ///     (0, Some("C".to_string())),
+    ///     (2, Some(".".to_string())),
+    ///     (0, Some("S".to_string())),
+    ///     (0, Some("K".to_string())),
     /// ]);
     /// 
     /// sig1.merge(sig2, MergeStrategy::SameOperators);
@@ -410,27 +410,55 @@ impl Signature {
     /// assert_eq!(ops, vec![".", "S", "K", "A", "B"]);    
     /// ```
     pub fn merge(&mut self, mut other: Signature, strategy: MergeStrategy) -> SignatureChange {
-        let delta_op = match strategy {
-            MergeStrategy::SameOperators => 0,
+        let op_map = match strategy {
+            MergeStrategy::SameOperators => {
+                let mut temp_map = HashMap::default();                
+                if self.operators.len() == other.operators.len()
+                    && self.operators.iter().zip(&other.operators)
+                        .all( |((arity1, op1), (arity2, op2))| *arity1 == *arity2 && *op1 == *op2) {
+                    for idx in 0..self.operators.len() {
+                        temp_map.insert(idx, idx);
+                    }
+                } else {
+                    panic!("signatures can not be merged using same operators");
+                }
+                temp_map
+            }
             MergeStrategy::OperatorsByArityAndName => {
                 let old_len = self.operators.len();
-                for op_spec in other.operators {
-                    if !self.operators.contains(&op_spec) {
-                        self.operators.push(op_spec)
+                let mut new_idx = old_len;
+                let mut temp_map = HashMap::default();
+                for (op, idx) in other.operators.iter().zip(0..other.operators.len()) {
+                    if self.operators.contains(&op) {
+                        for original_idx in 0..self.operators.len() {
+                            if self.operators[original_idx] == *op {
+                                temp_map.insert(idx, original_idx);
+                                break;
+                            }
+                        }
+                    } else {
+                        self.operators.push(op.clone());
+                        temp_map.insert(idx, new_idx);
+                        new_idx += 1;
                     }
                 }
-                old_len
+                temp_map
             }
             MergeStrategy::DistinctOperators => {
-                let old_len = self.operators.len();
+                let mut new_idx = self.operators.len();
+                let mut temp_map = HashMap::default();
+                for idx in 0..other.operators.len() {
+                    temp_map.insert(idx, new_idx);
+                    new_idx += 1;
+                }
                 self.operators.append(&mut other.operators);
-                old_len
+                temp_map
             }
         };
         let delta_var = self.variables.len();
         self.variables.append(&mut other.variables);
         SignatureChange {
-            delta_op,
+            op_map,
             delta_var,
         }
     }
@@ -502,7 +530,7 @@ pub enum MergeStrategy {
 // assert_eq!(term.pretty(&sig1), "A B");
 /// ```
 pub struct SignatureChange {
-    delta_op: usize,
+    op_map: HashMap<usize, usize>,
     delta_var: usize,
 }
 impl SignatureChange {
@@ -515,21 +543,6 @@ impl SignatureChange {
     ///
     /// ```
     /// # use term_rewriting::{MergeStrategy, Signature, parse_term, parse_trs};
-    /// let (mut sig1, _ops) = Signature::new(vec![
-    ///     (2, Some(".".to_string())),
-    ///     (0, Some("S".to_string())),
-    ///     (0, Some("K".to_string())),
-    /// ]);
-    /// let mut sig2 = Signature::default();
-    ///
-    /// let term = parse_term(&mut sig2, "A B").unwrap();
-    ///
-    /// let sigchange = sig1.merge(sig2, MergeStrategy::SameOperators);
-    ///
-    /// let term = sigchange.reify_term(term);
-    /// 
-    /// assert_eq!(term.pretty(&sig1), "S K");
-    ///
     /// let (mut sig1, _ops) = Signature::new(vec![
     ///     (2, Some(".".to_string())),
     ///     (0, Some("S".to_string())),
@@ -555,7 +568,7 @@ impl SignatureChange {
                 op: Operator { id },
                 args,
             } => {
-                let id = id + self.delta_op;
+                let id = *self.op_map.get(&id).unwrap();
                 Term::Application {
                     op: Operator { id },
                     args: args.into_iter().map(|t| self.reify_term(t)).collect(),
@@ -594,35 +607,7 @@ impl SignatureChange {
     ///     ]
     /// };
     ///
-    /// let sigchange = sig1.merge(sig2, MergeStrategy::SameOperators);
-    ///
-    /// let context = sigchange.reify_context(context);
-    /// 
-    /// assert_eq!(context.pretty(&sig1), "[!] S");
-    ///
-    /// let (mut sig1, _ops) = Signature::new(vec![
-    ///     (2, Some(".".to_string())),
-    ///     (0, Some("S".to_string())),
-    ///     (0, Some("K".to_string())),
-    /// ]);
-    /// let mut sig2 = Signature::default();
-    ///
-    /// let a = sig2.new_op(2, Some("A".to_string()));
-    /// let h = Context::Hole;
-    /// let b = sig2.new_op(0, Some("B".to_string()));
-    ///
-    /// let context = Context::Application { 
-    ///     op: a,
-    ///     args: vec![
-    ///         Context::Hole,
-    ///         Context::Application{
-    ///             op: b,
-    ///             args: vec![]
-    ///         }
-    ///     ]
-    /// };
-    ///
-    /// let sigchange = sig1.merge(sig2, MergeStrategy::DistinctOperators);
+    /// let sigchange = sig1.merge(sig2, MergeStrategy::OperatorsByArityAndName);
     /// 
     /// let context = sigchange.reify_context(context);
     ///
@@ -639,7 +624,7 @@ impl SignatureChange {
                 op: Operator { id },
                 args,
             } => {
-                let id = id + self.delta_op;
+                let id = *self.op_map.get(&id).unwrap();
                 Context::Application {
                     op: Operator { id },
                     args: args.into_iter().map(|t| self.reify_context(t)).collect(),
@@ -660,28 +645,12 @@ impl SignatureChange {
     ///     (2, Some(".".to_string())),
     ///     (0, Some("S".to_string())),
     ///     (0, Some("K".to_string())),
-    ///     (0, Some("F".to_string())),
     /// ]);
     /// let mut sig2 = Signature::default();
     ///
     /// let rule = parse_rule(&mut sig2, "A = B | C").unwrap();
     ///
-    /// let sigchange = sig1.merge(sig2, MergeStrategy::SameOperators);
-    ///
-    /// let rule = sigchange.reify_rule(rule);
-    /// 
-    ///  assert_eq!(rule.pretty(&sig1), "S = K | F");
-    ///
-    /// let (mut sig1, _ops) = Signature::new(vec![
-    ///     (2, Some(".".to_string())),
-    ///     (0, Some("S".to_string())),
-    ///     (0, Some("K".to_string())),
-    /// ]);
-    /// let mut sig2 = Signature::default();
-    ///
-    /// let rule = parse_rule(&mut sig2, "A = B | C").unwrap();
-    ///
-    /// let sigchange = sig1.merge(sig2, MergeStrategy::DistinctOperators);
+    /// let sigchange = sig1.merge(sig2, MergeStrategy::OperatorsByArityAndName);
     /// 
     /// let rule = sigchange.reify_rule(rule);
     ///
@@ -706,7 +675,6 @@ impl SignatureChange {
     ///     (2, Some(".".to_string())),
     ///     (0, Some("S".to_string())),
     ///     (0, Some("K".to_string())),
-    ///     (0, Some("F".to_string())),
     /// ]);
     /// let mut sig2 = Signature::default();
     ///
@@ -714,26 +682,7 @@ impl SignatureChange {
     /// "A = B;
     /// C = B;").unwrap();
     ///
-    /// let sigchange = sig1.merge(sig2, MergeStrategy::SameOperators);
-    ///
-    /// let trs = sigchange.reify_trs(trs);
-    /// 
-    /// assert_eq!(trs.pretty(&sig1), 
-    /// "S = K;
-    /// F = K;");
-    ///
-    /// let (mut sig1, _ops) = Signature::new(vec![
-    ///     (2, Some(".".to_string())),
-    ///     (0, Some("S".to_string())),
-    ///     (0, Some("K".to_string())),
-    /// ]);
-    /// let mut sig2 = Signature::default();
-    ///
-    /// let trs = parse_trs(&mut sig2, 
-    /// "A = B;
-    /// C = B;").unwrap();
-    ///
-    /// let sigchange = sig1.merge(sig2, MergeStrategy::DistinctOperators);
+    /// let sigchange = sig1.merge(sig2, MergeStrategy::OperatorsByArityAndName);
     /// 
     /// let trs = sigchange.reify_trs(trs);
     ///
