@@ -1,7 +1,7 @@
 use super::types::*;
 
 use nom::types::CompleteStr;
-use nom::{alphanumeric, multispace, IResult};
+use nom::{alphanumeric, multispace};
 
 named!(lparen<CompleteStr, CompleteStr>,     tag!("("));
 named!(rparen<CompleteStr, CompleteStr>,     tag!(")"));
@@ -233,16 +233,6 @@ impl<'a> Parser<'a> {
         let dv = sig.variables.len();
         Parser { sig, dv }
     }
-    pub fn get_op_wrapped<'b>(
-        mut self,
-        input: CompleteStr<'b>,
-        name: &str,
-        arity: u32,
-    ) -> (Self, IResult<CompleteStr<'b>, Operator>) {
-        let op = self.get_op(name, arity);
-        (self, Ok((input, op)))
-    }
-
     method!(variable<Parser<'a>, CompleteStr, Term>, mut self,
             map!(terminated!(identifier, underscore),
                  |v| Term::Variable(self.get_var(v.0)))
@@ -264,19 +254,23 @@ impl<'a> Parser<'a> {
                               rparen >>
                               (args))) >>
                       args: expr_opt!(Some(args.unwrap_or_default())) >>
-                      op: call_m!(self.get_op_wrapped,
-                                    name.0,
-                                    args.len() as u32) >>
-                      (Term::Application{op, args}))
+                      (Term::Application {
+                          op: self.get_op(name.0, args.len() as u32),
+                          args
+                      })
+            )
     );
 
     method!(binary_application<Parser<'a>, CompleteStr, Term>, mut self,
             do_parse!(lparen >>
                       t1: ws!(call_m!(self.term)) >>
                       t2: ws!(call_m!(self.term)) >>
-                      op: call_m!(self.get_op_wrapped, ".", 2) >>
                       rparen >>
-                      (Term::Application{ op, args: vec![t1, t2] }))
+                      (Term::Application {
+                          op: self.get_op(".", 2),
+                          args: vec![t1, t2],
+                      })
+            )
     );
 
     method!(term<Parser<'a>, CompleteStr, Term>, mut self,
@@ -285,20 +279,19 @@ impl<'a> Parser<'a> {
 
     method!(top_term<Parser<'a>, CompleteStr, Term>, mut self,
             ws!(map!(
-                    do_parse!(op: call_m!(self.get_op_wrapped, ".", 2) >>
-                              args: separated_nonempty_list!(
-                                  multispace,
-                                  alt!(call_m!(self.term) |
-                                       do_parse!(lparen >>
-                                                 term: call_m!(self.top_term) >>
-                                                 rparen >>
-                                                 (term)))) >>
-                              (op, args)),
-                    |(op, a)| {
+                    separated_nonempty_list!(
+                        multispace,
+                        alt!(call_m!(self.term) |
+                             do_parse!(lparen >>
+                                       term: call_m!(self.top_term) >>
+                                       rparen >>
+                                       (term)))),
+                    |a| {
                         let mut it = a.into_iter();
                         let init = it.next().unwrap();
                         it.fold(init, |acc, x| {
-                           let args = vec![acc, x];
+                            let args = vec![acc, x];
+                            let op = self.get_op(".", 2);
                             Term::Application{ op, args }
                         })
                     }))
@@ -325,10 +318,11 @@ impl<'a> Parser<'a> {
                               rparen >>
                               (args))) >>
                       args: expr_opt!(Some(args.unwrap_or_default())) >>
-                      op: call_m!(self.get_op_wrapped,
-                                    name.0,
-                                    args.len() as u32) >>
-                      (Context::Application{op, args}))
+                      (Context::Application {
+                          op: self.get_op(name.0, args.len() as u32),
+                          args,
+                      })
+            )
     );
 
     method!(context_binary_application<Parser<'a>, CompleteStr, Context>, mut self,
