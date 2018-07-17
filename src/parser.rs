@@ -1,7 +1,7 @@
 use super::types::*;
 
 use nom::types::CompleteStr;
-use nom::{alphanumeric, multispace};
+use nom::{alphanumeric, multispace0, multispace1};
 
 named!(lparen<CompleteStr, CompleteStr>,     tag!("("));
 named!(rparen<CompleteStr, CompleteStr>,     tag!(")"));
@@ -16,71 +16,6 @@ named!(identifier<CompleteStr, CompleteStr>, call!(alphanumeric));
 pub enum ParseError {
     ParseIncomplete,
     ParseFailed,
-}
-
-/// Similar to [`parse`], but produces only a [`TRS`].
-///
-/// [`parse`]: fn.parse.html
-/// [`TRS`]: struct.TRS.html
-pub fn parse_trs(sig: &mut Signature, input: &str) -> Result<TRS, ParseError> {
-    let (_parser, result) = Parser::new(sig).trs(CompleteStr(input));
-    match result {
-        Ok((CompleteStr(""), trs)) => Ok(trs),
-        Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
-        Err(_) => Err(ParseError::ParseFailed),
-    }
-}
-
-/// Similar to [`parse`], but produces only a [`Rule`].
-///
-/// [`parse`]: fn.parse.html
-/// [`Rule`]: struct.Rule.html
-pub fn parse_rule(sig: &mut Signature, input: &str) -> Result<Rule, ParseError> {
-    let (_parser, result) = Parser::new(sig).rule(CompleteStr(input));
-    match result {
-        Ok((CompleteStr(""), rule)) => Ok(rule),
-        Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
-        Err(_) => Err(ParseError::ParseFailed),
-    }
-}
-
-/// Similar to [`parse`], but produces only a [`Term`].
-///
-/// [`parse`]: fn.parse.html
-/// [`Term`]: enum.Term.html
-pub fn parse_term(sig: &mut Signature, input: &str) -> Result<Term, ParseError> {
-    let (_parser, result) = Parser::new(sig).top_term(CompleteStr(input));
-    match result {
-        Ok((CompleteStr(""), t)) => Ok(t),
-        Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
-        Err(_) => Err(ParseError::ParseFailed),
-    }
-}
-
-/// Similar to [`parse`], but produces only a [`Context`].
-///
-/// [`parse`]: fn.parse.html
-/// [`Context`]: enum.Context.html
-pub fn parse_context(sig: &mut Signature, input: &str) -> Result<Context, ParseError> {
-    let (_parser, result) = Parser::new(sig).top_context(CompleteStr(input));
-    match result {
-        Ok((CompleteStr(""), c)) => Ok(c),
-        Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
-        Err(_) => Err(ParseError::ParseFailed),
-    }
-}
-
-/// Similar to [`parse`], but produces only a [`RuleContext`].
-///
-/// [`parse`]: fn.parse.html
-/// [`RuleContext`]: struct.RuleContext.html
-pub fn parse_rulecontext(sig: &mut Signature, input: &str) -> Result<RuleContext, ParseError> {
-    let (_parser, result) = Parser::new(sig).rulecontext(CompleteStr(input));
-    match result {
-        Ok((CompleteStr(""), r)) => Ok(r),
-        Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
-        Err(_) => Err(ParseError::ParseFailed),
-    }
 }
 
 /// Parse a string as a [`TRS`] and a list of [`Term`]s.
@@ -161,6 +96,71 @@ pub fn parse(sig: &mut Signature, input: &str) -> Result<(TRS, Vec<Term>), Parse
     }
 }
 
+/// Similar to [`parse`], but produces only a [`TRS`].
+///
+/// [`parse`]: fn.parse.html
+/// [`TRS`]: struct.TRS.html
+pub fn parse_trs(sig: &mut Signature, input: &str) -> Result<TRS, ParseError> {
+    let (_parser, result) = Parser::new(sig).trs(CompleteStr(input));
+    match result {
+        Ok((CompleteStr(""), trs)) => Ok(trs),
+        Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
+        Err(_) => Err(ParseError::ParseFailed),
+    }
+}
+
+/// Similar to [`parse`], but produces only a [`Rule`].
+///
+/// [`parse`]: fn.parse.html
+/// [`Rule`]: struct.Rule.html
+pub fn parse_rule(sig: &mut Signature, input: &str) -> Result<Rule, ParseError> {
+    let (_parser, result) = Parser::new(sig).rule(CompleteStr(input));
+    match result {
+        Ok((CompleteStr(""), rule)) => Ok(rule),
+        Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
+        Err(_) => Err(ParseError::ParseFailed),
+    }
+}
+
+/// Similar to [`parse`], but produces only a [`Term`].
+///
+/// [`parse`]: fn.parse.html
+/// [`Term`]: enum.Term.html
+pub fn parse_term(sig: &mut Signature, input: &str) -> Result<Term, ParseError> {
+    let (_parser, result) = Parser::new(sig).top_term(CompleteStr(input));
+    match result {
+        Ok((CompleteStr(""), t)) => Ok(t),
+        Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
+        Err(_) => Err(ParseError::ParseFailed),
+    }
+}
+
+/// Similar to [`parse`], but produces only a [`RuleContext`].
+///
+/// [`parse`]: fn.parse.html
+/// [`RuleContext`]: struct.RuleContext.html
+pub fn parse_rulecontext(sig: &mut Signature, input: &str) -> Result<RuleContext, ParseError> {
+    let (_parser, result) = Parser::new(sig).rulecontext(CompleteStr(input));
+    match result {
+        Ok((CompleteStr(""), r)) => Ok(r),
+        Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
+        Err(_) => Err(ParseError::ParseFailed),
+    }
+}
+
+/// Similar to [`parse`], but produces only a [`Context`].
+///
+/// [`parse`]: fn.parse.html
+/// [`Context`]: enum.Context.html
+pub fn parse_context(sig: &mut Signature, input: &str) -> Result<Context, ParseError> {
+    let (_parser, result) = Parser::new(sig).top_context(CompleteStr(input));
+    match result {
+        Ok((CompleteStr(""), c)) => Ok(c),
+        Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
+        Err(_) => Err(ParseError::ParseFailed),
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Statement {
     Term(Term),
@@ -233,6 +233,7 @@ impl<'a> Parser<'a> {
         let dv = sig.variables.len();
         Parser { sig, dv }
     }
+
     method!(variable<Parser<'a>, CompleteStr, Term>, mut self,
             map!(terminated!(identifier, underscore),
                  |v| Term::Variable(self.get_var(v.0)))
@@ -248,9 +249,11 @@ impl<'a> Parser<'a> {
             do_parse!(name: identifier >>
                       args: opt!(do_parse!(
                               lparen >>
+                              multispace0 >>
                               args: separated_list!(
-                                  multispace,
+                                  multispace1,
                                   call_m!(self.term)) >>
+                              multispace0 >>
                               rparen >>
                               (args))) >>
                       args: expr_opt!(Some(args.unwrap_or_default())) >>
@@ -263,8 +266,11 @@ impl<'a> Parser<'a> {
 
     method!(binary_application<Parser<'a>, CompleteStr, Term>, mut self,
             do_parse!(lparen >>
-                      t1: ws!(call_m!(self.term)) >>
-                      t2: ws!(call_m!(self.term)) >>
+                      multispace0 >>
+                      t1: call_m!(self.term) >>
+                      multispace1 >>
+                      t2: call_m!(self.term) >>
+                      multispace0 >>
                       rparen >>
                       (Term::Application {
                           op: self.get_op(".", 2),
@@ -280,7 +286,7 @@ impl<'a> Parser<'a> {
     method!(top_term<Parser<'a>, CompleteStr, Term>, mut self,
             ws!(map!(
                     separated_nonempty_list!(
-                        multispace,
+                        multispace1,
                         alt!(call_m!(self.term) |
                              do_parse!(lparen >>
                                        term: call_m!(self.top_term) >>
@@ -312,9 +318,11 @@ impl<'a> Parser<'a> {
             do_parse!(name: identifier >>
                       args: opt!(do_parse!(
                               lparen >>
+                              multispace0 >>
                               args: separated_list!(
-                                  multispace,
+                                  multispace1,
                                   call_m!(self.context)) >>
+                              multispace0 >>
                               rparen >>
                               (args))) >>
                       args: expr_opt!(Some(args.unwrap_or_default())) >>
@@ -327,9 +335,11 @@ impl<'a> Parser<'a> {
 
     method!(context_binary_application<Parser<'a>, CompleteStr, Context>, mut self,
             do_parse!(lparen >>
-                      t1: ws!(call_m!(self.context)) >>
-                      multispace >>
+                      multispace0 >>
+                      t1: call_m!(self.context) >>
+                      multispace1 >>
                       t2: ws!(call_m!(self.context)) >>
+                      multispace0 >>
                       rparen >>
                       (Context::Application{ op: self.get_op(".", 2), args: vec![t1, t2] }))
     );
@@ -349,7 +359,7 @@ impl<'a> Parser<'a> {
     method!(top_context<Parser<'a>, CompleteStr, Context>, mut self,
             ws!(map!(
                 separated_nonempty_list!(
-                    multispace,
+                    multispace1,
                     alt!(call_m!(self.context) |
                          do_parse!(lparen >>
                                    context: call_m!(self.top_context) >>
@@ -591,9 +601,9 @@ mod tests {
 
         let mut sig = Signature::default();
         let mut p = Parser::new(&mut sig);
-        let app = p.get_op(".", 2);
         let s = p.get_op("S", 0);
         let k = p.get_op("K", 0);
+        let app = p.get_op(".", 2);
         let term = Term::Application {
             op: app.clone(),
             args: vec![
