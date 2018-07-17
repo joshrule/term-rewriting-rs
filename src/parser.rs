@@ -2,6 +2,7 @@ use super::types::*;
 
 use nom::types::CompleteStr;
 use nom::{alphanumeric, multispace0, multispace1};
+use std::fmt;
 
 named!(lparen<CompleteStr, CompleteStr>,     tag!("("));
 named!(rparen<CompleteStr, CompleteStr>,     tag!(")"));
@@ -16,6 +17,19 @@ named!(identifier<CompleteStr, CompleteStr>, call!(alphanumeric));
 pub enum ParseError {
     ParseIncomplete,
     ParseFailed,
+}
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ParseError::ParseIncomplete => write!(f, "incomplete parse"),
+            ParseError::ParseFailed => write!(f, "failed parse"),
+        }
+    }
+}
+impl ::std::error::Error for ParseError {
+    fn description(&self) -> &'static str {
+        "parse error"
+    }
 }
 
 /// Parse a string as a [`TRS`] and a list of [`Term`]s.
@@ -88,10 +102,7 @@ pub fn parse(sig: &mut Signature, input: &str) -> Result<(TRS, Vec<Term>), Parse
             }
             Ok((TRS::new(rules), terms))
         }
-        Ok((CompleteStr(r), e)) => {
-            println!("r: {} AND e: {:?}", r, e);
-            Err(ParseError::ParseIncomplete)
-        }
+        Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
         Err(_) => Err(ParseError::ParseFailed),
     }
 }
