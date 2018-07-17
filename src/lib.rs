@@ -108,5 +108,7 @@ mod pretty;
 pub mod trace;
 mod types;
 
-pub use parser::{parse, parse_context, parse_rule, parse_term, parse_trs, ParseError};
+pub use parser::{
+    parse, parse_context, parse_rule, parse_rulecontext, parse_term, parse_trs, ParseError,
+};
 pub use types::*;

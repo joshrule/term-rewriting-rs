@@ -60,11 +60,24 @@ pub fn parse_term(sig: &mut Signature, input: &str) -> Result<Term, ParseError> 
 /// Similar to [`parse`], but produces only a [`Context`].
 ///
 /// [`parse`]: fn.parse.html
-/// [`Term`]: enum.Term.html
+/// [`Context`]: enum.Context.html
 pub fn parse_context(sig: &mut Signature, input: &str) -> Result<Context, ParseError> {
     let (_parser, result) = Parser::new(sig).top_context(CompleteStr(input));
     match result {
         Ok((CompleteStr(""), c)) => Ok(c),
+        Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
+        Err(_) => Err(ParseError::ParseFailed),
+    }
+}
+
+/// Similar to [`parse`], but produces only a [`RuleContext`].
+///
+/// [`parse`]: fn.parse.html
+/// [`RuleContext`]: struct.RuleContext.html
+pub fn parse_rulecontext(sig: &mut Signature, input: &str) -> Result<RuleContext, ParseError> {
+    let (_parser, result) = Parser::new(sig).rulecontext(CompleteStr(input));
+    match result {
+        Ok((CompleteStr(""), r)) => Ok(r),
         Ok((CompleteStr(_), _)) => Err(ParseError::ParseIncomplete),
         Err(_) => Err(ParseError::ParseFailed),
     }
@@ -373,6 +386,17 @@ impl<'a> Parser<'a> {
     method!(rule_statement<Parser<'a>, CompleteStr, Statement>, mut self,
             map!(call_m!(self.rule),
                  Statement::Rule)
+    );
+
+    method!(rulecontext<Parser<'a>, CompleteStr, RuleContext>, mut self,
+            ws!(map_opt!(
+                do_parse!(lhs: call_m!(self.top_context) >>
+                          ws!(rule_kw) >>
+                          rhs: separated_nonempty_list!(
+                              ws!(pipe),
+                              call_m!(self.top_context)) >>
+                          (lhs, rhs)),
+                |(lhs, rhs)| RuleContext::new(lhs, rhs)))
     );
 
     method!(term_statement<Parser<'a>, CompleteStr, Statement>, mut self,

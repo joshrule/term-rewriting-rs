@@ -2048,6 +2048,26 @@ pub struct RuleContext {
     pub rhs: Vec<Context>,
 }
 impl RuleContext {
+    /// Create a new `RuleContext` if possible.
+    pub fn new(lhs: Context, rhs: Vec<Context>) -> Option<RuleContext> {
+        if RuleContext::is_valid(&lhs, &rhs) {
+            Some(RuleContext { lhs, rhs })
+        } else {
+            None
+        }
+    }
+    /// Could `lhs` and `rhs` form a valid `RuleContext`?
+    fn is_valid(lhs: &Context, rhs: &[Context]) -> bool {
+        // the lhs must be an application
+        if let Context::Variable(_) = *lhs {
+            false
+        } else {
+            // variables(rhs) must be a subset of variables(lhs)
+            let lhs_vars: HashSet<_> = lhs.variables().into_iter().collect();
+            let rhs_vars: HashSet<_> = rhs.iter().flat_map(Context::variables).collect();
+            rhs_vars.is_subset(&lhs_vars)
+        }
+    }
     /// A human-readable serialization of the `RuleContext`.
     pub fn pretty(&self, sig: &Signature) -> String {
         let lhs_str = self.lhs.pretty(sig);
