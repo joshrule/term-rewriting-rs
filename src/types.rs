@@ -2265,29 +2265,35 @@ impl Rule {
     ///
     /// let subterms: Vec<String> = r.subterms()
     ///     .iter()
-    ///     .map(|(i, t, p)| format!("{},Subterm:{},Place:{:?}", i, t.display(&sig), p))
+    ///     .map(|(t, p)| format!("Subterm:{},Place:{:?}", t.display(&sig), p))
     ///     .collect();
     ///
     /// assert_eq!(
     ///     subterms,
     ///     vec![
-    ///         "0,Subterm:A(x_ B),Place:[]",
-    ///         "0,Subterm:x_,Place:[0]",
-    ///         "0,Subterm:B,Place:[1]",
-    ///         "1,Subterm:C(x_),Place:[]",
-    ///         "1,Subterm:x_,Place:[0]",
-    ///         "2,Subterm:D(B),Place:[]",
-    ///         "2,Subterm:B,Place:[0]",
+    ///         "Subterm:A(x_ B),Place:[0]",
+    ///         "Subterm:x_,Place:[0, 0]",
+    ///         "Subterm:B,Place:[0, 1]",
+    ///         "Subterm:C(x_),Place:[1]",
+    ///         "Subterm:x_,Place:[1, 0]",
+    ///         "Subterm:D(B),Place:[2]",
+    ///         "Subterm:B,Place:[2, 0]",
     ///     ]
     /// );
     /// ```
-    pub fn subterms(&self) -> Vec<(usize, &Term, Place)> {
-        let lhs = self.lhs.subterms().into_iter().map(|(t, p)| (0, t, p));
+    pub fn subterms(&self) -> Vec<(&Term, Place)> {
+        let lhs = self.lhs.subterms().into_iter().map(|(t, mut p)| {
+            p.insert(0, 0);
+            (t, p)
+        });
         let rhs = self.rhs.iter().enumerate().flat_map(|(i, rhs)| {
             iter::repeat(i + 1)
                 .zip(rhs.subterms())
                 .into_iter()
-                .map(|(i, (t, p))| (i, t, p))
+                .map(|(i, (t, mut p))| {
+                    p.insert(0, i);
+                    (t, p)
+                })
         });
         lhs.chain(rhs).collect()
     }
