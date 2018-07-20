@@ -30,8 +30,9 @@ impl Variable {
     /// ```
     /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
-    /// let var = sig.new_var(Some("Z".to_string()));
-    /// assert_eq!(var.name(&sig), Some("Z"));
+    /// let var = sig.new_var(Some("z".to_string()));
+    /// 
+    /// assert_eq!(var.name(&sig), Some("z"));
     /// ```
     pub fn name(self, sig: &Signature) -> Option<&str> {
         let opt = &sig.variables[self.id];
@@ -44,8 +45,9 @@ impl Variable {
     /// ```
     /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
-    /// let var = sig.new_var(Some("Z".to_string()));
-    /// assert_eq!(var.display(&sig), "Z_");
+    /// let var = sig.new_var(Some("z".to_string()));
+    /// 
+    /// assert_eq!(var.display(&sig), "z_");
     /// ```
     pub fn display(self, sig: &Signature) -> String {
         if let Some(ref name) = sig.variables[self.id] {
@@ -75,6 +77,7 @@ impl Operator {
     /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
     /// let op = sig.new_op(2, Some("Z".to_string()));
+    ///
     /// assert_eq!(op.arity(&sig), 2);
     /// ```
     pub fn arity(self, sig: &Signature) -> u32 {
@@ -88,6 +91,7 @@ impl Operator {
     /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
     /// let op = sig.new_op(2, Some("Z".to_string()));
+    /// 
     /// assert_eq!(op.name(&sig), Some("Z"));
     /// ```
     pub fn name(self, sig: &Signature) -> Option<&str> {
@@ -102,6 +106,7 @@ impl Operator {
     /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
     /// let op = sig.new_op(2, Some("Z".to_string()));
+    /// 
     /// assert_eq!(op.display(&sig), "Z");
     /// ```
     pub fn display(self, sig: &Signature) -> String {
@@ -120,10 +125,56 @@ impl Operator {
 /// [`Operator`]: struct.Operator.html
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Atom {
+    /// The [`Variable`] variant of an `Atom`.
+    ///
+    /// [`Variable`]: struct.Variable.html
+    ///
+    /// # Examples
+    /// 
+    /// ```
+    /// # use term_rewriting::{Signature, Atom};
+    /// let mut sig = Signature::default();
+    /// let x = sig.new_var(Some("x".to_string()));
+    /// let atom = Atom::Variable(x);
+    ///
+    /// assert_eq!(atom.display(&sig), "x_");
+    /// ```
     Variable(Variable),
+    /// The [`Operator`] variant of an `Atom`.
+    ///
+    /// [`Operator`]: struct.Operator.html
+    ///
+    /// # Examples
+    /// 
+    /// ```
+    /// # use term_rewriting::{Signature, Atom};
+    /// let mut sig = Signature::default();
+    /// let a = sig.new_op(0, Some("A".to_string()));
+    /// let atom = Atom::Operator(a);
+    ///
+    /// assert_eq!(atom.display(&sig), "A");
+    /// ```
     Operator(Operator),
 }
 impl Atom {
+    /// Returns a human-readable, string representation of the `Atom`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Atom};
+    /// let mut sig = Signature::default();
+    /// 
+    /// let a = sig.new_op(0, Some("A".to_string()));
+    /// let atom = Atom::Operator(a);
+    ///
+    /// assert_eq!(atom.display(&sig), "A");
+    ///
+    /// let x = sig.new_var(Some("x".to_string()));
+    /// let atom = Atom::Variable(x);
+    ///
+    /// assert_eq!(atom.display(&sig), "x_");
+    /// ```
     pub fn display(&self, sig: &Signature) -> String {
         match *self {
             Atom::Variable(v) => v.display(sig),
@@ -1283,27 +1334,13 @@ impl Term {
     /// # Examples
     ///
     /// ```
-    /// //A(B x_)
-    /// # use term_rewriting::{Signature, Term, Atom};
+    /// # use term_rewriting::{Signature, Term, parse_term};
     /// let mut sig = Signature::default();
-    /// let x = sig.new_var(Some("x".to_string()));
-    /// let a = sig.new_op(2, Some("A".to_string()));
-    /// let b = sig.new_op(0, Some("B".to_string()));
     ///
-    /// let example_term = Term::Application {
-    ///     op: a,
-    ///     args: vec![
-    ///         Term::Application { op: b, args: vec![] },
-    ///         Term::Variable(x),
-    ///     ],
-    /// };
-    /// let expected_atoms = vec![
-    ///     Atom::Variable(x),
-    ///     Atom::Operator(b),
-    ///     Atom::Operator(a),
-    /// ];
+    /// let example_term = parse_term(&mut sig, "A(B x_)").expect("parse of A(B x_)");
+    /// let atoms: Vec<String> = example_term.atoms().iter().map(|a| a.display(&sig)).collect();
     ///
-    /// assert_eq!(example_term.atoms(), expected_atoms);
+    /// assert_eq!(atoms, vec!["x_", "B", "A"]);
     /// ```
     pub fn atoms(&self) -> Vec<Atom> {
         let vars = self.variables().into_iter().map(Atom::Variable);
@@ -1321,11 +1358,9 @@ impl Term {
     /// let mut sig = Signature::default();
     ///
     /// let t = parse_term(&mut sig, "A B y_ z_").expect("parse of A B y_ z_");
+    /// let var_names: Vec<String> = t.variables().iter().map(|v| v.display(&sig)).collect();
     ///
-    /// let vars = t.variables();
-    /// let var_names: Vec<String> = vars.iter().map(|v| v.display(&sig)).collect();
-    ///
-    /// assert_eq!(var_names, vec!["y_".to_string(), "z_".to_string()]);
+    /// assert_eq!(var_names, vec!["y_", "z_"]);
     /// ```
     pub fn variables(&self) -> Vec<Variable> {
         match *self {
@@ -1343,18 +1378,12 @@ impl Term {
     ///
     /// ```
     /// # use term_rewriting::{Signature, parse_term, Term};
-    ///
     /// let mut sig = Signature::default();
     ///
     /// let t = parse_term(&mut sig, "A B y_ z_").expect("parse of A B y_ z_");
+    /// let op_names: Vec<String> = t.operators().iter().map(|v| v.display(&sig)).collect();
     ///
-    /// let ops = t.operators();
-    /// let op_names: Vec<String> = ops.iter().map(|v| v.display(&sig)).collect();
-    ///
-    /// assert_eq!(
-    ///     op_names,
-    ///      vec!["A".to_string(), "B".to_string(), ".".to_string()]
-    /// );
+    /// assert_eq!(op_names, vec!["A", "B", "."]);
     /// ```
     pub fn operators(&self) -> Vec<Operator> {
         match *self {
@@ -1372,7 +1401,6 @@ impl Term {
     ///
     /// ```
     /// # use term_rewriting::{Signature, Term, parse_term, Atom};
-    ///
     /// let mut sig = Signature::default();
     ///
     /// let op = sig.new_op(2, Some("A".to_string()));
@@ -1395,20 +1423,15 @@ impl Term {
     /// # use term_rewriting::{Signature, Term, parse_term, Atom};
     /// let mut sig = Signature::default();
     ///
-    /// let t = parse_term(&mut sig, "A B").expect("parse of A B");
+    /// let t = parse_term(&mut sig, "C(A B)").expect("parse of C(A B)");
     /// let arg0 = parse_term(&mut sig, "A").expect("parse of A");
     /// let arg1 = parse_term(&mut sig, "B").expect("parse of B");
-    /// assert_eq!(t.atoms().len(), 3);
+    ///
     /// assert_eq!(t.args(), vec![arg0, arg1]);
     ///
     /// let t2 = parse_term(&mut sig, "A").expect("parse of A");
-    /// assert_eq!(t2.atoms().len(), 1);
-    /// assert_eq!(t2.args(), vec![]);
     ///
-    /// let t3 = parse_term(&mut sig, "A(y_)").expect("parse of A(y_)");
-    /// let arg = Term::Variable(t3.variables()[0]);
-    /// assert_eq!(t3.atoms().len(), 2);
-    /// assert_eq!(t3.args(), vec![arg]);
+    /// assert_eq!(t2.args(), vec![]);
     /// ```
     pub fn args(&self) -> Vec<Term> {
         match self {
@@ -1425,6 +1448,7 @@ impl Term {
     /// ```
     /// # use term_rewriting::{Signature, parse_term, Term};
     /// let mut sig = Signature::default();
+    ///
     /// let b = sig.new_op(0, Some("B".to_string()));
     /// let a = sig.new_op(1, Some("A".to_string()));
     ///
@@ -1472,13 +1496,15 @@ impl Term {
     ///
     /// ```
     /// # use term_rewriting::{Signature, Term, parse_term};
-    ///
     /// let mut sig = Signature::default();
+    ///
     /// let t = parse_term(&mut sig, "A B").expect("parse of A B");
-    /// let t2 = parse_term(&mut sig, "A(B)").expect("parse of A(B)");
     ///
     /// assert_eq!(t.size(), 3);
-    /// assert_eq!(t2.size(), 2);
+    ///
+    /// let t = parse_term(&mut sig, "A(B)").expect("parse of A(B)");
+    ///
+    /// assert_eq!(t.size(), 2);
     /// ```
     pub fn size(&self) -> usize {
         self.subterms().len()
@@ -1491,17 +1517,18 @@ impl Term {
     ///
     /// ```
     /// # use term_rewriting::{Signature, Term, parse_term};
-    ///
     /// let mut sig = Signature::default();
     /// let op = sig.new_op(0, Some("A".to_string()));
     /// let t = parse_term(&mut sig, "B(A)").expect("parse of B(A)");
     ///
     /// assert_eq!(t.size(), 2);
     /// let p: &[usize] = &[7];
+    ///
     /// assert_eq!(t.at(p), None);
     ///
     /// let p: &[usize] = &[0];
     /// let args = vec![];
+    ///
     /// assert_eq!(t.at(p), Some(&Term::Application { op, args }));
     /// ```
     #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
@@ -1531,7 +1558,6 @@ impl Term {
     ///
     /// ```
     /// # use term_rewriting::{Signature, Term, parse_term};
-    ///
     /// let mut sig = Signature::default();
     ///
     /// let t = parse_term(&mut sig, "B(A)").expect("parse of B(A)");
@@ -1632,6 +1658,7 @@ impl Term {
     /// Compute the [alpha equivalence] for two `Term`s.
     ///
     /// [alpha equivalence]: https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
+    ///
     /// # Examples
     ///
     /// ```
@@ -1657,6 +1684,7 @@ impl Term {
     /// expected_alpha.insert(z, Term::Variable(b));
     ///
     /// assert_eq!(Term::alpha(&t, &t2), Some(expected_alpha));
+    ///
     /// assert_eq!(Term::alpha(&t, &t3), None);
     /// ```
     pub fn alpha(t1: &Term, t2: &Term) -> Option<HashMap<Variable, Term>> {
@@ -1681,6 +1709,7 @@ impl Term {
     /// let t3 = parse_term(&mut sig, "S K y_").expect("parse of S K y_");
     ///
     /// assert!(Term::shape_equivalent(&t, &t2));
+    /// 
     /// assert!(!Term::shape_equivalent(&t, &t3));
     /// ```
     pub fn shape_equivalent(t1: &Term, t2: &Term) -> bool {
@@ -1729,7 +1758,6 @@ impl Term {
     /// ```
     /// # use term_rewriting::{Signature, Term, parse_term};
     /// # use std::collections::{HashMap, HashSet};
-    ///
     /// let mut sig = Signature::default();
     ///
     /// let t = parse_term(&mut sig, "C(A)").expect("parse of C(A)");
@@ -1743,8 +1771,10 @@ impl Term {
     /// assert_eq!(Term::pmatch(vec![(t, t2.clone())]), None);
     ///
     /// let mut expected_sub = HashMap::new();
+    /// 
     /// // maps variable x in term t2 to variable y in term t3
     /// expected_sub.insert(t2.variables()[0], Term::Variable(t3.variables()[0]));
+    /// 
     /// assert_eq!(Term::pmatch(vec![(t2, t3.clone())]), Some(expected_sub));
     ///
     /// assert_eq!(Term::pmatch(vec![(t3, t4)]), None);
@@ -1764,7 +1794,6 @@ impl Term {
     /// ```
     /// # use term_rewriting::{Signature, Term, parse_term};
     /// # use std::collections::{HashMap, HashSet};
-    ///
     /// let mut sig = Signature::default();
     ///
     /// let t = parse_term(&mut sig, "C(A)").expect("parse of C(A)");
@@ -1776,6 +1805,7 @@ impl Term {
     /// let t4 = parse_term(&mut sig, "B(x_)").expect("parse of B(x_)");
     ///
     /// let mut expected_sub = HashMap::new();
+    ///
     /// // maps variable x in term t2 to constant A in term t
     /// expected_sub.insert(
     ///     t2.variables()[0],
@@ -1784,11 +1814,14 @@ impl Term {
     ///         args:vec![],
     ///     },
     /// );
+    ///
     /// assert_eq!(Term::unify(vec![(t, t2.clone())]), Some(expected_sub));
     ///
     /// let mut expected_sub = HashMap::new();
-    /// // maps variable x in term t2 to variable y in term t3
+    ///
+    ///  // maps variable x in term t2 to variable y in term t3
     /// expected_sub.insert(t2.variables()[0], Term::Variable(t3.variables()[0]));
+    /// 
     /// assert_eq!(Term::unify(vec![(t2, t3.clone())]), Some(expected_sub));
     ///
     /// assert_eq!(Term::unify(vec![(t3, t4)]), None);
@@ -1907,6 +1940,7 @@ impl Rule {
     /// The total number of subterms across all [`Term`]s in the `Rule`.
     ///
     /// [`Term`]: struct.Term.html
+    ///
     /// # Examples
     ///
     /// ```
@@ -1927,6 +1961,7 @@ impl Rule {
     /// ```
     /// # use term_rewriting::{Signature, Rule, Term, parse_rule};
     /// let mut sig = Signature::default();
+    ///
     /// let r = parse_rule(&mut sig, "A(x_) = B(x_) | C").expect("parse of A(x_) = B(x_) | C");
     ///
     /// assert_eq!(r.len(), 2);
@@ -2767,6 +2802,7 @@ impl RuleContext {
 }
 
 /// A first-order term rewriting system.
+/// 
 /// # Examples
 ///
 /// ```
@@ -3112,6 +3148,7 @@ impl TRS {
     /// Do two TRSs [`unify`]?
     ///
     /// [`unify`]: https://en.wikipedia.org/wiki/Unification_(computer_science)
+    /// 
     /// # Examples
     ///
     /// ```
