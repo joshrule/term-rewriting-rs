@@ -1740,15 +1740,13 @@ impl Term {
     ///
     /// let t4 = parse_term(&mut sig, "A(x_)").expect("parse of A(x_)");
     ///
-    /// assert_eq!(Term::pmatch(vec![(t, t2)]), None);
+    /// assert_eq!(Term::pmatch(vec![(t, t2.clone())]), None);
     ///
-    /// # let t2 = parse_term(&mut sig, "C(x_)").expect("parse of C(x_)");
     /// let mut expected_sub = HashMap::new();
     /// // maps variable x in term t2 to variable y in term t3
     /// expected_sub.insert(t2.variables()[0], Term::Variable(t3.variables()[0]));
-    /// assert_eq!(Term::pmatch(vec![(t2, t3)]), Some(expected_sub));
+    /// assert_eq!(Term::pmatch(vec![(t2, t3.clone())]), Some(expected_sub));
     ///
-    /// # let t3 = parse_term(&mut sig, "C(y_)").expect("parse of C(y_)");
     /// assert_eq!(Term::pmatch(vec![(t3, t4)]), None);
     /// ```
     pub fn pmatch(cs: Vec<(Term, Term)>) -> Option<HashMap<Variable, Term>> {
@@ -1786,15 +1784,13 @@ impl Term {
     ///         args:vec![],
     ///     },
     /// );
-    /// assert_eq!(Term::unify(vec![(t, t2)]), Some(expected_sub));
+    /// assert_eq!(Term::unify(vec![(t, t2.clone())]), Some(expected_sub));
     ///
-    /// # let t2 = parse_term(&mut sig, "C(x_)").expect("parse of C(x_)");
     /// let mut expected_sub = HashMap::new();
     /// // maps variable x in term t2 to variable y in term t3
     /// expected_sub.insert(t2.variables()[0], Term::Variable(t3.variables()[0]));
-    /// assert_eq!(Term::unify(vec![(t2, t3)]), Some(expected_sub));
+    /// assert_eq!(Term::unify(vec![(t2, t3.clone())]), Some(expected_sub));
     ///
-    /// # let t3 = parse_term(&mut sig, "C(y_)").expect("parse of C(y_)");
     /// assert_eq!(Term::unify(vec![(t3, t4)]), None);
     /// ```
     pub fn unify(cs: Vec<(Term, Term)>) -> Option<HashMap<Variable, Term>> {
