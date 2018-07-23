@@ -3763,9 +3763,30 @@ impl TRS {
 ///
 /// [`TRS`]: struct.TRS.html
 pub enum TRSError {
+    /// Returned when requesting to edit a rule that is not in the TRS.
+    ///
+    /// See [`TRS::get`] for more information.
+    ///
+    /// [`TRS::get`]: struct.TRS.html#method.get
     NotInTRS,
+    /// Returned when attempting to insert a rule into a TRS that already exists.
+    ///
+    /// See [`TRS::insert`] for more information.
+    ///
+    /// [`TRS::insert`]: struct.TRS.html#method.insert
     AlreadyInTRS,
+    /// Returned when attempting to insert a rule with multiple RHSs into a deterministic TRS.
+    ///
+    /// See [`TRS::insert`] and [`TRS::make_deterministic`] for more information.
+    ///
+    /// [`TRS::insert`]: struct.TRS.html#method.insert
+    /// [`TRS::make_deterministic`]: struct.TRS.html#method.make_deterministic
     NondeterministicRule,
+    /// Returned when requesting the rule at an index that is out of the range of indicies for the TRS.
+    ///
+    /// See [`TRS::get_idx`] for more information.
+    ///
+    /// [`TRS::get_idx`]: struct.TRS.html#method.get_idx
     InvalidIndex(usize, usize),
 }
 impl fmt::Display for TRSError {
