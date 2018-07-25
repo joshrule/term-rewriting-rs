@@ -2089,6 +2089,12 @@ impl RuleContext {
     /// let r = RuleContext::new(left, vec![b, c]).unwrap();
     ///
     /// assert_eq!(r.pretty(&sig), "A(B, C, [!]) = B [!] | C");
+    ///
+    /// let left = parse_context(&mut sig, "A(B C [!])").expect("parse of A(B C [!])");
+    /// let b = parse_context(&mut sig, "B [!] x_").expect("parse of B [!] x_");
+    /// let c = parse_context(&mut sig, "C").expect("parse of C");
+    ///
+    /// assert_eq!(RuleContext::new(left, vec![b, c]), None);
     /// ```
     pub fn new(lhs: Context, rhs: Vec<Context>) -> Option<RuleContext> {
         if RuleContext::is_valid(&lhs, &rhs) {
@@ -2117,7 +2123,7 @@ impl RuleContext {
     }
     /// Get all the [`subcontexts`] and [`Place`]s in a `RuleContext`.
     ///
-    /// [`Subcontexts`]: struct.Context.html
+    /// [`subcontexts`]: struct.Context.html
     /// [`Place`]: type.Place.html
     ///
     /// # Examples
@@ -2131,19 +2137,19 @@ impl RuleContext {
     ///
     /// let subcontexts: Vec<String> = r.subcontexts()
     ///     .iter()
-    ///     .map(|(c, p)| format!("Subcontext:{},Place:{:?}", c.display(&sig), p))
+    ///     .map(|(c, p)| format!("({}, {:?})", c.display(&sig), p))
     ///     .collect();
     ///
     /// assert_eq!(
     ///     subcontexts,
     ///     vec![
-    ///         "Subcontext:A(x_ [!]),Place:[0]",
-    ///         "Subcontext:x_,Place:[0, 0]",
-    ///         "Subcontext:[!],Place:[0, 1]",
-    ///         "Subcontext:C(x_),Place:[1]",
-    ///         "Subcontext:x_,Place:[1, 0]",
-    ///         "Subcontext:D([!]),Place:[2]",
-    ///         "Subcontext:[!],Place:[2, 0]",
+    ///         "(A(x_ [!]), [0])",
+    ///         "(x_, [0, 0])",
+    ///         "([!], [0, 1])",
+    ///         "(C(x_), [1])",
+    ///         "(x_, [1, 0])",
+    ///         "(D([!]), [2])",
+    ///         "([!], [2, 0])",
     ///     ]
     /// );
     /// ```
