@@ -639,7 +639,7 @@ impl Context {
     pub fn pretty(&self, sig: &Signature) -> String {
         Pretty::pretty(self, sig)
     }
-    /// Every [`Atom`] used in `self`.
+    /// Every [`Atom`] used in the `Context`.
     ///
     /// [`Atom`]: enum.Atom.html
     ///
@@ -660,7 +660,7 @@ impl Context {
         let ops = self.operators().into_iter().map(Atom::Operator);
         vars.chain(ops).collect()
     }
-    /// Every [`Variable`] used in `self`.
+    /// Every [`Variable`] used in the `Context`.
     ///
     /// [`Variable`]: struct.Variable.html
     ///
@@ -685,7 +685,7 @@ impl Context {
             }
         }
     }
-    /// Every [`Operator`] used in `self`.
+    /// Every [`Operator`] used in the `Context`.
     ///
     /// [`Operator`]: struct.Operator.html
     ///
@@ -712,9 +712,10 @@ impl Context {
             vec![]
         }
     }
-    /// A list of the [`Place`]s in `self` that are holes.
+    /// A list of the [`Place`]s in the `Context` that are `Hole`s.
     ///
     /// [`Place`]: type.Place.html
+    /// [`Hole`]: enum.Context.html#variant.Hole
     ///
     /// # Examples
     ///
@@ -785,7 +786,7 @@ impl Context {
             vec![]
         }
     }
-    /// Every `subcontext` and its [`Place`], starting with the original `context` itself.
+    /// Every `subcontext` and its [`Place`], starting with the original `Context` itself.
     ///
     /// [`Place`]: type.Place.html
     ///
@@ -826,7 +827,7 @@ impl Context {
             vec![(self, vec![])]
         }
     }
-    /// The number of distinct [`Place`]s in `self`.
+    /// The number of distinct [`Place`]s in the `Context`.
     ///
     /// [`Place`]: type.Place.html
     ///
@@ -880,7 +881,7 @@ impl Context {
             _ => None,
         }
     }
-    /// Create a copy of `self` where the `Context` at the given [`Place`] has been replaced with
+    /// Create a copy of the `Context` where the subcontext at the given [`Place`] has been replaced with
     /// `subcontext`.
     ///
     /// [`Place`]: type.Place.html
@@ -923,7 +924,7 @@ impl Context {
             }
         }
     }
-    /// Translate `self` into a [`Term`], if possible.
+    /// Translate the `Context` into a [`Term`], if possible.
     ///
     /// [`Term`]: enum.Term.html
     ///
