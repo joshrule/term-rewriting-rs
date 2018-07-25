@@ -168,14 +168,7 @@ impl From<Operator> for Atom {
 ///     (0, Some("C".to_string())),
 /// ]);
 ///
-/// // Constructing a Signature using the new_* functions.
-/// let mut sig3 = Signature::default();
-/// let a = sig3.new_op(2, Some("A".to_string()));
-/// let b = sig3.new_op(0, Some("B".to_string()));
-/// let c = sig3.new_op(0, Some("C".to_string()));
-///
-/// assert_eq!(sig1.clone(), sig2);
-/// assert_eq!(sig1, sig3);
+/// assert_eq!(sig1, sig2);
 /// ```
 #[derive(Clone, Debug)]
 pub struct Signature {
@@ -240,7 +233,6 @@ impl Signature {
     /// [`Operator`]: struct.Operator.html
     ///
     /// # Examples
-    ///
     ///
     /// ```
     /// # use term_rewriting::Signature;
@@ -319,9 +311,9 @@ impl Signature {
     /// let s = sig.new_op(2, Some("S".to_string()));
     /// let s2 = sig.new_op(2, Some("S".to_string()));
     ///
-    /// assert_ne!(a,s);
-    /// assert_ne!(a,s2);
-    /// assert_ne!(s,s2);
+    /// assert_ne!(a, s);
+    /// assert_ne!(a, s2);
+    /// assert_ne!(s, s2);
     /// ```
     pub fn new_op(&mut self, arity: u32, name: Option<String>) -> Operator {
         let id = self.operators.len();
@@ -341,7 +333,7 @@ impl Signature {
     /// let z = sig.new_var(Some("z".to_string()));
     /// let z2 = sig.new_var(Some("z".to_string()));
     ///
-    /// assert_ne!(z,z2);
+    /// assert_ne!(z, z2);
     /// ```
     pub fn new_var(&mut self, name: Option<String>) -> Variable {
         let id = self.variables.len();
@@ -362,6 +354,7 @@ impl Signature {
     ///
     /// ```
     /// # use term_rewriting::{Signature, MergeStrategy};
+    /// // Merging 2 signatures by assuming all operators in the second are distinct from the first.
     /// let (mut sig1, _) = Signature::new(vec![
     ///     (2, Some(".".to_string())),
     ///     (0, Some("S".to_string())),
@@ -380,6 +373,7 @@ impl Signature {
     ///
     /// assert_eq!(ops, vec![".", "S", "K", "A", "B", "C"]);
     ///
+    /// // Merging 2 signatures by assuming all operators in the second are the same from the first.
     /// let (mut sig1, _) = Signature::new(vec![
     ///     (2, Some(".".to_string())),
     ///     (0, Some("S".to_string())),
@@ -398,6 +392,7 @@ impl Signature {
     ///
     /// assert_eq!(ops, vec![".", "S", "K"]);
     ///
+    /// // Merging 2 signatures by SameOperators should fail if all operators in both signatures are not the same.
     /// let (mut sig1, _) = Signature::new(vec![
     ///     (2, Some(".".to_string())),
     ///     (0, Some("S".to_string())),
@@ -412,7 +407,7 @@ impl Signature {
     ///
     /// assert!(sig1.merge(sig2, MergeStrategy::SameOperators).is_err());
     ///
-    ///    
+    /// // Merging 2 signatures assuming any operators with the same name and arity are the same.
     /// let (mut sig1, _) = Signature::new(vec![
     ///     (2, Some(".".to_string())),
     ///     (0, Some("S".to_string())),
