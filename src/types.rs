@@ -1846,6 +1846,7 @@ impl Term {
 /// right-hand-side [`Term`]s.
 ///
 /// [`Term`]: enum.Term.html
+///
 /// # Examples
 ///
 /// ```
@@ -2194,6 +2195,7 @@ impl Rule {
     /// All the [`Operator`]s in the `Rule`.
     ///
     /// [`Operator`]: struct.Operator.html
+    ///
     /// # Examples
     ///
     /// ```
@@ -2458,17 +2460,71 @@ impl Rule {
     }
 }
 
-/// A [`Rule`] with holes; a sort of [`Rule`] template.
+/// A [`Rule`] with [`Hole`]s; a sort of [`Rule`] template.
+///
+/// See [`Context`] for more information.
 ///
 /// [`Context`]: enum.Context.html
 /// [`Rule`]: struct.Rule.html
+/// [`Hole`]: enum.Context.html#variant.Hole
+///
+/// # Examples
+///
+/// ```
+/// # use term_rewriting::{Signature, parse_rulecontext, RuleContext, Context, parse_context};
+/// let mut sig = Signature::default();
+///
+/// // Constructing a RuleContext manually.
+/// let left = parse_context(&mut sig, "A(B C [!])").expect("parse of A(B C [!])");
+/// let b = parse_context(&mut sig, "B [!]").expect("parse of B [!]");
+/// let c = parse_context(&mut sig, "C").expect("parse of C");
+///
+/// let r = RuleContext::new(left, vec![b, c]).unwrap();
+///
+/// // Constructing a RuleContext using the parser.
+/// let r2 = parse_rulecontext(&mut sig, "A(B C [!]) = B [!] | C").expect("parse of A(B C [!]) = B [!] | C");
+///
+/// assert_eq!(r, r2);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RuleContext {
+    /// The left hand side (lhs) of a RuleContext.
     pub lhs: Context,
+    /// The right hand sides (rhs) of a RuleContext.
     pub rhs: Vec<Context>,
 }
 impl RuleContext {
     /// Create a new `RuleContext` if possible.
+    /// The `RuleContext` must abide by the same restrictions as a [`Rule`] being created with [`Rule::new`].
+    ///
+    /// [`Rule`]: struct.Rule.html
+    /// [`Rule::new`]: struct.Rule.html#method.new
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, RuleContext, parse_context};
+    /// let mut sig = Signature::default();
+    ///
+    /// let left = parse_context(&mut sig, "A(B C [!])").expect("parse of A(B C [!])");
+    /// let b = parse_context(&mut sig, "B [!]").expect("parse of B [!]");
+    /// let c = parse_context(&mut sig, "C").expect("parse of C");
+    ///
+    /// let r = RuleContext::new(left, vec![b, c]).unwrap();
+    ///
+    /// assert_eq!(r.pretty(&sig), "A(B, C, [!]) = B [!] | C");
+    ///
+    /// let left = parse_context(&mut sig, "A(B C [!])").expect("parse of A(B C [!])");
+    /// let b = parse_context(&mut sig, "B [!] x_").expect("parse of B [!] x_");
+    /// let c = parse_context(&mut sig, "C").expect("parse of C");
+    ///
+    /// assert_eq!(RuleContext::new(left, vec![b, c]), None);
+    /// 
+    /// let left = parse_context(&mut sig, "x_").expect("parse of x_");
+    /// let b = parse_context(&mut sig, "B [!]").expect("parse of B [!]");
+    ///
+    /// assert_eq!(RuleContext::new(left, vec![b]), None);
+    /// ```
     pub fn new(lhs: Context, rhs: Vec<Context>) -> Option<RuleContext> {
         if RuleContext::is_valid(&lhs, &rhs) {
             Some(RuleContext { lhs, rhs })
@@ -2494,9 +2550,38 @@ impl RuleContext {
         let rhs_str = self.rhs.iter().map(|rhs| rhs.pretty(sig)).join(" | ");
         format!("{} = {}", lhs_str, rhs_str)
     }
-    /// Get all the subcontexts and [`Place`]s in a `RuleContext`.
+    /// Get all the [`subcontexts`] and [`Place`]s in a `RuleContext`.
     ///
+    /// [`subcontexts`]: struct.Context.html
     /// [`Place`]: type.Place.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Term, RuleContext, Context, parse_rulecontext};
+    /// let mut sig = Signature::default();
+    ///
+    /// let r =
+    ///     parse_rulecontext(&mut sig, "A(x_ [!]) = C(x_) | D([!])").expect("parse of A(x_ B[!]) = C(x_) | D([!])");
+    ///
+    /// let subcontexts: Vec<String> = r.subcontexts()
+    ///     .iter()
+    ///     .map(|(c, p)| format!("({}, {:?})", c.display(&sig), p))
+    ///     .collect();
+    ///
+    /// assert_eq!(
+    ///     subcontexts,
+    ///     vec![
+    ///         "(A(x_ [!]), [0])",
+    ///         "(x_, [0, 0])",
+    ///         "([!], [0, 1])",
+    ///         "(C(x_), [1])",
+    ///         "(x_, [1, 0])",
+    ///         "(D([!]), [2])",
+    ///         "([!], [2, 0])",
+    ///     ]
+    /// );
+    /// ```
     pub fn subcontexts(&self) -> Vec<(&Context, Place)> {
         let lhs = self.lhs.subcontexts().into_iter().map(|(t, mut p)| {
             p.insert(0, 0);
@@ -2513,6 +2598,25 @@ impl RuleContext {
         });
         lhs.chain(rhs).collect()
     }
+    /// The [`Place`]s of all of the [`Hole`]s in the `RuleContext`.
+    ///
+    /// [`Place`]: type.Place.html
+    /// [`Hole`]: enum.Context.html#variant.Hole
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Term, RuleContext, Context, parse_rulecontext};
+    /// let mut sig = Signature::default();
+    ///
+    /// let r =
+    ///     parse_rulecontext(&mut sig, "A(x_ [!]) = C(x_) | D([!])").expect("parse of A(x_ B[!]) = C(x_) | D([!])");
+    ///
+    /// let p: &[usize] = &[0, 1];
+    /// let p2: &[usize] = &[2, 0];
+    ///
+    /// assert_eq!(r.holes(), vec![p, p2]);
+    /// ```
     pub fn holes(&self) -> Vec<Place> {
         self.subcontexts()
             .into_iter()
@@ -2522,25 +2626,97 @@ impl RuleContext {
             })
             .collect()
     }
-    /// All the `Variables` in a `RuleContext`.
+    /// All the [`Variables`] in a `RuleContext`.
+    ///
+    /// [`Variables`]: struct.Variables.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, RuleContext, parse_context, parse_rulecontext};
+    /// let mut sig = Signature::default();
+    ///
+    /// let r = parse_rulecontext(&mut sig, "A(x_ [!]) = C(x_)").expect("parse of A(x_ [!]) = C(x_)");
+    /// let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
+    ///
+    /// assert_eq!(r_variables, vec!["x_"]);
+    ///
+    /// let r = parse_rulecontext(&mut sig, "B(y_ z_) = C [!]").expect("parse of B(y_ z_) = C [!]");
+    /// let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
+    ///
+    /// assert_eq!(r_variables, vec!["y_", "z_"]);
+    /// ```
     pub fn variables(&self) -> Vec<Variable> {
         self.lhs.variables()
     }
-    /// All the `Operators` in a `RuleContext`.
+    /// All the [`Operators`] in a `RuleContext`.
+    ///
+    /// [`Operators`]: struct.Operators.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, RuleContext, parse_rulecontext};
+    /// let mut sig = Signature::default();
+    ///
+    /// let r = parse_rulecontext(&mut sig, "A(D E) = C([!])").expect("parse of A(D E) = C([!])");
+    /// let r_ops: Vec<String> = r.operators().iter().map(|o| o.display(&sig)).collect();
+    ///
+    /// assert_eq!(r_ops, vec!["D", "E", "A", "C"]);
+    ///
+    /// let r = parse_rulecontext(&mut sig, "B(F x_) = C [!]").expect("parse of B(F x_) = C [!]");
+    /// let r_ops: Vec<String> = r.operators().iter().map(|o| o.display(&sig)).collect();
+    ///
+    /// assert_eq!(r_ops, vec!["F", "B", "C", "."]);
+    /// ```
     pub fn operators(&self) -> Vec<Operator> {
         let lhs = self.lhs.operators().into_iter();
         let rhs = self.rhs.iter().flat_map(Context::operators);
         lhs.chain(rhs).unique().collect()
     }
-    /// Get a specific subcontext in a `RuleContext`.
+    /// Get a specific [`subcontext`] in a `RuleContext`.
+    ///
+    /// [`subcontext`]: struct.Context.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_rulecontext};
+    /// let mut sig = Signature::default();
+    ///
+    /// let r = parse_rulecontext(&mut sig, "A(x_ [!]) = B | C(x_ [!])").expect("parse of A(x_ [!]) = B | C(x_ [!])");
+    ///
+    /// assert_eq!(r.at(&[0]).unwrap().display(&sig), "A(x_ [!])");
+    /// assert_eq!(r.at(&[0,1]).unwrap().display(&sig), "[!]");
+    /// assert_eq!(r.at(&[0,0]).unwrap().display(&sig), "x_");
+    /// assert_eq!(r.at(&[1]).unwrap().display(&sig), "B");
+    /// assert_eq!(r.at(&[2]).unwrap().display(&sig), "C(x_ [!])");
+    /// ```
     pub fn at(&self, p: &[usize]) -> Option<&Context> {
         if p[0] == 0 {
             self.lhs.at(&p[1..].to_vec())
         } else {
-            self.rhs[p[1]].at(&p[2..].to_vec())
+            self.rhs[p[0] - 1].at(&p[1..].to_vec())
         }
     }
-    /// Replace one subcontext with another in a `RuleContext`.
+    /// Replace one [`subcontext`] with another [`Context`].
+    ///
+    /// [`subcontext`]: struct.Context.html
+    /// [`Context`]: struct.Context.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_rulecontext, parse_context};
+    /// let mut sig = Signature::default();
+    ///
+    /// let mut r = parse_rulecontext(&mut sig, "A(x_) = B | C(x_) | [!]").expect("parse of A(x_) = B| C(x_) | [!]");
+    /// let new_context = parse_context(&mut sig, "E [!]").expect("parse of E [!]");
+    /// let new_r = r.replace(&[1], new_context);
+    ///
+    /// assert_ne!(r, new_r.clone().unwrap());
+    /// assert_eq!(new_r.unwrap().pretty(&sig), "A(x_) = E [!] | C(x_) | [!]");
+    /// ```
     pub fn replace(&self, place: &[usize], subcontext: Context) -> Option<RuleContext> {
         if place[0] == 0 {
             if let Some(lhs) = self.lhs.replace(&place[1..].to_vec(), subcontext) {
@@ -2568,6 +2744,22 @@ impl RuleContext {
     /// Convert a `RuleContext` to a [`Rule`] if possible.
     ///
     /// [`Rule`]: struct.Rule.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_rulecontext};
+    /// let mut sig = Signature::default();
+    ///
+    /// let r = parse_rulecontext(&mut sig, "A(x_ [!]) = B | C(x_ [!])").expect("parse of A(x_ [!]) = B | C(x_ [!])");
+    ///
+    /// assert!(r.to_rule().is_err());
+    ///
+    /// let r = parse_rulecontext(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B | C(x_)");
+    /// let rule = r.to_rule().expect("converting RuleContext to Rule");
+    ///
+    /// assert_eq!(rule.pretty(&sig), "A(x_) = B | C(x_)");
+    /// ```
     pub fn to_rule(&self) -> Result<Rule, ()> {
         let lhs = self.lhs.to_term()?;
         let rhs = self.rhs
