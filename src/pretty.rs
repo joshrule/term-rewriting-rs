@@ -23,6 +23,11 @@ pub trait Pretty: Sized {
                         return s;
                     }
                 }
+                ("DECC", 2) => {
+                    if let Some(s) = pretty_decimal(sig, args) {
+                        return s;
+                    }
+                }
                 (".", 2) => return pretty_binary_application(sig, args, spaces_allowed),
                 ("CONS", 2) => {
                     if let Some(s) = pretty_list(sig, args) {
@@ -76,6 +81,51 @@ fn pretty_number<T: Pretty>(sig: &Signature, args: &[T]) -> Option<String> {
             // number does not terminate with ZERO, so we use the
             // non-special-case printing style
             _ => break,
+        }
+    }
+    None
+}
+
+fn pretty_decimal<T: Pretty>(sig: &Signature, args: &[T]) -> Option<String> {
+    println!("{}", args.len());
+    let mut arg = &args[0];
+    let mut gathered_digits: String;
+    if let Some((_, number_arg)) = args[1].as_application() {
+        if number_arg.len() == 0 {
+            gathered_digits = "0".to_string();
+        } else if let Some(val) = pretty_number(sig, number_arg) {
+            gathered_digits = val.to_string();
+        } else {
+            return None;
+        }
+        while let Some((op, args)) = arg.as_application() {
+            match (op.display(sig).as_str(), args.len()) {
+                ("DECC", 2) => {
+                    if let Some((_, number_arg)) = &args[1].as_application() {
+                        arg = &args[0];
+                        if number_arg.len() == 0 {
+                            gathered_digits = format!("{}{}", "0", gathered_digits);
+                        } else if let Some(digit) = pretty_number(sig, number_arg) {
+                            gathered_digits = format!("{}{}", digit, gathered_digits);
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                ("SUCC", 1) => {
+                    if let Some(digit) = pretty_number(sig, args) {
+                        return Some(format!("{}{}", digit, gathered_digits));
+                    } else {
+                        break;
+                    }
+                }
+                ("ZERO", 0) | ("0", 0) => {
+                    return Some(gathered_digits);
+                }
+                _ => break,
+            }
         }
     }
     None
