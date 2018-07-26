@@ -1297,7 +1297,7 @@ pub enum Term {
     Application { op: Operator, args: Vec<Term> },
 }
 impl Term {
-    /// A serialized representation of the Term.
+    /// A serialized representation of the `Term`.
     ///
     /// # Examples
     ///
@@ -1323,11 +1323,11 @@ impl Term {
             }
         }
     }
-    /// A human-readable serialization of the Term.
+    /// A human-readable serialization of the `Term`.
     pub fn pretty(&self, sig: &Signature) -> String {
         Pretty::pretty(self, sig)
     }
-    /// Every [`Atom`] used in the term.
+    /// Every [`Atom`] used in the `Term`.
     ///
     /// [`Atom`]: enum.Atom.html
     ///
@@ -1439,7 +1439,7 @@ impl Term {
             Term::Application { args, .. } => args.clone(),
         }
     }
-    /// Every subterm and its [`Place`], starting with `self` and the empty [`Place`].
+    /// Every `subterm` and its [`Place`], starting with the `Term` and the empty [`Place`].
     ///
     /// [`Place`]: struct.Place.html
     ///
@@ -1509,7 +1509,7 @@ impl Term {
     pub fn size(&self) -> usize {
         self.subterms().len()
     }
-    /// Get the subterm at the given [`Place`] if possible.  Otherwise, return `None`.
+    /// Get the `subterm` at the given [`Place`] if possible.  Otherwise, return `None`.
     ///
     /// [`Place`]: type.Place.html
     ///
@@ -1549,7 +1549,7 @@ impl Term {
             }
         }
     }
-    /// Create a copy of `self` where the term at the given [`Place`] has been replaced with
+    /// Create a copy of the `Term` where the `Term` at the given [`Place`] has been replaced with
     /// `subterm`.
     ///
     /// [`Place`]: type.Place.html
@@ -2866,9 +2866,9 @@ impl TRS {
             is_deterministic: false,
         }
     }
-    /// Make `self` [`deterministic`] and restrict it to be so until further notice.
+    /// Make the `TRS` [`deterministic`] and restrict it to be so until further notice.
     ///
-    /// Return `true` if `self` was changed, otherwise `false`.
+    /// Return `true` if the `TRS` was changed, otherwise `false`.
     ///
     /// [`deterministic`]: http://en.wikipedia.org/wiki/Deterministic_system
     ///
@@ -2926,9 +2926,9 @@ impl TRS {
             false
         }
     }
-    /// Remove any [`determinism`] restriction `self` might be under.
+    /// Remove any [`determinism`] restriction the `TRS` might be under.
     ///
-    /// Return `true` if `self` was changed, otherwise `false`.
+    /// Return `true` if the `TRS` was changed, otherwise `false`.
     ///
     /// See [`determinism`] for more information.
     ///
@@ -2975,7 +2975,7 @@ impl TRS {
         self.is_deterministic = false;
         previous_state
     }
-    /// Report whether `self` is currently deterministic.
+    /// Report whether the `TRS` is currently deterministic.
     ///
     /// See [`Deterministic System`] for more information.
     ///
