@@ -2075,6 +2075,10 @@ pub struct RuleContext {
 }
 impl RuleContext {
     /// Create a new `RuleContext` if possible.
+    /// The `RuleContext` must abide by the same restrictions as a [`Rule`] being created with [`Rule::new`].
+    ///
+    /// [`Rule`]: struct.Rule.html
+    /// [`Rule::new`]: struct.Rule.html#method.new
     ///
     /// # Examples
     ///
@@ -2095,6 +2099,11 @@ impl RuleContext {
     /// let c = parse_context(&mut sig, "C").expect("parse of C");
     ///
     /// assert_eq!(RuleContext::new(left, vec![b, c]), None);
+    /// 
+    /// let left = parse_context(&mut sig, "x_").expect("parse of x_");
+    /// let b = parse_context(&mut sig, "B [!]").expect("parse of B [!]");
+    ///
+    /// assert_eq!(RuleContext::new(left, vec![b]), None);
     /// ```
     pub fn new(lhs: Context, rhs: Vec<Context>) -> Option<RuleContext> {
         if RuleContext::is_valid(&lhs, &rhs) {
