@@ -857,31 +857,13 @@ impl Context {
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Term, Context, Variable, Operator};
+    /// # use term_rewriting::{Signature, Term, Context, Variable, Operator, parse_context};
     /// let mut sig = Signature::default();
     ///
-    /// let h = Context::Hole;
-    /// assert_eq!(h.display(&sig), "[!]".to_string());
-    ///
-    /// let var = sig.new_var(Some("y".to_string()));
-    /// let context_var = Context::Variable(var);
-    ///
-    /// assert_eq!(context_var.display(&sig), "y_".to_string());
-    ///
-    /// let op = sig.new_op(0,Some("S".to_string()));
-    /// let args = vec![];
-    /// let context_app = Context::Application {op, args};
-    ///
-    /// assert_eq!(context_app.display(&sig), "S".to_string());
-    ///
-    /// let var = sig.new_var(Some("x".to_string()));
-    /// let a = sig.new_op(2, Some("A".to_string()));
-    /// let example_context = Context::Application {
-    ///     op: a,
-    ///     args: vec![Context::Hole, Context::Variable(var)],
-    /// };
-    ///
-    /// assert_eq!(example_context.display(&sig), "A([!] x_)".to_string());
+    /// let context = parse_context(&mut sig, "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))")
+    ///     .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))") ;
+    /// 
+    /// assert_eq!(context.display(&sig), ".(.(.(x_ [!]) A) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))))"); 
     /// ```
     pub fn display(&self, sig: &Signature) -> String {
         match self {
@@ -898,7 +880,19 @@ impl Context {
             }
         }
     }
-    /// A human-readable serialization of the Context.
+    /// A human-readable serialization of the `Context`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_context};
+    /// let mut sig = Signature::default();
+    ///
+    /// let context = parse_context(&mut sig, "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))")
+    ///     .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))") ;
+    /// 
+    /// assert_eq!(context.pretty(&sig), "x_ [!] A [2, 1, 0]"); 
+    /// ```
     pub fn pretty(&self, sig: &Signature) -> String {
         Pretty::pretty(self, sig)
     }
@@ -1305,9 +1299,10 @@ impl Term {
     /// # use term_rewriting::{Signature, Term, parse_term};
     /// let mut sig = Signature::default();
     ///
-    /// let t = parse_term(&mut sig, "A(B x_)").expect("parse of A(B x_)");
+    /// let term = parse_term(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))")
+    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))");
     ///
-    /// assert_eq!(t.display(&sig), "A(B x_)".to_string());
+    /// assert_eq!(term.display(&sig), ".(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))))");
     /// ```
     pub fn display(&self, sig: &Signature) -> String {
         match self {
@@ -1324,6 +1319,18 @@ impl Term {
         }
     }
     /// A human-readable serialization of the `Term`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_term};
+    /// let mut sig = Signature::default();
+    ///
+    /// let term = parse_term(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))")
+    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))");
+    ///
+    /// assert_eq!(term.pretty(&sig), "A B(x_) [2, 1, 0]");
+    /// ```
     pub fn pretty(&self, sig: &Signature) -> String {
         Pretty::pretty(self, sig)
     }
@@ -1925,13 +1932,32 @@ impl Rule {
     /// let r = parse_rule(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B | C(x_)");
     ///
     /// assert_eq!(r.display(&sig), "A(x_) = B | C(x_)");
+    ///
+    /// let rule = parse_rule(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))")
+    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
+    ///
+    /// assert_eq!(rule.display(&sig), ".(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) = CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))");
     /// ```
     pub fn display(&self, sig: &Signature) -> String {
         let lhs_str = self.lhs.display(sig);
         let rhs_str = self.rhs.iter().map(|rhs| rhs.display(sig)).join(" | ");
         format!("{} = {}", lhs_str, rhs_str)
     }
-    /// A human-readable serialization of the Rule.
+    /// A human-readable serialization of the `Rule`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let rule = parse_rule(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))")
+    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
+    ///
+    /// assert_eq!(rule.display(&sig), ".(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) = CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))");
+    ///
+    /// assert_eq!(rule.pretty(&sig), "A B(x_) [2, 1, 0] = [A, B(x_), 2]");
+    /// ```
     pub fn pretty(&self, sig: &Signature) -> String {
         let lhs_str = self.lhs.pretty(sig);
         let rhs_str = self.rhs.iter().map(|rhs| rhs.pretty(sig)).join(" | ");
@@ -2582,6 +2608,18 @@ impl RuleContext {
         }
     }
     /// A human-readable serialization of the `RuleContext`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_rulecontext};
+    /// let mut sig = Signature::default();
+    ///
+    /// let rule = parse_rulecontext(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = [!] CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))")
+    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = [!] CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
+    ///
+    /// assert_eq!(rule.pretty(&sig), "A B(x_) [2, 1, 0] = [!] [A, B(x_), 2]");
+    /// ```    
     pub fn pretty(&self, sig: &Signature) -> String {
         let lhs_str = self.lhs.pretty(sig);
         let rhs_str = self.rhs.iter().map(|rhs| rhs.pretty(sig)).join(" | ");
@@ -3088,6 +3126,19 @@ impl TRS {
     /// "A = B;
     /// C = D | E;
     /// F(x_) = G;");
+    ///
+    /// let trs = parse_trs(&mut sig, 
+    /// "A(x_ y_ z_) = A(x_ SUCC(ZERO) SUCC(SUCC(ZERO)));
+    /// CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
+    /// B C D E = B C | D E;") 
+    ///     .expect("parse of A(x_ y_ z_) = A(x_ SUCC(ZERO) SUCC(SUCC(ZERO)));
+    ///     CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
+    ///     B C D E = B C | D E;"); 
+    ///
+    /// assert_eq!(trs.display(&sig), 
+    /// "A(x_ y_ z_) = A(x_ SUCC(ZERO) SUCC(SUCC(ZERO)));
+    /// CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
+    /// .(.(.(B C) D) E) = .(B C) | .(D E);"); 
     /// ```
     pub fn display(&self, sig: &Signature) -> String {
         self.rules
@@ -3096,6 +3147,26 @@ impl TRS {
             .join("\n")
     }
     /// A human-readable serialization of the `TRS`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_trs};
+    /// let mut sig = Signature::default();
+    ///
+    /// let trs = parse_trs(&mut sig, 
+    /// "A(x_ y_ z_) = A(x_ SUCC(ZERO) SUCC(SUCC(ZERO)));
+    /// CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
+    /// B C D E = B C | D E;") 
+    ///     .expect("parse of A(x_ y_ z_) = A(x_ SUCC(ZERO) SUCC(SUCC(ZERO)));
+    ///     CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
+    ///     B C D E = B C | D E;"); 
+    ///
+    /// assert_eq!(trs.pretty(&sig), 
+    /// "A(x_, y_, z_) = A(x_, 1, 2);
+    /// [B, C, D] = [C, D];
+    /// B C D E = B C | D E;"); 
+    /// ```    
     pub fn pretty(&self, sig: &Signature) -> String {
         self.rules
             .iter()
