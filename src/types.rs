@@ -2265,19 +2265,19 @@ impl Rule {
     ///
     /// let subterms: Vec<String> = r.subterms()
     ///     .iter()
-    ///     .map(|(t, p)| format!("Subterm:{},Place:{:?}", t.display(&sig), p))
+    ///     .map(|(t, p)| format!("{}, {:?}", t.display(&sig), p))
     ///     .collect();
     ///
     /// assert_eq!(
     ///     subterms,
     ///     vec![
-    ///         "Subterm:A(x_ B),Place:[0]",
-    ///         "Subterm:x_,Place:[0, 0]",
-    ///         "Subterm:B,Place:[0, 1]",
-    ///         "Subterm:C(x_),Place:[1]",
-    ///         "Subterm:x_,Place:[1, 0]",
-    ///         "Subterm:D(B),Place:[2]",
-    ///         "Subterm:B,Place:[2, 0]",
+    ///         "A(x_ B), [0]",
+    ///         "x_, [0, 0]",
+    ///         "B, [0, 1]",
+    ///         "C(x_), [1]",
+    ///         "x_, [1, 0]",
+    ///         "D(B), [2]",
+    ///         "B, [2, 0]",
     ///     ]
     /// );
     /// ```
