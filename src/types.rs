@@ -809,33 +809,10 @@ impl Context {
     /// # use term_rewriting::{Signature, Term, Context, Variable, Operator, parse_context};
     /// let mut sig = Signature::default();
     ///
-    /// let h = Context::Hole;
-    /// assert_eq!(h.display(&sig), "[!]".to_string());
-    ///
-    /// let var = sig.new_var(Some("y".to_string()));
-    /// let context_var = Context::Variable(var);
-    ///
-    /// assert_eq!(context_var.display(&sig), "y_".to_string());
-    ///
-    /// let op = sig.new_op(0,Some("S".to_string()));
-    /// let args = vec![];
-    /// let context_app = Context::Application {op, args};
-    ///
-    /// assert_eq!(context_app.display(&sig), "S".to_string());
-    ///
-    /// let var = sig.new_var(Some("x".to_string()));
-    /// let a = sig.new_op(2, Some("A".to_string()));
-    /// let example_context = Context::Application {
-    ///     op: a,
-    ///     args: vec![Context::Hole, Context::Variable(var)],
-    /// };
-    ///
-    /// assert_eq!(example_context.display(&sig), "A([!] x_)".to_string());
-    ///
-    /// let context = parse_context(&mut sig, "[!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))")
-    ///     .expect("parse of [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))") ;
+    /// let context = parse_context(&mut sig, "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))")
+    ///     .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))") ;
     /// 
-    /// assert_eq!(context.pretty(&sig), "[!] A [2, 1, 0]"); 
+    /// assert_eq!(context.display(&sig), ".(.(.(x_ [!]) A) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))))"); 
     /// ```
     pub fn display(&self, sig: &Signature) -> String {
         match self {
@@ -860,10 +837,10 @@ impl Context {
     /// # use term_rewriting::{Signature, parse_context};
     /// let mut sig = Signature::default();
     ///
-    /// let context = parse_context(&mut sig, "[!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))")
-    ///     .expect("parse of [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))") ;
+    /// let context = parse_context(&mut sig, "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))")
+    ///     .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))") ;
     /// 
-    /// assert_eq!(context.pretty(&sig), "[!] A [2, 1, 0]"); 
+    /// assert_eq!(context.pretty(&sig), "x_ [!] A [2, 1, 0]"); 
     /// ```
     pub fn pretty(&self, sig: &Signature) -> String {
         Pretty::pretty(self, sig)
@@ -1271,10 +1248,6 @@ impl Term {
     /// # use term_rewriting::{Signature, Term, parse_term};
     /// let mut sig = Signature::default();
     ///
-    /// let t = parse_term(&mut sig, "A(B x_)").expect("parse of A(B x_)");
-    ///
-    /// assert_eq!(t.display(&sig), "A(B x_)".to_string());
-    ///
     /// let term = parse_term(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))")
     ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))");
     ///
@@ -1304,8 +1277,6 @@ impl Term {
     ///
     /// let term = parse_term(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))")
     ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))");
-    ///
-    /// assert_eq!(term.display(&sig), ".(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))))");
     ///
     /// assert_eq!(term.pretty(&sig), "A B(x_) [2, 1, 0]");
     /// ```
@@ -3048,7 +3019,7 @@ impl TRS {
     /// "A = B;
     /// C = D | E;
     /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
-   ///
+    ///
     /// assert_eq!(t.len(), 3);
     /// ```
     pub fn len(&self) -> usize {
@@ -3152,11 +3123,6 @@ impl TRS {
     ///     .expect("parse of A(x_ y_ z_) = A(x_ SUCC(ZERO) SUCC(SUCC(ZERO)));
     ///     CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
     ///     B C D E = B C | D E;"); 
-    ///
-    /// assert_eq!(trs.display(&sig), 
-    /// "A(x_ y_ z_) = A(x_ SUCC(ZERO) SUCC(SUCC(ZERO)));
-    /// CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
-    /// .(.(.(B C) D) E) = .(B C) | .(D E);"); 
     ///
     /// assert_eq!(trs.pretty(&sig), 
     /// "A(x_, y_, z_) = A(x_, 1, 2);
