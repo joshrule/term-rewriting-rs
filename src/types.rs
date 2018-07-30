@@ -860,10 +860,10 @@ impl Context {
     /// # use term_rewriting::{Signature, Term, Context, Variable, Operator, parse_context};
     /// let mut sig = Signature::default();
     ///
-    /// let context = parse_context(&mut sig, "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))")
-    ///     .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))") ;
-    ///
-    /// assert_eq!(context.display(&sig), ".(.(.(x_ [!]) A) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))))");
+    /// let context = parse_context(&mut sig, "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO))))))")
+    ///     .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO))))))") ;
+    /// 
+    /// assert_eq!(context.display(&sig), ".(.(.(.(x_ [!]) A) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))))"); 
     /// ```
     pub fn display(&self, sig: &Signature) -> String {
         match self {
@@ -888,10 +888,10 @@ impl Context {
     /// # use term_rewriting::{Signature, parse_context};
     /// let mut sig = Signature::default();
     ///
-    /// let context = parse_context(&mut sig, "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))")
-    ///     .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))") ;
-    ///
-    /// assert_eq!(context.pretty(&sig), "x_ [!] A [2, 1, 0]");
+    /// let context = parse_context(&mut sig, "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO))))))")
+    ///     .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO))))))") ;
+    /// 
+    /// assert_eq!(context.pretty(&sig), "x_ [!] A [2, 1, 0] 105"); 
     /// ```
     pub fn pretty(&self, sig: &Signature) -> String {
         Pretty::pretty(self, sig)
@@ -1299,10 +1299,10 @@ impl Term {
     /// # use term_rewriting::{Signature, Term, parse_term};
     /// let mut sig = Signature::default();
     ///
-    /// let term = parse_term(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))")
-    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))");
+    /// let term = parse_term(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO))))))")
+    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO))))))");
     ///
-    /// assert_eq!(term.display(&sig), ".(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))))");
+    /// assert_eq!(term.display(&sig), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))))");
     /// ```
     pub fn display(&self, sig: &Signature) -> String {
         match self {
@@ -1326,10 +1326,10 @@ impl Term {
     /// # use term_rewriting::{Signature, parse_term};
     /// let mut sig = Signature::default();
     ///
-    /// let term = parse_term(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))")
-    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))");
+    /// let term = parse_term(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO))))))")
+    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO))))))");
     ///
-    /// assert_eq!(term.pretty(&sig), "A B(x_) [2, 1, 0]");
+    /// assert_eq!(term.pretty(&sig), "A B(x_) [2, 1, 0] 105");
     /// ```
     pub fn pretty(&self, sig: &Signature) -> String {
         Pretty::pretty(self, sig)
@@ -1925,18 +1925,10 @@ impl Rule {
     /// # use term_rewriting::{Signature, Rule, Term, parse_term, parse_rule};
     /// let mut sig = Signature::default();
     ///
-    /// let r = parse_rule(&mut sig, "A = B").expect("parse of A = B");
+    /// let rule = parse_rule(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))")
+    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
     ///
-    /// assert_eq!(r.display(&sig), "A = B");
-    ///
-    /// let r = parse_rule(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B | C(x_)");
-    ///
-    /// assert_eq!(r.display(&sig), "A(x_) = B | C(x_)");
-    ///
-    /// let rule = parse_rule(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))")
-    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
-    ///
-    /// assert_eq!(rule.display(&sig), ".(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) = CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))");
+    /// assert_eq!(rule.display(&sig), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO))))))) = CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))");
     /// ```
     pub fn display(&self, sig: &Signature) -> String {
         let lhs_str = self.lhs.display(sig);
@@ -1951,12 +1943,10 @@ impl Rule {
     /// # use term_rewriting::{Signature, parse_rule};
     /// let mut sig = Signature::default();
     ///
-    /// let rule = parse_rule(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))")
-    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
+    /// let rule = parse_rule(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))")
+    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
     ///
-    /// assert_eq!(rule.display(&sig), ".(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) = CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))");
-    ///
-    /// assert_eq!(rule.pretty(&sig), "A B(x_) [2, 1, 0] = [A, B(x_), 2]");
+    /// assert_eq!(rule.pretty(&sig), "A B(x_) [2, 1, 0] 105 = [A, B(x_), 2]");
     /// ```
     pub fn pretty(&self, sig: &Signature) -> String {
         let lhs_str = self.lhs.pretty(sig);
@@ -2615,10 +2605,10 @@ impl RuleContext {
     /// # use term_rewriting::{Signature, parse_rulecontext};
     /// let mut sig = Signature::default();
     ///
-    /// let rule = parse_rulecontext(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = [!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))")
-    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = [!] CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
+    /// let rule = parse_rulecontext(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) = [!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))")
+    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) = [!] CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
     ///
-    /// assert_eq!(rule.display(&sig), ".(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) = .([!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL))))");
+    /// assert_eq!(rule.display(&sig), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO))))))) = .([!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL))))");
     /// ```    
     pub fn display(&self, sig: &Signature) -> String {
         let lhs_str = self.lhs.display(sig);
@@ -2633,10 +2623,10 @@ impl RuleContext {
     /// # use term_rewriting::{Signature, parse_rulecontext};
     /// let mut sig = Signature::default();
     ///
-    /// let rule = parse_rulecontext(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = [!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))")
-    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = [!] CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
+    /// let rule = parse_rulecontext(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) = [!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))")
+    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) = [!] CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
     ///
-    /// assert_eq!(rule.pretty(&sig), "A B(x_) [2, 1, 0] = [!] [A, B(x_), 2]");
+    /// assert_eq!(rule.pretty(&sig), "A B(x_) [2, 1, 0] 105 = [!] [A, B(x_), 2]");
     /// ```    
     pub fn pretty(&self, sig: &Signature) -> String {
         let lhs_str = self.lhs.pretty(sig);
@@ -3145,16 +3135,16 @@ impl TRS {
     /// C = D | E;
     /// F(x_) = G;");
     ///
-    /// let trs = parse_trs(&mut sig,
-    /// "A(x_ y_ z_) = A(x_ SUCC(ZERO) SUCC(SUCC(ZERO)));
+    /// let trs = parse_trs(&mut sig, 
+    /// "A(x_ y_ z_) = A(x_ DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) SUCC(SUCC(ZERO)));
     /// CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
-    /// B C D E = B C | D E;")
-    ///     .expect("parse of A(x_ y_ z_) = A(x_ SUCC(ZERO) SUCC(SUCC(ZERO)));
+    /// B C D E = B C | D E;") 
+    ///     .expect("parse of A(x_ y_ z_) = A(x_ DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) SUCC(SUCC(ZERO)));
     ///     CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
     ///     B C D E = B C | D E;");
     ///
-    /// assert_eq!(trs.display(&sig),
-    /// "A(x_ y_ z_) = A(x_ SUCC(ZERO) SUCC(SUCC(ZERO)));
+    /// assert_eq!(trs.display(&sig), 
+    /// "A(x_ y_ z_) = A(x_ DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) SUCC(SUCC(ZERO)));
     /// CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
     /// .(.(.(B C) D) E) = .(B C) | .(D E);");
     /// ```
@@ -3172,16 +3162,16 @@ impl TRS {
     /// # use term_rewriting::{Signature, parse_trs};
     /// let mut sig = Signature::default();
     ///
-    /// let trs = parse_trs(&mut sig,
-    /// "A(x_ y_ z_) = A(x_ SUCC(ZERO) SUCC(SUCC(ZERO)));
+    /// let trs = parse_trs(&mut sig, 
+    /// "A(x_ y_ z_) = A(x_ DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) SUCC(SUCC(ZERO)));
     /// CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
-    /// B C D E = B C | D E;")
-    ///     .expect("parse of A(x_ y_ z_) = A(x_ SUCC(ZERO) SUCC(SUCC(ZERO)));
+    /// B C D E = B C | D E;") 
+    ///     .expect("parse of A(x_ y_ z_) = A(x_ DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) SUCC(SUCC(ZERO)));
     ///     CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
     ///     B C D E = B C | D E;");
     ///
-    /// assert_eq!(trs.pretty(&sig),
-    /// "A(x_, y_, z_) = A(x_, 1, 2);
+    /// assert_eq!(trs.pretty(&sig), 
+    /// "A(x_, y_, z_) = A(x_, 105, 2);
     /// [B, C, D] = [C, D];
     /// B C D E = B C | D E;");
     /// ```    
