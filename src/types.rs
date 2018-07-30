@@ -2607,6 +2607,24 @@ impl RuleContext {
             rhs_vars.is_subset(&lhs_vars)
         }
     }
+    /// A serialization of the `RuleContext`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_rulecontext};
+    /// let mut sig = Signature::default();
+    ///
+    /// let rule = parse_rulecontext(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = [!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))")
+    ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = [!] CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
+    ///
+    /// assert_eq!(rule.display(&sig), ".(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) = .([!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL))))");
+    /// ```    
+    pub fn display(&self, sig: &Signature) -> String {
+        let lhs_str = self.lhs.display(sig);
+        let rhs_str = self.rhs.iter().map(|rhs| rhs.display(sig)).join(" | ");
+        format!("{} = {}", lhs_str, rhs_str)
+    }
     /// A human-readable serialization of the `RuleContext`.
     ///
     /// # Examples
@@ -2615,7 +2633,7 @@ impl RuleContext {
     /// # use term_rewriting::{Signature, parse_rulecontext};
     /// let mut sig = Signature::default();
     ///
-    /// let rule = parse_rulecontext(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = [!] CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))")
+    /// let rule = parse_rulecontext(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = [!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))")
     ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) = [!] CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
     ///
     /// assert_eq!(rule.pretty(&sig), "A B(x_) [2, 1, 0] = [!] [A, B(x_), 2]");
