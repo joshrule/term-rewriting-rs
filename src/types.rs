@@ -862,8 +862,8 @@ impl Context {
     ///
     /// let context = parse_context(&mut sig, "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO))))))")
     ///     .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO))))))") ;
-    /// 
-    /// assert_eq!(context.display(&sig), ".(.(.(.(x_ [!]) A) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))))"); 
+    ///
+    /// assert_eq!(context.display(&sig), ".(.(.(.(x_ [!]) A) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))))");
     /// ```
     pub fn display(&self, sig: &Signature) -> String {
         match self {
@@ -890,8 +890,8 @@ impl Context {
     ///
     /// let context = parse_context(&mut sig, "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO))))))")
     ///     .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO))))))") ;
-    /// 
-    /// assert_eq!(context.pretty(&sig), "x_ [!] A [2, 1, 0] 105"); 
+    ///
+    /// assert_eq!(context.pretty(&sig), "x_ [!] A [2, 1, 0] 105");
     /// ```
     pub fn pretty(&self, sig: &Signature) -> String {
         Pretty::pretty(self, sig)
@@ -3135,15 +3135,15 @@ impl TRS {
     /// C = D | E;
     /// F(x_) = G;");
     ///
-    /// let trs = parse_trs(&mut sig, 
+    /// let trs = parse_trs(&mut sig,
     /// "A(x_ y_ z_) = A(x_ DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) SUCC(SUCC(ZERO)));
     /// CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
-    /// B C D E = B C | D E;") 
+    /// B C D E = B C | D E;")
     ///     .expect("parse of A(x_ y_ z_) = A(x_ DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) SUCC(SUCC(ZERO)));
     ///     CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
     ///     B C D E = B C | D E;");
     ///
-    /// assert_eq!(trs.display(&sig), 
+    /// assert_eq!(trs.display(&sig),
     /// "A(x_ y_ z_) = A(x_ DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) SUCC(SUCC(ZERO)));
     /// CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
     /// .(.(.(B C) D) E) = .(B C) | .(D E);");
@@ -3162,15 +3162,15 @@ impl TRS {
     /// # use term_rewriting::{Signature, parse_trs};
     /// let mut sig = Signature::default();
     ///
-    /// let trs = parse_trs(&mut sig, 
+    /// let trs = parse_trs(&mut sig,
     /// "A(x_ y_ z_) = A(x_ DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) SUCC(SUCC(ZERO)));
     /// CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
-    /// B C D E = B C | D E;") 
+    /// B C D E = B C | D E;")
     ///     .expect("parse of A(x_ y_ z_) = A(x_ DECC(DECC(SUCC(ZERO) ZERO) SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))) SUCC(SUCC(ZERO)));
     ///     CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
     ///     B C D E = B C | D E;");
     ///
-    /// assert_eq!(trs.pretty(&sig), 
+    /// assert_eq!(trs.pretty(&sig),
     /// "A(x_, y_, z_) = A(x_, 105, 2);
     /// [B, C, D] = [C, D];
     /// B C D E = B C | D E;");
