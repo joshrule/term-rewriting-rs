@@ -31,7 +31,7 @@ impl Variable {
     /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
     /// let var = sig.new_var(Some("z".to_string()));
-    /// 
+    ///
     /// assert_eq!(var.name(&sig), Some("z"));
     /// ```
     pub fn name(self, sig: &Signature) -> Option<&str> {
@@ -46,7 +46,7 @@ impl Variable {
     /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
     /// let var = sig.new_var(Some("z".to_string()));
-    /// 
+    ///
     /// assert_eq!(var.display(&sig), "z_");
     /// ```
     pub fn display(self, sig: &Signature) -> String {
@@ -91,7 +91,7 @@ impl Operator {
     /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
     /// let op = sig.new_op(2, Some("Z".to_string()));
-    /// 
+    ///
     /// assert_eq!(op.name(&sig), Some("Z"));
     /// ```
     pub fn name(self, sig: &Signature) -> Option<&str> {
@@ -106,7 +106,7 @@ impl Operator {
     /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
     /// let op = sig.new_op(2, Some("Z".to_string()));
-    /// 
+    ///
     /// assert_eq!(op.display(&sig), "Z");
     /// ```
     pub fn display(self, sig: &Signature) -> String {
@@ -130,7 +130,7 @@ pub enum Atom {
     /// [`Variable`]: struct.Variable.html
     ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// # use term_rewriting::{Signature, Atom};
     /// let mut sig = Signature::default();
@@ -145,7 +145,7 @@ pub enum Atom {
     /// [`Operator`]: struct.Operator.html
     ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// # use term_rewriting::{Signature, Atom};
     /// let mut sig = Signature::default();
@@ -164,7 +164,7 @@ impl Atom {
     /// ```
     /// # use term_rewriting::{Signature, Atom};
     /// let mut sig = Signature::default();
-    /// 
+    ///
     /// let a = sig.new_op(0, Some("A".to_string()));
     /// let atom = Atom::Operator(a);
     ///
@@ -862,8 +862,8 @@ impl Context {
     ///
     /// let context = parse_context(&mut sig, "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))")
     ///     .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))") ;
-    /// 
-    /// assert_eq!(context.display(&sig), ".(.(.(x_ [!]) A) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))))"); 
+    ///
+    /// assert_eq!(context.display(&sig), ".(.(.(x_ [!]) A) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))))");
     /// ```
     pub fn display(&self, sig: &Signature) -> String {
         match self {
@@ -890,8 +890,8 @@ impl Context {
     ///
     /// let context = parse_context(&mut sig, "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))")
     ///     .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))") ;
-    /// 
-    /// assert_eq!(context.pretty(&sig), "x_ [!] A [2, 1, 0]"); 
+    ///
+    /// assert_eq!(context.pretty(&sig), "x_ [!] A [2, 1, 0]");
     /// ```
     pub fn pretty(&self, sig: &Signature) -> String {
         Pretty::pretty(self, sig)
@@ -1716,7 +1716,7 @@ impl Term {
     /// let t3 = parse_term(&mut sig, "S K y_").expect("parse of S K y_");
     ///
     /// assert!(Term::shape_equivalent(&t, &t2));
-    /// 
+    ///
     /// assert!(!Term::shape_equivalent(&t, &t3));
     /// ```
     pub fn shape_equivalent(t1: &Term, t2: &Term) -> bool {
@@ -1778,10 +1778,10 @@ impl Term {
     /// assert_eq!(Term::pmatch(vec![(t, t2.clone())]), None);
     ///
     /// let mut expected_sub = HashMap::new();
-    /// 
+    ///
     /// // maps variable x in term t2 to variable y in term t3
     /// expected_sub.insert(t2.variables()[0], Term::Variable(t3.variables()[0]));
-    /// 
+    ///
     /// assert_eq!(Term::pmatch(vec![(t2, t3.clone())]), Some(expected_sub));
     ///
     /// assert_eq!(Term::pmatch(vec![(t3, t4)]), None);
@@ -1828,7 +1828,7 @@ impl Term {
     ///
     ///  // maps variable x in term t2 to variable y in term t3
     /// expected_sub.insert(t2.variables()[0], Term::Variable(t3.variables()[0]));
-    /// 
+    ///
     /// assert_eq!(Term::unify(vec![(t2, t3.clone())]), Some(expected_sub));
     ///
     /// assert_eq!(Term::unify(vec![(t3, t4)]), None);
@@ -2582,7 +2582,7 @@ impl RuleContext {
     /// let c = parse_context(&mut sig, "C").expect("parse of C");
     ///
     /// assert_eq!(RuleContext::new(left, vec![b, c]), None);
-    /// 
+    ///
     /// let left = parse_context(&mut sig, "x_").expect("parse of x_");
     /// let b = parse_context(&mut sig, "B [!]").expect("parse of B [!]");
     ///
@@ -2864,7 +2864,7 @@ impl RuleContext {
 }
 
 /// A first-order term rewriting system.
-/// 
+///
 /// # Examples
 ///
 /// ```
@@ -3145,18 +3145,18 @@ impl TRS {
     /// C = D | E;
     /// F(x_) = G;");
     ///
-    /// let trs = parse_trs(&mut sig, 
+    /// let trs = parse_trs(&mut sig,
     /// "A(x_ y_ z_) = A(x_ SUCC(ZERO) SUCC(SUCC(ZERO)));
     /// CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
-    /// B C D E = B C | D E;") 
+    /// B C D E = B C | D E;")
     ///     .expect("parse of A(x_ y_ z_) = A(x_ SUCC(ZERO) SUCC(SUCC(ZERO)));
     ///     CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
-    ///     B C D E = B C | D E;"); 
+    ///     B C D E = B C | D E;");
     ///
-    /// assert_eq!(trs.display(&sig), 
+    /// assert_eq!(trs.display(&sig),
     /// "A(x_ y_ z_) = A(x_ SUCC(ZERO) SUCC(SUCC(ZERO)));
     /// CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
-    /// .(.(.(B C) D) E) = .(B C) | .(D E);"); 
+    /// .(.(.(B C) D) E) = .(B C) | .(D E);");
     /// ```
     pub fn display(&self, sig: &Signature) -> String {
         self.rules
@@ -3172,18 +3172,18 @@ impl TRS {
     /// # use term_rewriting::{Signature, parse_trs};
     /// let mut sig = Signature::default();
     ///
-    /// let trs = parse_trs(&mut sig, 
+    /// let trs = parse_trs(&mut sig,
     /// "A(x_ y_ z_) = A(x_ SUCC(ZERO) SUCC(SUCC(ZERO)));
     /// CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
-    /// B C D E = B C | D E;") 
+    /// B C D E = B C | D E;")
     ///     .expect("parse of A(x_ y_ z_) = A(x_ SUCC(ZERO) SUCC(SUCC(ZERO)));
     ///     CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
-    ///     B C D E = B C | D E;"); 
+    ///     B C D E = B C | D E;");
     ///
-    /// assert_eq!(trs.pretty(&sig), 
+    /// assert_eq!(trs.pretty(&sig),
     /// "A(x_, y_, z_) = A(x_, 1, 2);
     /// [B, C, D] = [C, D];
-    /// B C D E = B C | D E;"); 
+    /// B C D E = B C | D E;");
     /// ```    
     pub fn pretty(&self, sig: &Signature) -> String {
         self.rules
@@ -3243,7 +3243,7 @@ impl TRS {
     /// Do two TRSs [`unify`]?
     ///
     /// [`unify`]: https://en.wikipedia.org/wiki/Unification_(computer_science)
-    /// 
+    ///
     /// # Examples
     ///
     /// ```
