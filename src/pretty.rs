@@ -86,18 +86,37 @@ fn pretty_number<T: Pretty>(sig: &Signature, args: &[T]) -> Option<String> {
     None
 }
 
-fn app_to_number<T: Pretty>(sig: &Signature, args: &[T]) -> Option<i32> {
-    let mut increments = 1;
-    let mut arg = &args[0];
-    while let Some((op, args)) = arg.as_application() {
-        match (op.display(sig).as_str(), args.len()) {
-            ("SUCC", 1) => {
-                increments += 1;
-                arg = &args[0]
-            }
-            ("ZERO", 0) | ("0", 0) => return Some(increments),
-            _ => break,
+fn digit_to_number<T: Pretty>(sig: &Signature, arg: &T) -> Option<i32> {
+    if let Some((op, args)) = arg.as_application() {
+        if args.len() > 0 {
+            return None;
         }
+        return str_to_digit(op.display(sig));
+    }
+    None
+}
+
+fn str_to_digit(s: String) -> Option<i32> {
+    if s == "0" || s == "ZERO" {
+        return Some(0);
+    } else if s == "1" || s == "ONE" {
+        return Some(1);
+    } else if s == "2" || s == "TWO" {
+        return Some(2);
+    } else if s == "3" || s == "THREE" {
+        return Some(3);
+    } else if s == "4" || s == "FOUR" {
+        return Some(4);
+    } else if s == "5" || s == "FIVE" {
+        return Some(5);
+    } else if s == "6" || s == "SIX" {
+        return Some(6);
+    } else if s == "7" || s == "SEVEN" {
+        return Some(7);
+    } else if s == "8" || s == "EIGHT" {
+        return Some(8);
+    } else if s == "9" || s == "NINE" {
+        return Some(9);
     }
     None
 }
@@ -106,42 +125,26 @@ fn pretty_decimal<T: Pretty>(sig: &Signature, args: &[T]) -> Option<String> {
     let mut arg = &args[0];
     let mut gathered_digits;
     let mut order_of_mag = 10;
-    if let Some((_, number_arg)) = args[1].as_application() {
-        if number_arg.len() == 0 {
-            gathered_digits = 0;
-        } else if let Some(val) = app_to_number(sig, number_arg) {
-            gathered_digits = val;
-        } else {
-            return None;
-        }
+    if let Some(val) = digit_to_number(sig, &args[1]) {
+        gathered_digits = val;
         while let Some((op, args)) = arg.as_application() {
             match (op.display(sig).as_str(), args.len()) {
                 ("DECC", 2) => {
-                    if let Some((_, number_arg)) = &args[1].as_application() {
+                    if let Some(digit) = digit_to_number(sig, &args[1]) {
                         arg = &args[0];
-                        if number_arg.len() == 0 {
-                            gathered_digits += 0;
-                            order_of_mag *= 10;
-                        } else if let Some(digit) = app_to_number(sig, number_arg) {
-                            gathered_digits = digit * order_of_mag + gathered_digits;
-                            order_of_mag *= 10;
-                        } else {
-                            break;
-                        }
+                        gathered_digits += digit * order_of_mag;
+                        order_of_mag *= 10;
                     } else {
                         break;
                     }
                 }
-                ("SUCC", 1) => {
-                    if let Some(digit) = app_to_number(sig, args) {
-                        gathered_digits = digit * order_of_mag + gathered_digits;
+                (_, 0) => {
+                    if let Some(digit) = str_to_digit(op.display(sig)) {
+                        gathered_digits += digit * order_of_mag;
                         return Some(gathered_digits.to_string());
                     } else {
                         break;
                     }
-                }
-                ("ZERO", 0) | ("0", 0) => {
-                    return Some(gathered_digits.to_string());
                 }
                 _ => break,
             }
