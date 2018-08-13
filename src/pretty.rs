@@ -86,15 +86,31 @@ fn pretty_number<T: Pretty>(sig: &Signature, args: &[T]) -> Option<String> {
     None
 }
 
-fn pretty_decimal<T: Pretty>(sig: &Signature, args: &[T]) -> Option<String> {
-    println!("{}", args.len());
+fn app_to_number<T: Pretty>(sig: &Signature, args: &[T]) -> Option<i32> {
+    let mut increments = 1;
     let mut arg = &args[0];
-    let mut gathered_digits: String;
+    while let Some((op, args)) = arg.as_application() {
+        match (op.display(sig).as_str(), args.len()) {
+            ("SUCC", 1) => {
+                increments += 1;
+                arg = &args[0]
+            }
+            ("ZERO", 0) | ("0", 0) => return Some(increments),
+            _ => break,
+        }
+    }
+    None
+}
+
+fn pretty_decimal<T: Pretty>(sig: &Signature, args: &[T]) -> Option<String> {
+    let mut arg = &args[0];
+    let mut gathered_digits;
+    let mut order_of_mag = 10;
     if let Some((_, number_arg)) = args[1].as_application() {
         if number_arg.len() == 0 {
-            gathered_digits = "0".to_string();
-        } else if let Some(val) = pretty_number(sig, number_arg) {
-            gathered_digits = val.to_string();
+            gathered_digits = 0;
+        } else if let Some(val) = app_to_number(sig, number_arg) {
+            gathered_digits = val;
         } else {
             return None;
         }
@@ -104,9 +120,11 @@ fn pretty_decimal<T: Pretty>(sig: &Signature, args: &[T]) -> Option<String> {
                     if let Some((_, number_arg)) = &args[1].as_application() {
                         arg = &args[0];
                         if number_arg.len() == 0 {
-                            gathered_digits = format!("{}{}", "0", gathered_digits);
-                        } else if let Some(digit) = pretty_number(sig, number_arg) {
-                            gathered_digits = format!("{}{}", digit, gathered_digits);
+                            gathered_digits += 0;
+                            order_of_mag *= 10;
+                        } else if let Some(digit) = app_to_number(sig, number_arg) {
+                            gathered_digits = digit * order_of_mag + gathered_digits;
+                            order_of_mag *= 10;
                         } else {
                             break;
                         }
@@ -115,14 +133,15 @@ fn pretty_decimal<T: Pretty>(sig: &Signature, args: &[T]) -> Option<String> {
                     }
                 }
                 ("SUCC", 1) => {
-                    if let Some(digit) = pretty_number(sig, args) {
-                        return Some(format!("{}{}", digit, gathered_digits));
+                    if let Some(digit) = app_to_number(sig, args) {
+                        gathered_digits = digit * order_of_mag + gathered_digits;
+                        return Some(gathered_digits.to_string());
                     } else {
                         break;
                     }
                 }
                 ("ZERO", 0) | ("0", 0) => {
-                    return Some(gathered_digits);
+                    return Some(gathered_digits.to_string());
                 }
                 _ => break,
             }
