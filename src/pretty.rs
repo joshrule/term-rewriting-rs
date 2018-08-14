@@ -23,6 +23,11 @@ pub trait Pretty: Sized {
                         return s;
                     }
                 }
+                ("DECC", 2) => {
+                    if let Some(s) = pretty_decimal(sig, args) {
+                        return s;
+                    }
+                }
                 (".", 2) => return pretty_binary_application(sig, args, spaces_allowed),
                 ("CONS", 2) => {
                     if let Some(s) = pretty_list(sig, args) {
@@ -76,6 +81,73 @@ fn pretty_number<T: Pretty>(sig: &Signature, args: &[T]) -> Option<String> {
             // number does not terminate with ZERO, so we use the
             // non-special-case printing style
             _ => break,
+        }
+    }
+    None
+}
+
+fn digit_to_number<T: Pretty>(sig: &Signature, arg: &T) -> Option<i32> {
+    if let Some((op, args)) = arg.as_application() {
+        if args.len() > 0 {
+            return None;
+        }
+        return str_to_digit(op.display(sig));
+    }
+    None
+}
+
+fn str_to_digit(s: String) -> Option<i32> {
+    if s == "0" || s == "ZERO" {
+        return Some(0);
+    } else if s == "1" || s == "ONE" {
+        return Some(1);
+    } else if s == "2" || s == "TWO" {
+        return Some(2);
+    } else if s == "3" || s == "THREE" {
+        return Some(3);
+    } else if s == "4" || s == "FOUR" {
+        return Some(4);
+    } else if s == "5" || s == "FIVE" {
+        return Some(5);
+    } else if s == "6" || s == "SIX" {
+        return Some(6);
+    } else if s == "7" || s == "SEVEN" {
+        return Some(7);
+    } else if s == "8" || s == "EIGHT" {
+        return Some(8);
+    } else if s == "9" || s == "NINE" {
+        return Some(9);
+    }
+    None
+}
+
+fn pretty_decimal<T: Pretty>(sig: &Signature, args: &[T]) -> Option<String> {
+    let mut arg = &args[0];
+    let mut gathered_digits;
+    let mut order_of_mag = 10;
+    if let Some(val) = digit_to_number(sig, &args[1]) {
+        gathered_digits = val;
+        while let Some((op, args)) = arg.as_application() {
+            match (op.display(sig).as_str(), args.len()) {
+                ("DECC", 2) => {
+                    if let Some(digit) = digit_to_number(sig, &args[1]) {
+                        arg = &args[0];
+                        gathered_digits += digit * order_of_mag;
+                        order_of_mag *= 10;
+                    } else {
+                        break;
+                    }
+                }
+                (_, 0) => {
+                    if let Some(digit) = str_to_digit(op.display(sig)) {
+                        gathered_digits += digit * order_of_mag;
+                        return Some(gathered_digits.to_string());
+                    } else {
+                        break;
+                    }
+                }
+                _ => break,
+            }
         }
     }
     None
