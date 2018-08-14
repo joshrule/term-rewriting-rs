@@ -3669,6 +3669,41 @@ impl TRS {
         self.rules.insert(idx, rule);
         Ok(self)
     }
+    /// Inserts a series of [`Rule`]s into the `TRS` at the index provided if possible.
+    ///
+    /// [`Rule`]: struct.Rule.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, Rule, parse_rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let mut t = parse_trs(&mut sig,
+    /// "A = B;
+    /// C = D | E;
+    /// F(x_) = H;").expect("parse of A = B; C = D | E; F(x_) = H;");
+    ///
+    /// let r0 = parse_rule(&mut sig, "G(y_) = y_").expect("parse of G(y_) = y_");
+    /// let r1 = parse_rule(&mut sig, "B = C").expect("parse of B = C");
+    /// let r2 = parse_rule(&mut sig, "E = F | B").expect("parse of E = F | B");
+    ///
+    /// t.inserts_idx(2, vec![r0, r1, r2]).expect("inserting 3 rules at index 2");
+    ///
+    /// assert_eq!(t.display(&sig),
+    /// "A = B;
+    /// C = D | E;
+    /// G(y_) = y_;
+    /// B = C;
+    /// E = F | B;
+    /// F(x_) = H;");
+    /// ```
+    pub fn inserts_idx(&mut self, idx: usize, rules: Vec<Rule>) -> Result<&mut TRS, TRSError> {
+        for rule in rules.into_iter().rev() {
+            self.insert_idx(idx, rule)?;
+        }
+        Ok(self)
+    }
     /// Merge a [`Rule`] with an existing [`Rule`] in the `TRS` if possible.
     ///
     /// [`Rule`]: struct.Rule.html
