@@ -119,6 +119,11 @@ impl<'a> Trace<'a> {
         masses.push(f64::NEG_INFINITY);
         1.0 - logsumexp(masses.as_slice()).exp()
     }
+    /// Give all possible outcomes withing `max_steps` of evaluation.
+    pub fn outcomes(&mut self, max_steps: usize) -> Vec<TraceNode> {
+        self.rewrite(max_steps);
+        self.root.leaves(&[TraceState::Normal])
+    }
     /// Sample a possible outcome in proportion to its probability.
     pub fn sample<R: Rng>(&self, rng: &mut R) -> TraceNode {
         let leaves = self.root.leaves(&[TraceState::Normal]);
