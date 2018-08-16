@@ -418,11 +418,14 @@ impl Iterator for TraceNodeIter {
     }
 }
 
-#[inline(always)]
 fn logsumexp(lps: &[f64]) -> f64 {
     let largest = lps.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-    let x = lps.iter().map(|lp| (lp - largest).exp()).sum::<f64>().ln();
-    largest + x
+    if largest == f64::NEG_INFINITY {
+        f64::NEG_INFINITY
+    } else {
+        let x = lps.iter().map(|lp| (lp - largest).exp()).sum::<f64>().ln();
+        largest + x
+    }
 }
 
 /// Samples an item from `xs` given the weights `ws`.
