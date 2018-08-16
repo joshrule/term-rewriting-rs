@@ -36,7 +36,8 @@ pub trait Pretty: Sized {
                 }
                 _ => (),
             }
-            let args_str = args.iter()
+            let args_str = args
+                .iter()
                 .map(|arg| arg.pretty_inner(sig, true))
                 .join(", ");
             format!("{}({})", op_str, args_str)
@@ -88,15 +89,15 @@ fn pretty_number<T: Pretty>(sig: &Signature, args: &[T]) -> Option<String> {
 
 fn digit_to_number<T: Pretty>(sig: &Signature, arg: &T) -> Option<i32> {
     if let Some((op, args)) = arg.as_application() {
-        if args.len() > 0 {
+        if !args.is_empty() {
             return None;
         }
-        return str_to_digit(op.display(sig));
+        return str_to_digit(&op.display(sig));
     }
     None
 }
 
-fn str_to_digit(s: String) -> Option<i32> {
+fn str_to_digit(s: &str) -> Option<i32> {
     if s == "0" || s == "ZERO" {
         return Some(0);
     } else if s == "1" || s == "ONE" {
@@ -139,7 +140,7 @@ fn pretty_decimal<T: Pretty>(sig: &Signature, args: &[T]) -> Option<String> {
                     }
                 }
                 (_, 0) => {
-                    if let Some(digit) = str_to_digit(op.display(sig)) {
+                    if let Some(digit) = str_to_digit(&op.display(sig)) {
                         gathered_digits += digit * order_of_mag;
                         return Some(gathered_digits.to_string());
                     } else {
@@ -171,7 +172,8 @@ fn pretty_binary_application<T: Pretty>(
     }
     rest.push(first);
     rest.reverse();
-    let interior = rest.into_iter()
+    let interior = rest
+        .into_iter()
         .map(|x| x.pretty_inner(sig, false))
         .join(" ");
     if spaces_allowed {

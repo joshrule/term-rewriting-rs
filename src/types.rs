@@ -546,7 +546,8 @@ impl PartialEq for Signature {
     fn eq(&self, other: &Signature) -> bool {
         self.variables.len() == other.variables.len()
             && self.operators.len() == other.operators.len()
-            && self.operators
+            && self
+                .operators
                 .iter()
                 .zip(&other.operators)
                 .all(|(&(arity1, _), &(arity2, _))| arity1 == arity2)
@@ -646,7 +647,7 @@ impl SignatureChange {
                 op: Operator { id },
                 args,
             } => {
-                let id = *self.op_map.get(&id).unwrap();
+                let id = self.op_map[&id];
                 Term::Application {
                     op: Operator { id },
                     args: args.into_iter().map(|t| self.reify_term(t)).collect(),
@@ -689,7 +690,7 @@ impl SignatureChange {
                 op: Operator { id },
                 args,
             } => {
-                let id = *self.op_map.get(&id).unwrap();
+                let id = self.op_map[&id];
                 Context::Application {
                     op: Operator { id },
                     args: args.into_iter().map(|t| self.reify_context(t)).collect(),
@@ -1395,7 +1396,8 @@ impl Term {
     pub fn operators(&self) -> Vec<Operator> {
         match *self {
             Term::Variable(_) => vec![],
-            Term::Application { op, ref args } => args.iter()
+            Term::Application { op, ref args } => args
+                .iter()
                 .flat_map(Term::operators)
                 .chain(iter::once(op))
                 .unique()
@@ -2170,7 +2172,8 @@ impl Rule {
     /// ```
     pub fn discard(&mut self, r: &Rule) -> Option<Rule> {
         if let Some(sub) = Term::alpha(&r.lhs, &self.lhs) {
-            let terms = r.rhs
+            let terms = r
+                .rhs
                 .iter()
                 .map(|rhs| rhs.substitute(&sub))
                 .collect::<Vec<Term>>();
@@ -2305,7 +2308,6 @@ impl Rule {
         let rhs = self.rhs.iter().enumerate().flat_map(|(i, rhs)| {
             iter::repeat(i + 1)
                 .zip(rhs.subterms())
-                .into_iter()
                 .map(|(i, (t, mut p))| {
                     p.insert(0, i);
                     (t, p)
@@ -2673,7 +2675,6 @@ impl RuleContext {
         let rhs = self.rhs.iter().enumerate().flat_map(|(i, rhs)| {
             iter::repeat(i + 1)
                 .zip(rhs.subcontexts())
-                .into_iter()
                 .map(|(i, (t, mut p))| {
                     p.insert(0, i);
                     (t, p)
@@ -2845,7 +2846,8 @@ impl RuleContext {
     /// ```
     pub fn to_rule(&self) -> Result<Rule, ()> {
         let lhs = self.lhs.to_term()?;
-        let rhs = self.rhs
+        let rhs = self
+            .rhs
             .iter()
             .map(|rhs| rhs.to_term())
             .collect::<Result<_, _>>()?;
@@ -2958,7 +2960,8 @@ impl TRS {
     /// ```
     pub fn make_deterministic<R: Rng>(&mut self, rng: &mut R) -> bool {
         if !self.is_deterministic {
-            self.rules = self.rules
+            self.rules = self
+                .rules
                 .iter()
                 .cloned()
                 .map(|r| {
@@ -3261,7 +3264,8 @@ impl TRS {
     /// ```
     pub fn unifies(trs1: TRS, trs2: TRS) -> bool {
         trs1.len() == trs2.len()
-            && trs1.rules
+            && trs1
+                .rules
                 .into_iter()
                 .zip(trs2.rules)
                 .all(|(r1, r2)| Rule::unify(r1, r2).is_some())
@@ -3313,7 +3317,8 @@ impl TRS {
     /// ```
     pub fn pmatches(trs1: TRS, trs2: TRS) -> bool {
         trs1.len() == trs2.len()
-            && trs1.rules
+            && trs1
+                .rules
                 .into_iter()
                 .zip(trs2.rules)
                 .all(|(r1, r2)| Rule::pmatch(r1, r2).is_some())
@@ -3364,7 +3369,8 @@ impl TRS {
         if let Term::Application { op, ref args } = *term {
             for (i, arg) in args.iter().enumerate() {
                 if let Some(v) = self.rewrite(arg) {
-                    let res = v.iter()
+                    let res = v
+                        .iter()
                         .map(|x| {
                             let mut args = args.clone();
                             args[i] = x.clone();
