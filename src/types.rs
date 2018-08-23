@@ -318,7 +318,7 @@ impl Signature {
     ///
     /// parse_term(&mut sig, "A(x_ y_)").expect("parse of A(x_ y_)");
     ///
-    /// let vars: Vec<String> = sig.variables().iter().map(|v| v.display(&sig)).collect();    
+    /// let vars: Vec<String> = sig.variables().iter().map(|v| v.display(&sig)).collect();
     ///
     /// assert_eq!(vars, vec!["x_", "y_"]);
     ///```
@@ -475,7 +475,7 @@ impl Signature {
     ///
     /// let ops: Vec<String> = sig1.operators().iter().map(|op| op.display(&sig1)).collect();
     ///
-    /// assert_eq!(ops, vec![".", "S", "K", "A", "B"]);    
+    /// assert_eq!(ops, vec![".", "S", "K", "A", "B"]);
     /// ```
     pub fn merge(
         &mut self,
@@ -600,7 +600,7 @@ pub enum MergeStrategy {
 ///
 /// let sigchange = sig1.merge(sig2, MergeStrategy::OperatorsByArityAndName).unwrap();
 ///
-/// let ops: Vec<String> = sig1.operators().iter().map(|op| op.display(&sig1)).collect();    
+/// let ops: Vec<String> = sig1.operators().iter().map(|op| op.display(&sig1)).collect();
 ///
 /// assert_eq!(ops, vec![".", "S", "K", "A", "B"]);
 ///
@@ -1108,7 +1108,7 @@ impl Context {
     /// Get the `subcontext` at the given [`Place`], or `None` if the [`Place`] does not exist.
     ///
     /// [`Place`]: type.Place.html
-    ///         
+    ///
     /// # Examples
     ///
     /// ```
@@ -2611,7 +2611,7 @@ impl RuleContext {
     ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(1 0) 5) = [!] CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
     ///
     /// assert_eq!(rule.display(&sig), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(1 0) 5)) = .([!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL))))");
-    /// ```    
+    /// ```
     pub fn display(&self, sig: &Signature) -> String {
         let lhs_str = self.lhs.display(sig);
         let rhs_str = self.rhs.iter().map(|rhs| rhs.display(sig)).join(" | ");
@@ -2629,7 +2629,7 @@ impl RuleContext {
     ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(1 0) 5) = [!] CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
     ///
     /// assert_eq!(rule.pretty(&sig), "A B(x_) [2, 1, 0] 105 = [!] [A, B(x_), 2]");
-    /// ```    
+    /// ```
     pub fn pretty(&self, sig: &Signature) -> String {
         let lhs_str = self.lhs.pretty(sig);
         let rhs_str = self.rhs.iter().map(|rhs| rhs.pretty(sig)).join(" | ");
@@ -3177,7 +3177,7 @@ impl TRS {
     /// "A(x_, y_, z_) = A(x_, 105, 2);
     /// [B, C, D] = [C, D];
     /// B C D E = B C | D E;");
-    /// ```    
+    /// ```
     pub fn pretty(&self, sig: &Signature) -> String {
         self.rules
             .iter()
