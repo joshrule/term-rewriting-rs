@@ -29,32 +29,32 @@
 //! let app = sig.new_op(2, Some(".".to_string()));
 //!
 //! let constructed_term = Term::Application {
-//!     op: app,
+//!     op: app.clone(),
 //!     args: vec![
 //!         Term::Application {
-//!             op: app,
+//!             op: app.clone(),
 //!             args: vec![
 //!                 Term::Application {
-//!                     op: app,
+//!                     op: app.clone(),
 //!                     args: vec![
-//!                         Term::Application { op: s, args: vec![] },
-//!                         Term::Application { op: k, args: vec![] },
+//!                         Term::Application { op: s.clone(), args: vec![] },
+//!                         Term::Application { op: k.clone(), args: vec![] },
 //!                     ]
 //!                 },
-//!                 Term::Application { op: k, args: vec![] }
+//!                 Term::Application { op: k.clone(), args: vec![] }
 //!             ]
 //!         },
 //!         Term::Application {
-//!             op: app,
+//!             op: app.clone(),
 //!             args: vec![
 //!                 Term::Application {
-//!                     op: app,
+//!                     op: app.clone(),
 //!                     args: vec![
-//!                         Term::Application { op: k, args: vec![] },
-//!                         Term::Application { op: s, args: vec![] },
+//!                         Term::Application { op: k.clone(), args: vec![] },
+//!                         Term::Application { op: s.clone(), args: vec![] },
 //!                     ]
 //!                 },
-//!                 Term::Application { op: k, args: vec![] }
+//!                 Term::Application { op: k.clone(), args: vec![] }
 //!             ]
 //!         }
 //!     ]

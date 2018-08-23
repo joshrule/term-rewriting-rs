@@ -23,7 +23,7 @@
 //! let got = trace
 //!     .by_ref()
 //!     .take(5)
-//!     .map(|n| n.term().pretty(&sig))
+//!     .map(|n| n.term().pretty())
 //!     .collect::<Vec<_>>();
 //! assert_eq!(got, expected);
 //! assert!(trace.next().is_none());

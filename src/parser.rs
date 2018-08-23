@@ -201,7 +201,10 @@ impl<'a> Parser<'a> {
                 .enumerate()
                 .skip(self.dv)
                 .find(|&(_, ref var_name)| var_name.as_ref().map(|s| s.as_str()) == Some(name))
-                .map(|(id, _)| Variable { id })
+                .map(|(id, _)| Variable {
+                    id,
+                    sig: self.sig.clone(),
+                })
         }
     }
     /// Returns a [`Variable`] `v` where `v` has the lowest `id` of any [`Variable`] in
@@ -230,7 +233,10 @@ impl<'a> Parser<'a> {
             .find(|&(_, &(op_arity, ref op_name))| {
                 op_arity == arity && op_name.as_ref().map(|s| s.as_str()) == Some(name)
             })
-            .map(|(id, _)| Operator { id })
+            .map(|(id, _)| Operator {
+                id,
+                sig: self.sig.clone(),
+            })
     }
     /// Returns an [`Operator`] with the given `name` with arity `arity`,
     /// creating it if necessary.
@@ -514,7 +520,9 @@ mod tests {
         let mut sig = Signature::default();
         let mut p = Parser::new(&mut sig);
         let abc = p.get_var("abc");
+        println!("point 3");
         let (_, var) = p.variable(CompleteStr("abc_"));
+        println!("point 4");
         assert_eq!(var, Ok((CompleteStr(""), Term::Variable(abc))));
     }
 

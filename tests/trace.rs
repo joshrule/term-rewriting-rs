@@ -19,9 +19,9 @@ fn trace_step() {
     for x in expected {
         node = trace
             .next()
-            .unwrap_or_else(|| panic!("trace step from {} unsuccessful", term.pretty(&sig)));
+            .unwrap_or_else(|| panic!("trace step from {} unsuccessful", term.pretty()));
         term = node.term();
-        assert_eq!(term.pretty(&sig), x)
+        assert_eq!(term.pretty(), x)
     }
     assert!(trace.next().is_none());
 }
@@ -43,7 +43,7 @@ fn trace_rewrite() {
     // leaves
     let leaf_terms_unobserved = trace.root().leaf_terms(&[TraceState::Unobserved]);
     assert_eq!(leaf_terms_unobserved.len(), 1);
-    assert_eq!(leaf_terms_unobserved[0].pretty(&sig), "PLUS(0, 4)");
+    assert_eq!(leaf_terms_unobserved[0].pretty(), "PLUS(0, 4)");
     let leaf_terms_other = trace.root().leaf_terms(&[
         TraceState::Normal,
         TraceState::Rewritten,
@@ -65,9 +65,9 @@ fn trace_rewrite() {
         .map(|n| n.term())
         .collect::<Vec<_>>();
     assert_eq!(terms_r.len(), 3);
-    assert_eq!(terms_r[0].pretty(&sig), "PLUS(3, 1)");
-    assert_eq!(terms_r[1].pretty(&sig), "PLUS(2, 2)");
-    assert_eq!(terms_r[2].pretty(&sig), "PLUS(1, 3)");
+    assert_eq!(terms_r[0].pretty(), "PLUS(3, 1)");
+    assert_eq!(terms_r[1].pretty(), "PLUS(2, 2)");
+    assert_eq!(terms_r[2].pretty(), "PLUS(1, 3)");
     let terms_u = trace
         .root()
         .progeny(&[TraceState::Unobserved])
@@ -75,5 +75,5 @@ fn trace_rewrite() {
         .map(|n| n.term())
         .collect::<Vec<_>>();
     assert_eq!(terms_u.len(), 1);
-    assert_eq!(terms_u[0].pretty(&sig), "PLUS(0, 4)");
+    assert_eq!(terms_u[0].pretty(), "PLUS(0, 4)");
 }

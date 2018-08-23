@@ -6,7 +6,7 @@ use term_rewriting::*;
 
 #[test]
 fn term_substitute_test() {
-    let (mut sig, _) = Signature::new(vec![
+    let mut sig = Signature::new(vec![
         (2, Some(".".to_string())),
         (0, Some("S".to_string())),
         (0, Some("K".to_string())),
@@ -19,11 +19,11 @@ fn term_substitute_test() {
 
     // build a substitution
     let vars = sig.variables();
-    let y = vars[0];
-    let z = vars[1];
+    let y = &vars[0];
+    let z = &vars[1];
     let mut sub = HashMap::new();
-    sub.insert(y, s_term);
-    sub.insert(z, k_term);
+    sub.insert(y.clone(), s_term);
+    sub.insert(z.clone(), k_term);
 
     // build the term after substitution
     let term_after = parse_term(&mut sig, "S K S K").expect("parse of S K S K");
@@ -41,79 +41,80 @@ fn term_substitute_test() {
 
 #[test]
 fn signature_parse() {
-    let (mut sig, ops) = Signature::new(vec![
+    let mut sig = Signature::new(vec![
         (2, Some(".".to_string())),
         (0, Some("S".to_string())),
         (0, Some("K".to_string())),
     ]);
-    let a = ops[0];
-    let s = ops[1];
-    let k = ops[2];
+    let ops = sig.operators();
+    let a = &ops[0];
+    let s = &ops[1];
+    let k = &ops[2];
 
     let sk = "S x_ y_ z_ = x_ z_ (y_ z_); K x_ y_ = x_;";
     let (trs1, _) = parse(&mut sig, sk).expect("parse of SK");
 
     let vars = sig.variables();
-    let x = vars[0];
-    let y = vars[1];
-    let z = vars[2];
-    let x2 = vars[3];
-    let y2 = vars[4];
+    let x = &vars[0];
+    let y = &vars[1];
+    let z = &vars[2];
+    let x2 = &vars[3];
+    let y2 = &vars[4];
 
     let s_lhs = Term::Application {
-        op: a,
+        op: a.clone(),
         args: vec![
             Term::Application {
-                op: a,
+                op: a.clone(),
                 args: vec![
                     Term::Application {
-                        op: a,
+                        op: a.clone(),
                         args: vec![
                             Term::Application {
-                                op: s,
+                                op: s.clone(),
                                 args: vec![],
                             },
-                            Term::Variable(x),
+                            Term::Variable(x.clone()),
                         ],
                     },
-                    Term::Variable(y),
+                    Term::Variable(y.clone()),
                 ],
             },
-            Term::Variable(z),
+            Term::Variable(z.clone()),
         ],
     };
     let s_rhs = vec![Term::Application {
-        op: a,
+        op: a.clone(),
         args: vec![
             Term::Application {
-                op: a,
-                args: vec![Term::Variable(x), Term::Variable(z)],
+                op: a.clone(),
+                args: vec![Term::Variable(x.clone()), Term::Variable(z.clone())],
             },
             Term::Application {
-                op: a,
-                args: vec![Term::Variable(y), Term::Variable(z)],
+                op: a.clone(),
+                args: vec![Term::Variable(y.clone()), Term::Variable(z.clone())],
             },
         ],
     }];
     let s_rule = Rule::new(s_lhs, s_rhs).expect("new S rule");
 
     let k_lhs = Term::Application {
-        op: a,
+        op: a.clone(),
         args: vec![
             Term::Application {
-                op: a,
+                op: a.clone(),
                 args: vec![
                     Term::Application {
-                        op: k,
+                        op: k.clone(),
                         args: vec![],
                     },
-                    Term::Variable(x2),
+                    Term::Variable(x2.clone()),
                 ],
             },
-            Term::Variable(y2),
+            Term::Variable(y2.clone()),
         ],
     };
-    let k_rhs = vec![Term::Variable(x2)];
+    let k_rhs = vec![Term::Variable(x2.clone())];
     let k_rule = Rule::new(k_lhs, k_rhs).expect("new K rule");
 
     let trs2 = TRS::new(vec![s_rule, k_rule]);
@@ -134,22 +135,22 @@ fn unify_test() {
     let t3 = parse_term(&mut sig, "K K K K").expect("parse of K K K K");
     let t4 = parse_term(&mut sig, "y_ K").expect("parse of y_ K");
     let vars = sig.variables();
-    let y = vars[0];
-    let z = vars[1];
-    let y2 = vars[2];
+    let y = &vars[0];
+    let z = &vars[1];
+    let y2 = &vars[2];
 
     let mut hm1 = HashMap::new();
     hm1.insert(
-        y,
+        y.clone(),
         Term::Application {
-            op: s,
+            op: s.clone(),
             args: vec![],
         },
     );
     hm1.insert(
-        z,
+        z.clone(),
         Term::Application {
-            op: k,
+            op: k.clone(),
             args: vec![],
         },
     );
@@ -158,25 +159,25 @@ fn unify_test() {
     assert_eq!(None, Term::unify(vec![(t2.clone(), t3.clone())]));
     let mut hm2 = HashMap::new();
     hm2.insert(
-        y2,
+        y2.clone(),
         Term::Application {
-            op: a,
+            op: a.clone(),
             args: vec![
                 Term::Application {
-                    op: a,
+                    op: a.clone(),
                     args: vec![
                         Term::Application {
-                            op: k,
+                            op: k.clone(),
                             args: vec![],
                         },
                         Term::Application {
-                            op: k,
+                            op: k.clone(),
                             args: vec![],
                         },
                     ],
                 },
                 Term::Application {
-                    op: k,
+                    op: k.clone(),
                     args: vec![],
                 },
             ],
@@ -209,10 +210,10 @@ fn display_variable() {
     let v1 = sig.new_var(None);
     let v2 = sig.new_var(Some("blah".to_string()));
 
-    assert_eq!(v1.display(&sig), "var0_".to_string());
-    assert_eq!(v1.name(&sig), None);
-    assert_eq!(v2.display(&sig), "blah_".to_string());
-    assert_eq!(v2.name(&sig), Some("blah".to_string()));
+    assert_eq!(v1.display(), "var0_".to_string());
+    assert_eq!(v1.name(), None);
+    assert_eq!(v2.display(), "blah_".to_string());
+    assert_eq!(v2.name(), Some("blah".to_string()));
 }
 
 #[test]
@@ -278,7 +279,7 @@ fn parse_display_roundtrip_term() {
     let mut sig = Signature::default();
     let s = "foo(bar(x_) y_ baz)";
     let term = parse_term(&mut sig, s).unwrap_or_else(|_| panic!("parse of {}", s));
-    let ns = term.display(&sig);
+    let ns = term.display();
     assert_eq!(s, ns);
 }
 
@@ -287,7 +288,7 @@ fn parse_display_roundtrip_rule() {
     let mut sig = Signature::default();
     let s = "foo(bar(x_) y_ baz) = bar(y_) | buzz";
     let rule = parse_rule(&mut sig, s).unwrap_or_else(|_| panic!("parse of {}", s));
-    let ns = rule.display(&sig);
+    let ns = rule.display();
     assert_eq!(s, ns);
 }
 
@@ -296,64 +297,64 @@ fn parse_display_roundtrip_trs() {
     let mut sig = Signature::default();
     let s = "foo(bar(x_) y_ baz) = bar(y_) | buzz;\nbar(baz) = foo(bar(baz) bar(baz) baz);";
     let trs = parse_trs(&mut sig, s).unwrap_or_else(|_| panic!("parse of {}", s));
-    let ns = trs.display(&sig);
+    let ns = trs.display();
     assert_eq!(s, ns);
 }
 
 #[test]
 fn pretty_term_application() {
-    let (mut sig, _) = Signature::new(vec![
+    let mut sig = Signature::new(vec![
         (2, Some(".".to_string())),
         (0, Some("S".to_string())),
         (0, Some("K".to_string())),
     ]);
     let t = parse_term(&mut sig, "S K S K").expect("parse of S K S K");
-    assert_eq!(t.display(&sig), ".(.(.(S K) S) K)");
-    assert_eq!(t.pretty(&sig), "S K S K");
+    assert_eq!(t.display(), ".(.(.(S K) S) K)");
+    assert_eq!(t.pretty(), "S K S K");
 }
 
 #[test]
 fn pretty_term_list() {
-    let (mut sig, _) = Signature::new(vec![
+    let mut sig = Signature::new(vec![
         (2, Some("CONS".to_string())),
         (0, Some("NIL".to_string())),
         (0, Some("A".to_string())),
     ]);
     let t = parse_term(&mut sig, "CONS(A CONS(A CONS(A NIL)))")
         .expect("parse of CONS(A CONS(A CONS(A NIL)))");
-    assert_eq!(t.display(&sig), "CONS(A CONS(A CONS(A NIL)))");
-    assert_eq!(t.pretty(&sig), "[A, A, A]");
+    assert_eq!(t.display(), "CONS(A CONS(A CONS(A NIL)))");
+    assert_eq!(t.pretty(), "[A, A, A]");
 }
 
 #[test]
 fn pretty_term_number() {
-    let (mut sig, _) = Signature::new(vec![
+    let mut sig = Signature::new(vec![
         (1, Some("SUCC".to_string())),
         (0, Some("ZERO".to_string())),
         (2, Some("FOO".to_string())),
     ]);
     let t = parse_term(&mut sig, "FOO(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO))")
         .expect("parse of FOO(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO))");
-    assert_eq!(t.display(&sig), "FOO(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO))");
-    assert_eq!(t.pretty(&sig), "FOO(3, 1)");
+    assert_eq!(t.display(), "FOO(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO))");
+    assert_eq!(t.pretty(), "FOO(3, 1)");
 }
 
 #[test]
 fn pretty_term_nonspecial() {
-    let (mut sig, _) = Signature::new(vec![
+    let mut sig = Signature::new(vec![
         (0, Some("FOO".to_string())),
         (1, Some("BAR".to_string())),
         (2, Some("BAZ".to_string())),
     ]);
     let t = parse_term(&mut sig, "BAZ(BAZ(BAR(BAR(FOO)) FOO) FOO)")
         .expect("parse of BAZ(BAZ(BAR(BAR(FOO)) FOO) FOO)");
-    assert_eq!(t.display(&sig), "BAZ(BAZ(BAR(BAR(FOO)) FOO) FOO)");
-    assert_eq!(t.pretty(&sig), "BAZ(BAZ(BAR(BAR(FOO)), FOO), FOO)");
+    assert_eq!(t.display(), "BAZ(BAZ(BAR(BAR(FOO)) FOO) FOO)");
+    assert_eq!(t.pretty(), "BAZ(BAZ(BAR(BAR(FOO)), FOO), FOO)");
 }
 
 #[test]
 fn pretty_trs() {
-    let (mut sig, _) = Signature::new(vec![
+    let mut sig = Signature::new(vec![
         (2, Some(".".to_string())),
         (0, Some("S".to_string())),
         (0, Some("K".to_string())),
@@ -371,7 +372,7 @@ fn pretty_trs() {
         BAZ(FOO BAR(x_)) = BAZ(x_ FOO) | SUCC(x_);";
     let (trs, _) = parse(&mut sig, s).expect("parse of pretty_trs");
     assert_eq!(
-        trs.display(&sig),
+        trs.display(),
         "\
 .(.(.(S x_) y_) z_) = .(.(x_ z_) .(y_ z_));
 .(.(K x_) y_) = x_;
@@ -379,7 +380,7 @@ CONS(FOO CONS(FOO NIL)) = SUCC(SUCC(ZERO));
 BAZ(FOO BAR(x_)) = BAZ(x_ FOO) | SUCC(x_);"
     );
     assert_eq!(
-        trs.pretty(&sig),
+        trs.pretty(),
         "\
 S x_ y_ z_ = x_ z_ (y_ z_);
 K x_ y_ = x_;
