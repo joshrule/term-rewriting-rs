@@ -4,6 +4,7 @@ use rand::Rng;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::iter;
+use std::sync::{Arc, RwLock};
 
 use super::pretty::Pretty;
 
@@ -32,11 +33,10 @@ impl Variable {
     /// let mut sig = Signature::default();
     /// let var = sig.new_var(Some("z".to_string()));
     ///
-    /// assert_eq!(var.name(&sig), Some("z"));
+    /// assert_eq!(var.name(&sig), Some("z".to_string()));
     /// ```
-    pub fn name(self, sig: &Signature) -> Option<&str> {
-        let opt = &sig.variables[self.id];
-        opt.as_ref().map(|s| s.as_str())
+    pub fn name(self, sig: &Signature) -> Option<String> {
+        sig.sig.read().expect("poisoned signature").variables[self.id].clone()
     }
     /// Returns a human-readable, string representation of a `Variable`.
     ///
@@ -50,7 +50,7 @@ impl Variable {
     /// assert_eq!(var.display(&sig), "z_");
     /// ```
     pub fn display(self, sig: &Signature) -> String {
-        if let Some(ref name) = sig.variables[self.id] {
+        if let Some(ref name) = sig.sig.read().expect("poisoned signature").variables[self.id] {
             format!("{}_", name)
         } else {
             format!("var{}_", self.id)
@@ -81,7 +81,7 @@ impl Operator {
     /// assert_eq!(op.arity(&sig), 2);
     /// ```
     pub fn arity(self, sig: &Signature) -> u32 {
-        sig.operators[self.id].0
+        sig.sig.read().expect("poisoned signature").operators[self.id].0
     }
     /// Returns an `Operator`'s name.
     ///
@@ -92,11 +92,10 @@ impl Operator {
     /// let mut sig = Signature::default();
     /// let op = sig.new_op(2, Some("Z".to_string()));
     ///
-    /// assert_eq!(op.name(&sig), Some("Z"));
+    /// assert_eq!(op.name(&sig), Some("Z".to_string()));
     /// ```
-    pub fn name(self, sig: &Signature) -> Option<&str> {
-        let opt = &sig.operators[self.id].1;
-        opt.as_ref().map(|s| s.as_str())
+    pub fn name(self, sig: &Signature) -> Option<String> {
+        sig.sig.read().expect("poisoned signature").operators[self.id].1.clone()
     }
     /// Returns a human-readable, string representation of an `Operator`.
     ///
@@ -110,7 +109,7 @@ impl Operator {
     /// assert_eq!(op.display(&sig), "Z");
     /// ```
     pub fn display(self, sig: &Signature) -> String {
-        if let (_, Some(ref name)) = sig.operators[self.id] {
+        if let (_, Some(ref name)) = sig.sig.read().expect("poisoned signature").operators[self.id] {
             name.clone()
         } else {
             format!("op{}", self.id)
@@ -221,15 +220,8 @@ impl From<Operator> for Atom {
 ///
 /// assert_eq!(sig1, sig2);
 /// ```
-#[derive(Clone, Debug)]
-pub struct Signature {
-    /// Stores the (arity, name) for every [`Operator`].
-    /// [`Operator`]: struct.Operator.html
-    pub(crate) operators: Vec<(u32, Option<String>)>,
-    /// Stores the name for every [`Variable`].
-    /// [`Variable`]: struct.Variable.html
-    pub(crate) variables: Vec<Option<String>>,
-}
+#[derive(Clone)]
+pub struct Signature { pub(crate) sig: Arc<RwLock<Sig>> }
 impl Signature {
     /// Construct a `Signature` with the given [`Operator`]s.
     ///
@@ -271,13 +263,9 @@ impl Signature {
     /// assert_eq!(sig, sig2);
     ///```
     pub fn new(operator_spec: Vec<(u32, Option<String>)>) -> (Signature, Vec<Operator>) {
-        let variables = Vec::new();
-        let sig = Signature {
-            operators: operator_spec,
-            variables,
-        };
-        let ops = sig.operators();
-        (sig, ops)
+        let (sig, ops) = Sig::new(operator_spec);
+        let signature = Signature { sig: Arc::new(RwLock::new(sig)) };
+        (signature, ops)
     }
     /// Returns every [`Operator`] known to the `Signature`, in the order they were created.
     ///
@@ -298,9 +286,7 @@ impl Signature {
     /// assert_eq!(ops, vec![".", "S", "K"]);
     ///```
     pub fn operators(&self) -> Vec<Operator> {
-        (0..self.operators.len())
-            .map(|id| Operator { id })
-            .collect()
+        self.sig.read().expect("poisoned signature").operators()
     }
     /// Returns every [`Variable`] known to the `Signature`, in the order they were created.
     ///
@@ -323,9 +309,7 @@ impl Signature {
     /// assert_eq!(vars, vec!["x_", "y_"]);
     ///```
     pub fn variables(&self) -> Vec<Variable> {
-        (0..self.variables.len())
-            .map(|id| Variable { id })
-            .collect()
+        self.sig.read().expect("poisoned signature").variables()
     }
     /// Returns every [`Atom`] known to the `Signature`.
     ///
@@ -344,9 +328,7 @@ impl Signature {
     /// assert_eq!(atoms, vec!["x_", "y_", "B", "A"]);
     /// ```
     pub fn atoms(&self) -> Vec<Atom> {
-        let vars = self.variables().into_iter().map(Atom::Variable);
-        let ops = self.operators().into_iter().map(Atom::Operator);
-        vars.chain(ops).collect()
+        self.sig.read().expect("poisoned signature").atoms()
     }
     /// Create a new [`Operator`] distinct from all existing [`Operator`]s.
     ///
@@ -367,9 +349,7 @@ impl Signature {
     /// assert_ne!(s, s2);
     /// ```
     pub fn new_op(&mut self, arity: u32, name: Option<String>) -> Operator {
-        let id = self.operators.len();
-        self.operators.push((arity, name));
-        Operator { id }
+        self.sig.write().expect("poisoned signature").new_op(arity, name)
     }
     /// Create a new [`Variable`] distinct from all existing [`Variable`]s.
     ///
@@ -387,9 +367,7 @@ impl Signature {
     /// assert_ne!(z, z2);
     /// ```
     pub fn new_var(&mut self, name: Option<String>) -> Variable {
-        let id = self.variables.len();
-        self.variables.push(name);
-        Variable { id }
+        self.sig.write().expect("poisoned signature").new_var(name)
     }
     /// Merge two `Signature`s. All [`Term`]s, [`Context`]s, [`Rule`]s, and [`TRS`]s associated
     /// with the `other` `Signature` should be `reified` using methods provided
@@ -478,10 +456,83 @@ impl Signature {
     /// assert_eq!(ops, vec![".", "S", "K", "A", "B"]);
     /// ```
     pub fn merge(
-        &mut self,
-        mut other: Signature,
+        &self,
+        other: Signature,
         strategy: MergeStrategy,
     ) -> Result<SignatureChange, ()> {
+        self.sig.write().expect("poisoned signature").merge(
+            other,
+            strategy)
+    }
+}
+impl fmt::Debug for Signature {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let sig = self.sig.read();
+        write!(f, "Signature{{{:?}}}", sig)
+    }
+}
+impl Default for Signature {
+    fn default() -> Signature {
+        Signature { sig: Arc::new(RwLock::new(Sig::default())) }
+    }
+}
+impl PartialEq for Signature {
+    fn eq(&self, other: &Signature) -> bool {
+        self.sig.read().expect("poisoned signature").eq(
+        &other.sig.read().expect("poisoned signature"))
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct Sig {
+    /// Stores the (arity, name) for every [`Operator`].
+    /// [`Operator`]: struct.Operator.html
+    pub(crate) operators: Vec<(u32, Option<String>)>,
+    /// Stores the name for every [`Variable`].
+    /// [`Variable`]: struct.Variable.html
+    pub(crate) variables: Vec<Option<String>>,
+}
+impl Sig {
+    pub fn new(operator_spec: Vec<(u32, Option<String>)>) -> (Sig, Vec<Operator>) {
+        let variables = Vec::new();
+        let sig = Sig {
+            operators: operator_spec,
+            variables,
+        };
+        let ops = sig.operators();
+        (sig, ops)
+    }
+    pub fn operators(&self) -> Vec<Operator> {
+        (0..self.operators.len())
+            .map(|id| Operator { id })
+            .collect()
+    }
+    pub fn variables(&self) -> Vec<Variable> {
+        (0..self.variables.len())
+            .map(|id| Variable { id })
+            .collect()
+    }
+    pub fn atoms(&self) -> Vec<Atom> {
+        let vars = self.variables().into_iter().map(Atom::Variable);
+        let ops = self.operators().into_iter().map(Atom::Operator);
+        vars.chain(ops).collect()
+    }
+    pub fn new_op(&mut self, arity: u32, name: Option<String>) -> Operator {
+        let id = self.operators.len();
+        self.operators.push((arity, name));
+        Operator { id }
+    }
+    pub fn new_var(&mut self, name: Option<String>) -> Variable {
+        let id = self.variables.len();
+        self.variables.push(name);
+        Variable { id }
+    }
+    pub fn merge(
+        &mut self,
+        other: Signature,
+        strategy: MergeStrategy,
+    ) -> Result<SignatureChange, ()> {
+        let mut other = other.sig.write().expect("poisoned signature");
         let op_map =
             match strategy {
                 MergeStrategy::SameOperators => {
@@ -534,16 +585,16 @@ impl Signature {
         Ok(SignatureChange { op_map, delta_var })
     }
 }
-impl Default for Signature {
-    fn default() -> Signature {
-        Signature {
+impl Default for Sig {
+    fn default() -> Sig {
+        Sig {
             operators: Vec::new(),
             variables: Vec::new(),
         }
     }
 }
-impl PartialEq for Signature {
-    fn eq(&self, other: &Signature) -> bool {
+impl PartialEq for Sig {
+    fn eq(&self, other: &Sig) -> bool {
         self.variables.len() == other.variables.len()
             && self.operators.len() == other.operators.len()
             && self

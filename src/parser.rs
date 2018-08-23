@@ -193,6 +193,9 @@ impl<'a> Parser<'a> {
             None
         } else {
             self.sig
+                .sig
+                .read()
+                .expect("poisoned signature")
                 .variables
                 .iter()
                 .enumerate()
@@ -218,6 +221,9 @@ impl<'a> Parser<'a> {
     /// [`Operator`]: struct.Operator.html
     pub fn has_op(&self, name: &str, arity: u32) -> Option<Operator> {
         self.sig
+            .sig
+            .read()
+            .expect("poisoned signature")
             .operators
             .iter()
             .enumerate()
@@ -238,10 +244,10 @@ impl<'a> Parser<'a> {
     }
     /// Forgets every currently tracked `Variable`.
     pub fn clear_variables(&mut self) {
-        self.dv = self.sig.variables.len();
+        self.dv = self.sig.variables().len();
     }
     pub fn new(sig: &'a mut Signature) -> Parser<'a> {
-        let dv = sig.variables.len();
+        let dv = sig.variables().len();
         Parser { sig, dv }
     }
 
@@ -748,7 +754,7 @@ mod tests {
         let p = Parser::new(&mut sig);
         assert_eq!(
             format!("{:?}", p),
-            "Parser { sig: Signature { operators: [], variables: [] }, dv: 0 }"
+            "Parser { sig: Signature{Ok(RwLockReadGuard { lock: RwLock { data: Sig { operators: [], variables: [] } } })}, dv: 0 }"
         );
     }
     #[test]

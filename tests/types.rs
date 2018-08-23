@@ -212,7 +212,7 @@ fn display_variable() {
     assert_eq!(v1.display(&sig), "var0_".to_string());
     assert_eq!(v1.name(&sig), None);
     assert_eq!(v2.display(&sig), "blah_".to_string());
-    assert_eq!(v2.name(&sig), Some("blah"));
+    assert_eq!(v2.name(&sig), Some("blah".to_string()));
 }
 
 #[test]
