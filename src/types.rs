@@ -2973,6 +2973,13 @@ impl RuleContext {
         Rule::new(lhs, rhs).ok_or(())
     }
 }
+impl From<Rule> for RuleContext {
+    fn from(r: Rule) -> RuleContext {
+        let new_lhs = Context::from(r.lhs);
+        let new_rhs = r.rhs.into_iter().map(Context::from).collect();
+        RuleContext::new(new_lhs, new_rhs).unwrap()
+    }
+}
 
 /// A first-order term rewriting system.
 ///
