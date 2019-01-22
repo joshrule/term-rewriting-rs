@@ -576,7 +576,8 @@ impl Sig {
                     if self.operators.len() == other.operators.len()
                         && self.operators.iter().zip(&other.operators).all(
                             |((arity1, op1), (arity2, op2))| *arity1 == *arity2 && *op1 == *op2,
-                        ) {
+                        )
+                    {
                         for idx in 0..self.operators.len() {
                             temp_map.insert(idx, idx);
                         }
@@ -1235,7 +1236,7 @@ impl Context {
     ///
     /// assert_eq!(context.at(p).unwrap().display(), "A");
     /// ```
-    #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::ptr_arg))]
     pub fn at(&self, place: &[usize]) -> Option<&Context> {
         self.at_helper(&*place)
     }
@@ -1654,7 +1655,7 @@ impl Term {
     ///
     /// assert_eq!(t.at(p), Some(&Term::Application { op, args }));
     /// ```
-    #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::ptr_arg))]
     pub fn at(&self, place: &[usize]) -> Option<&Term> {
         self.at_helper(&*place)
     }
@@ -1664,11 +1665,13 @@ impl Term {
         } else {
             match *self {
                 Term::Variable(_) => None,
-                Term::Application { ref args, .. } => if place[0] <= args.len() {
-                    args[place[0]].at_helper(&place[1..].to_vec())
-                } else {
-                    None
-                },
+                Term::Application { ref args, .. } => {
+                    if place[0] <= args.len() {
+                        args[place[0]].at_helper(&place[1..].to_vec())
+                    } else {
+                        None
+                    }
+                }
             }
         }
     }
@@ -1692,7 +1695,7 @@ impl Term {
     ///
     /// assert_eq!(new_term, Some(expected_term));
     /// ```
-    #[cfg_attr(feature = "cargo-clippy", allow(ptr_arg))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::ptr_arg))]
     pub fn replace(&self, place: &[usize], subterm: Term) -> Option<Term> {
         self.replace_helper(&*place, subterm)
     }
@@ -1865,7 +1868,7 @@ impl Term {
             ) => {
                 op2 == omap.entry(op1.clone()).or_insert_with(|| op2.clone())
                     && args1
-                        .into_iter()
+                        .iter()
                         .zip(args2)
                         .all(|(a1, a2)| Term::se_helper(a1, a2, vmap, omap))
             }
@@ -1975,8 +1978,7 @@ impl Term {
                     op: ref h2,
                     args: ref a2,
                 },
-            )) if h1 == h2 =>
-            {
+            )) if h1 == h2 => {
                 cs.append(&mut a1.clone().into_iter().zip(a2.clone().into_iter()).collect());
                 Term::unify_internal(cs, utype)
             }
@@ -2630,7 +2632,8 @@ impl Rule {
         Rule::new(
             self.lhs.substitute(sub),
             self.rhs.iter().map(|rhs| rhs.substitute(sub)).collect(),
-        ).unwrap()
+        )
+        .unwrap()
     }
 }
 

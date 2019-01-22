@@ -1,31 +1,39 @@
+# a configuration for a rust project
 language: rust
+
+# only rebuild dependencies if they or the compiler were upgraded
 cache: cargo
+
+# test on all three channels
 rust:
   - stable
   - beta
   - nightly
+
+# the basic things to test
+before_script:
+  - rustup component add clippy
 script:
   - cargo build --verbose
   - cargo test  --verbose
-  - cargo rustdoc --verbose
+  - cargo doc --verbose
+  - cargo clippy --verbose
 matrix:
   fast_failures: true
   allow_failures:
+    - rust: nightly
     - env: KCOV=1
   include:
+    # test formatting
     - rust: stable
       env: FMT=1
       before_script:
-        - rustup component add rustfmt-preview
+        - rustup component add rustfmt
       script:
         - cargo fmt --all -- --check
-    - rust: nightly
-      env: CLIPPY=1
-      before_script:
-        - rustup component add clippy-preview
-      script:
-        - cargo clippy
-    - env: KCOV=1
+    # test coverage
+    - rust: stable
+      env: KCOV=1
       sudo: required # travis-ci/travis-ci#9061
       before_script:
         - cargo install cargo-update || echo "cargo-update already installed"
