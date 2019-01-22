@@ -52,12 +52,10 @@ fn trace_rewrite() {
     assert!(leaf_terms_other.is_empty());
 
     // all progeny
-    assert!(
-        trace
-            .root()
-            .progeny(&[TraceState::Normal, TraceState::TooBig])
-            .is_empty()
-    );
+    assert!(trace
+        .root()
+        .progeny(&[TraceState::Normal, TraceState::TooBig])
+        .is_empty());
     let terms_r = trace
         .root()
         .progeny(&[TraceState::Rewritten])

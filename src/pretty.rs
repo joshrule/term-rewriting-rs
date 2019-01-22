@@ -186,7 +186,7 @@ fn pretty_list<T: Pretty>(args: &[T]) -> Option<String> {
                         .into_iter()
                         .map(|item| item.pretty_inner(true))
                         .join(", ")
-                ))
+                ));
             }
             // list does not terminate with NIL, so we use the
             // non-special-case printing style
