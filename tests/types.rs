@@ -217,6 +217,17 @@ fn display_variable() {
 }
 
 #[test]
+fn display_operator() {
+    let mut sig = Signature::default();
+
+    let o = sig.new_op(0, None);
+
+    assert_eq!(o.display(), "op0");
+    assert_eq!(o.arity(), 0);
+    assert_eq!(o.name(), None);
+}
+
+#[test]
 fn rule_new_valid() {
     let mut sig = Signature::default();
     let lhs: Term = Term::Application {
