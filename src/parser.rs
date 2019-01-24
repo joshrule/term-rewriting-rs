@@ -46,10 +46,10 @@ impl ::std::error::Error for ParseError {
 /// rule = top-level-term *wsp "=" *wsp top-level-term
 /// rule /= rule *wsp "|" *wsp top-level-term
 ///
-/// top-level-term = term / "(" top-level-term ")"
+/// top-level-term = term
 /// top-level-term /= top-level-term 1*wsp top-level-term
 ///
-/// term = variable / application
+/// term = variable / application / "(" *wsp top-level-term *wsp ")"
 ///
 /// variable = identifier"_"
 ///
@@ -303,18 +303,20 @@ impl<'a> Parser<'a> {
     );
 
     method!(term<Parser<'a>, CompleteStr, Term>, mut self,
-            alt!(call_m!(self.variable) | call_m!(self.application))
+            alt!(call_m!(self.variable) |
+                 call_m!(self.application) |
+                 do_parse!(lparen >>
+                           term: call_m!(self.top_term) >>
+                           rparen >>
+                           (term))
+            )
     );
 
     method!(top_term<Parser<'a>, CompleteStr, Term>, mut self,
             ws!(map!(
                     separated_nonempty_list!(
                         multispace1,
-                        alt!(call_m!(self.term) |
-                             do_parse!(lparen >>
-                                       term: call_m!(self.top_term) >>
-                                       rparen >>
-                                       (term)))),
+                        call_m!(self.term)),
                     |a| {
                         let mut it = a.into_iter();
                         let init = it.next().unwrap();
