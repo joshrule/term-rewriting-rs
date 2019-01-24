@@ -217,7 +217,7 @@ fn display_variable() {
 }
 
 #[test]
-fn display_operator() {
+fn operator_methods() {
     let mut sig = Signature::default();
 
     let o = sig.new_op(0, None);
@@ -225,6 +225,36 @@ fn display_operator() {
     assert_eq!(o.display(), "op0");
     assert_eq!(o.arity(), 0);
     assert_eq!(o.name(), None);
+}
+
+#[test]
+fn atom_methods() {
+    let mut sig = Signature::default();
+
+    let o0 = sig.new_op(0, None);
+    let o1 = sig.new_op(1, Some("A".to_string()));
+    let v0 = sig.new_var(None);
+    let v1 = sig.new_var(Some("X".to_string()));
+
+    // use from
+    let a0 = Atom::from(o0);
+    let a1 = Atom::from(o1);
+    let a2 = Atom::from(v0);
+    let a3 = Atom::from(v1);
+    // test derives
+    assert_eq!(a0, a0.clone());
+    assert_eq!(a0, a0);
+    assert_eq!(a1, a1);
+    assert_ne!(a0, a1);
+    assert_eq!(a2, a2);
+    assert_eq!(a3, a3);
+    assert_ne!(a2, a3);
+    assert_ne!(a1, a2);
+    // test display
+    assert_eq!(a0.display(), "op0");
+    assert_eq!(a1.display(), "A");
+    assert_eq!(a2.display(), "var0_");
+    assert_eq!(a3.display(), "X_");
 }
 
 #[test]
