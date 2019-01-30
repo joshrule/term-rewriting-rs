@@ -200,7 +200,7 @@ fn rewrite_test() {
     let l_term = &terms[0];
     let r_term = terms[1].clone();
 
-    assert_eq!(trs.rewrite(&l_term), Some(vec![r_term]));
+    assert_eq!(trs.rewrite(&l_term, Strategy::Normal), Some(vec![r_term]));
 }
 
 #[test]

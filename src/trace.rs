@@ -6,7 +6,7 @@
 //! rewrites:
 //!
 //! ```
-//! use term_rewriting::{parse, trace::Trace, Signature};
+//! use term_rewriting::{parse, trace::Trace, Signature, Strategy};
 //!
 //! let mut sig = Signature::default();
 //! let inp = "
@@ -17,7 +17,7 @@
 //!     .trim();
 //! let (trs, mut terms) = parse(&mut sig, inp).unwrap();
 //! let mut term = terms.pop().unwrap();
-//! let mut trace = Trace::new(&trs, &term, 0.5, None);
+//! let mut trace = Trace::new(&trs, &term, 0.5, None, Strategy::Normal);
 //!
 //! let expected = vec!["PLUS(3, 1)", "PLUS(2, 2)", "PLUS(1, 3)", "PLUS(0, 4)", "4"];
 //! let got = trace
@@ -38,7 +38,7 @@ use std::collections::BinaryHeap;
 use std::f64;
 use std::sync::{Arc, RwLock, Weak};
 
-use {Term, TRS};
+use {Strategy, Term, TRS};
 
 /// A `Trace` provides first-class control over [`Term`] rewriting.
 ///
@@ -55,6 +55,7 @@ pub struct Trace<'a> {
     unobserved: BinaryHeap<TraceNode>,
     p_observe: f64,
     max_term_size: Option<usize>,
+    strategy: Strategy,
 }
 impl<'a> Trace<'a> {
     /// Create a trace initialized with `term` undergoing rewrites in `trs`. Every step for a node
@@ -64,6 +65,7 @@ impl<'a> Trace<'a> {
         term: &Term,
         p_observe: f64,
         max_term_size: Option<usize>,
+        strategy: Strategy,
     ) -> Trace<'a> {
         let root = TraceNode::new(term.clone(), TraceState::Unobserved, 0.0, 0, None, vec![]);
         let mut unobserved = BinaryHeap::new();
@@ -74,6 +76,7 @@ impl<'a> Trace<'a> {
             unobserved,
             p_observe,
             max_term_size,
+            strategy,
         }
     }
     fn new_node(
@@ -119,7 +122,7 @@ impl<'a> Trace<'a> {
         masses.push(f64::NEG_INFINITY);
         1.0 - logsumexp(masses.as_slice()).exp()
     }
-    /// Give all possible outcomes withing `max_steps` of evaluation.
+    /// Give all possible outcomes within `max_steps` of evaluation.
     pub fn outcomes(&mut self, max_steps: usize) -> Vec<TraceNode> {
         self.rewrite(max_steps);
         self.root.leaves(&[TraceState::Normal])
@@ -132,8 +135,9 @@ impl<'a> Trace<'a> {
     }
     /// Run the `Trace` until no further steps are possible, or until `max_steps` is reached.
     pub fn rewrite(&mut self, max_steps: usize) {
-        if max_steps > 0 {
-            self.nth(max_steps - 1);
+        if max_steps > self.size() {
+            let n_steps = max_steps - self.size();
+            self.nth(n_steps);
         }
     }
     /// A lower bound on the probability that `self` rewrites to `term`.
@@ -165,28 +169,28 @@ impl<'a> Iterator for Trace<'a> {
                         node_w.state = TraceState::TooBig;
                     }
                     _ => match self.trs.rewrite(&node_w.term) {
-                        None => node_w.state = TraceState::Normal,
-                        Some(ref rewrites) if rewrites.is_empty() => {
-                            node_w.state = TraceState::Normal
-                        }
-                        Some(rewrites) => {
-                            let term_selection_p = -(rewrites.len() as f64).ln();
-                            for term in rewrites {
-                                let new_p =
-                                    node_w.log_p + (1.0 - self.p_observe).ln() - term_selection_p;
-                                let new_node = self.new_node(
-                                    term,
-                                    Some(&node),
-                                    node_w.depth + 1,
-                                    TraceState::Unobserved,
-                                    new_p,
-                                );
-                                node_w.children.push(new_node);
+                            None => node_w.state = TraceState::Normal,
+                            Some(ref rewrites) if rewrites.is_empty() => {
+                                node_w.state = TraceState::Normal
                             }
-                            node_w.log_p += self.p_observe.ln();
-                            node_w.state = TraceState::Rewritten;
+                            Some(rewrites) => {
+                                let term_selection_p = -(rewrites.len() as f64).ln();
+                                node_w.log_p += self.p_observe.ln();
+                                node_w.state = TraceState::Rewritten;
+                                for term in rewrites {
+                                    let new_p = node_w.log_p + term_selection_p;
+                                    let new_node = self.new_node(
+                                        term,
+                                        Some(&node),
+                                        node_w.depth + 1,
+                                        TraceState::Unobserved,
+                                        new_p,
+                                    );
+                                    node_w.children.push(new_node);
+                                }
+                            }
                         }
-                    },
+                    }
                 }
             }
             Some(node)

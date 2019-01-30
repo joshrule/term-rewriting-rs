@@ -514,10 +514,10 @@ impl TRS {
         None
     }
     // Return rewrites modifying subterms, if possible, else None.
-    fn rewrite_args(&self, term: &Term) -> Option<Vec<Term>> {
+    fn rewrite_args(&self, term: &Term, strategy: Strategy) -> Option<Vec<Term>> {
         if let Term::Application { ref op, ref args } = *term {
             for (i, arg) in args.iter().enumerate() {
-                if let Some(v) = self.rewrite(arg) {
+                if let Some(v) = self.rewrite(arg, strategy) {
                     let res = v
                         .iter()
                         .map(|x| {
@@ -537,13 +537,29 @@ impl TRS {
             None
         }
     }
-    /// Perform a single rewrite step using a normal-order (leftmost-outermost)
-    /// rewrite strategy.
+    // performs all possible rewrites, else None.
+    fn rewrite_all(&self, term: &Term) -> Option<Vec<Term>> {
+        match term {
+            Term::Variable(_) => None,
+            Term::Application { ref args, .. } => {
+                // rewrite head
+                let mut rewrites = self.rewrite_head(term).unwrap_or_else(|| vec![]);
+                // rewrite subterms
+                for (i, arg) in args.iter().enumerate() {
+                    for rewrite in self.rewrite_all(arg).unwrap_or_else(|| vec![]) {
+                        rewrites.push(term.replace(&[i], rewrite).unwrap());
+                    }
+                }
+                Some(rewrites)
+            }
+        }
+    }
+    /// Perform a single rewrite step.
     ///
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term};
+    /// # use term_rewriting::{Signature, Strategy, TRS, parse_trs, Term, parse_term};
     /// let mut sig = Signature::default();
     ///
     /// let t = parse_trs(&mut sig,
@@ -551,16 +567,38 @@ impl TRS {
     /// C = D | E;
     /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
     ///
-    /// let mut term = parse_term(&mut sig, "J(A K(C A))").expect("parse of J(A K(C A))");
+    /// let term = parse_term(&mut sig, "J(F(C) K(C A))").expect("parse of J(F(C) K(C A))");
     ///
-    /// let rewriten_term = &t.rewrite(&term).unwrap()[0];
+    /// let rewritten_terms = &t.rewrite(&term, Strategy::Normal).unwrap();
+    /// assert_eq!(rewritten_terms.len(), 1);
+    /// assert_eq!(rewritten_terms[0].display(), "J(G K(C A))");
     ///
-    /// assert_eq!(rewriten_term.display(), "J(B K(C A))");
+    /// let rewritten_terms = &t.rewrite(&term, Strategy::Eager).unwrap();
+    /// assert_eq!(rewritten_terms.len(), 2);
+    /// assert_eq!(rewritten_terms[0].display(), "J(F(D) K(C A))");
+    /// assert_eq!(rewritten_terms[1].display(), "J(F(E) K(C A))");
+    ///
+    /// let rewritten_terms = &t.rewrite(&term, Strategy::All).unwrap();
+    /// assert_eq!(rewritten_terms.len(), 6);
+    /// assert_eq!(rewritten_terms[0].display(), "J(G K(C A))");
+    /// assert_eq!(rewritten_terms[1].display(), "J(F(D) K(C A))");
+    /// assert_eq!(rewritten_terms[2].display(), "J(F(E) K(C A))");
+    /// assert_eq!(rewritten_terms[3].display(), "J(F(C) K(D A))");
+    /// assert_eq!(rewritten_terms[4].display(), "J(F(C) K(E A))");
+    /// assert_eq!(rewritten_terms[5].display(), "J(F(C) K(C B))");
     /// ```
-    pub fn rewrite(&self, term: &Term) -> Option<Vec<Term>> {
+    pub fn rewrite(&self, term: &Term, strategy: Strategy) -> Option<Vec<Term>> {
         match *term {
             Term::Variable(_) => None,
-            ref app => self.rewrite_head(app).or_else(|| self.rewrite_args(app)),
+            ref app => match strategy {
+                Strategy::Normal => self
+                    .rewrite_head(app)
+                    .or_else(|| self.rewrite_args(app, strategy)),
+                Strategy::Eager => self
+                    .rewrite_args(app, strategy)
+                    .or_else(|| self.rewrite_head(app)),
+                Strategy::All => self.rewrite_all(app),
+            },
         }
     }
     /// Query a `TRS` for a [`Rule`] based on its left-hand-side; return both
@@ -1027,6 +1065,25 @@ impl TRS {
     pub fn replace(&mut self, idx: usize, rule1: &Rule, rule2: Rule) -> Result<&mut TRS, TRSError> {
         self.remove_clauses(rule1)?;
         self.insert(idx, rule2)
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum Strategy {
+    /// Perform only the leftmost-innermost rewrite
+    Normal,
+    /// Perform only the leftmost-innermost rewrite
+    Eager,
+    /// Perform all possible rewrites
+    All,
+}
+impl fmt::Display for Strategy {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Strategy::Normal => write!(f, "Normal"),
+            Strategy::Eager => write!(f, "Eager"),
+            Strategy::All => write!(f, "All"),
+        }
     }
 }
 
