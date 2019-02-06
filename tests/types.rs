@@ -365,6 +365,10 @@ fn pretty_term_list() {
         .expect("parse of CONS(A CONS(A CONS(A NIL)))");
     assert_eq!(t.display(), "CONS(A CONS(A CONS(A NIL)))");
     assert_eq!(t.pretty(), "[A, A, A]");
+
+    let t = parse_term(&mut sig, "CONS(A A)").expect("parse of term");
+    assert_eq!(t.display(), "CONS(A A)");
+    assert_eq!(t.pretty(), "CONS(A, A)");
 }
 
 #[test]
@@ -373,11 +377,40 @@ fn pretty_term_number() {
         (1, Some("SUCC".to_string())),
         (0, Some("ZERO".to_string())),
         (2, Some("FOO".to_string())),
+        (1, Some("DIGIT".to_string())),
+        (2, Some("DECC".to_string())),
+        (0, Some("ONE".to_string())),
+        (0, Some("TWO".to_string())),
+        (0, Some("THREE".to_string())),
+        (0, Some("FOUR".to_string())),
+        (0, Some("FIVE".to_string())),
+        (0, Some("SIX".to_string())),
+        (0, Some("SEVEN".to_string())),
+        (0, Some("EIGHT".to_string())),
+        (0, Some("NINE".to_string())),
     ]);
+
+    // test normal unary
     let t = parse_term(&mut sig, "FOO(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO))")
         .expect("parse of FOO(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO))");
     assert_eq!(t.display(), "FOO(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO))");
     assert_eq!(t.pretty(), "FOO(3, 1)");
+
+    // test broken unary
+    let t = parse_term(&mut sig, "SUCC(SUCC(ONE))").expect("parse of term");
+    assert_eq!(t.display(), "SUCC(SUCC(ONE))");
+    assert_eq!(t.pretty(), "SUCC(SUCC(ONE))");
+
+    // test normal decimal
+    let t = parse_term(&mut sig, "FOO(DIGIT(ZERO) DECC(DECC(DECC(DECC(DECC(DECC(DECC(DECC(DIGIT(NINE) EIGHT) SEVEN) SIX) FIVE) FOUR) THREE) TWO) ONE))")
+        .expect("parse of term");
+    assert_eq!(t.display(), "FOO(DIGIT(ZERO) DECC(DECC(DECC(DECC(DECC(DECC(DECC(DECC(DIGIT(NINE) EIGHT) SEVEN) SIX) FIVE) FOUR) THREE) TWO) ONE))");
+    assert_eq!(t.pretty(), "FOO(0, 987654321)");
+
+    // test broken decimal
+    let t = parse_term(&mut sig, "DIGIT(FOO(ONE NINE))").expect("parse of term");
+    assert_eq!(t.display(), "DIGIT(FOO(ONE NINE))");
+    assert_eq!(t.pretty(), "DIGIT(FOO(ONE, NINE))");
 }
 
 #[test]
