@@ -440,9 +440,7 @@ impl<'a> Parser<'a> {
     );
 
     method!(trs<Parser<'a>, CompleteStr, TRS>, mut self,
-            ws!(add_return_error!(
-                ErrorKind::Custom(1),
-                do_parse!(
+            ws!(do_parse!(
                     rules: many0!(
                         do_parse!(
                             many0!(ws!(call_m!(self.comment))) >>
@@ -450,18 +448,16 @@ impl<'a> Parser<'a> {
                             ws!(semicolon) >>
                             many0!(ws!(call_m!(self.comment))) >>
                             ({ self.clear_variables(); rule }))) >>
-                    (TRS::new(rules)))))
+                    (TRS::new(rules))))
     );
 
     method!(program<Parser<'a>, CompleteStr, Vec<Statement>>, mut self,
-            ws!(add_return_error!(
-                ErrorKind::Custom(1),
-                many0!(do_parse!(many0!(ws!(call_m!(self.comment))) >>
+            ws!(many0!(do_parse!(many0!(ws!(call_m!(self.comment))) >>
                                  statement: alt!(call_m!(self.rule_statement) |
                                                  call_m!(self.term_statement)) >>
                                  ws!(semicolon) >>
                                  many0!(ws!(call_m!(self.comment))) >>
-                                 ({ self.clear_variables(); statement })))))
+                                 ({ self.clear_variables(); statement }))))
     );
 }
 
@@ -515,6 +511,14 @@ mod tests {
             underscore(CompleteStr("_")),
             Ok((CompleteStr(""), CompleteStr("_")))
         );
+    }
+
+    #[test]
+    fn has_var_test() {
+        let mut sig = Signature::default();
+        let p = Parser::new(&mut sig);
+        let none = p.has_var("");
+        assert_eq!(None, none);
     }
 
     #[test]
@@ -703,6 +707,34 @@ mod tests {
             args: vec![],
         }];
         let rule = Statement::Rule(Rule::new(lhs, rhs).unwrap());
+
+        assert_eq!(parsed_rule, Ok((CompleteStr(""), rule)));
+    }
+
+    #[test]
+    fn rulecontext_test() {
+        let mut sig = Signature::default();
+        let mut p = Parser::new(&mut sig);
+        let a = p.get_op("a", 0);
+        let x = p.get_var("x");
+        let c = p.get_op("c", 1);
+        let d = p.get_op(".", 2);
+        let (_, parsed_rule) = p.rulecontext(CompleteStr("a c(x_) = [!]"));
+        let lhs = Context::Application {
+            op: d,
+            args: vec![
+                Context::Application {
+                    op: a,
+                    args: vec![],
+                },
+                Context::Application {
+                    op: c,
+                    args: vec![Context::Variable(x)],
+                },
+            ],
+        };
+        let rhs = vec![Context::Hole];
+        let rule = RuleContext::new(lhs, rhs).unwrap();
 
         assert_eq!(parsed_rule, Ok((CompleteStr(""), rule)));
     }
