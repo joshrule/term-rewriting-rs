@@ -168,29 +168,28 @@ impl<'a> Iterator for Trace<'a> {
                     Some(max_term_size) if node_w.term.size() > max_term_size => {
                         node_w.state = TraceState::TooBig;
                     }
-                    _ => match self.trs.rewrite(&node_w.term) {
-                            None => node_w.state = TraceState::Normal,
-                            Some(ref rewrites) if rewrites.is_empty() => {
-                                node_w.state = TraceState::Normal
-                            }
-                            Some(rewrites) => {
-                                let term_selection_p = -(rewrites.len() as f64).ln();
-                                node_w.log_p += self.p_observe.ln();
-                                node_w.state = TraceState::Rewritten;
-                                for term in rewrites {
-                                    let new_p = node_w.log_p + term_selection_p;
-                                    let new_node = self.new_node(
-                                        term,
-                                        Some(&node),
-                                        node_w.depth + 1,
-                                        TraceState::Unobserved,
-                                        new_p,
-                                    );
-                                    node_w.children.push(new_node);
-                                }
+                    _ => match self.trs.rewrite(&node_w.term, self.strategy) {
+                        None => node_w.state = TraceState::Normal,
+                        Some(ref rewrites) if rewrites.is_empty() => {
+                            node_w.state = TraceState::Normal
+                        }
+                        Some(rewrites) => {
+                            let term_selection_p = -(rewrites.len() as f64).ln();
+                            node_w.log_p += self.p_observe.ln();
+                            node_w.state = TraceState::Rewritten;
+                            for term in rewrites {
+                                let new_p = node_w.log_p + term_selection_p;
+                                let new_node = self.new_node(
+                                    term,
+                                    Some(&node),
+                                    node_w.depth + 1,
+                                    TraceState::Unobserved,
+                                    new_p,
+                                );
+                                node_w.children.push(new_node);
                             }
                         }
-                    }
+                    },
                 }
             }
             Some(node)
