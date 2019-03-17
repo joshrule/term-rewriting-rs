@@ -677,3 +677,199 @@ impl SignatureChange {
         TRS { rules, ..trs }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::super::{Signature};
+    use super::super::super::parser::*;
+    use super::*;
+
+    #[test]
+    fn new_test() {
+
+    }
+
+    #[test]
+    fn operators_test() {
+
+    }
+
+    #[test]
+    fn variables_test() {
+
+    }
+
+    #[test]
+    fn atoms_test() {
+        let mut sig = Signature::default();
+        
+        parse_term(&mut sig, "A(x_ B(y_))").expect("parse of A(x_ B(y_))");
+        
+        let atoms: Vec<String> = sig.atoms().iter().map(|a| a.display()).collect();
+        
+        assert_eq!(atoms, vec!["x_", "y_", "B", "A"]);
+    }
+
+    #[test]
+    fn new_op_test() {
+
+    }
+
+    #[test]
+    fn new_var() {
+
+    }
+
+    #[test]
+    fn signature_merge_test() {
+        // Merging 2 signatures by assuming all operators in the second are distinct from the first.
+        let sig1 = Signature::new(vec![
+            (2, Some(".".to_string())),
+            (0, Some("S".to_string())),
+            (0, Some("K".to_string())),
+        ]);
+        
+        let sig2 = Signature::new(vec![
+            (2, Some("A".to_string())),
+            (1, Some("B".to_string())),
+            (0, Some("C".to_string())),
+        ]);
+        
+        sig1.merge(&sig2, MergeStrategy::DistinctOperators).expect("merge of distinct operators");
+        
+        let ops: Vec<String> = sig1.operators().iter().map(|op| op.display()).collect();
+        
+        assert_eq!(ops, vec![".", "S", "K", "A", "B", "C"]);
+        
+        // Merging 2 signatures by assuming all operators in the second are the same from the first.
+        let sig1 = Signature::new(vec![
+            (2, Some(".".to_string())),
+            (0, Some("S".to_string())),
+            (0, Some("K".to_string())),
+        ]);
+        
+        let sig2 = Signature::new(vec![
+            (2, Some(".".to_string())),
+            (0, Some("S".to_string())),
+            (0, Some("K".to_string())),
+        ]);
+        
+        sig1.merge(&sig2, MergeStrategy::SameOperators).expect("merge of same operators");
+        
+        let ops: Vec<String> = sig1.operators().iter().map(|op| op.display()).collect();
+        
+        assert_eq!(ops, vec![".", "S", "K"]);
+        
+        // Merging 2 signatures by SameOperators should fail if all operators in both signatures are not the same.
+        let sig1 = Signature::new(vec![
+            (2, Some(".".to_string())),
+            (0, Some("S".to_string())),
+            (0, Some("K".to_string())),
+        ]);
+        
+        let sig2 = Signature::new(vec![
+            (2, Some(".".to_string())),
+            (1, Some("S".to_string())),
+            (0, Some("K".to_string())),
+        ]);
+        
+        assert!(sig1.merge(&sig2, MergeStrategy::SameOperators).is_err());
+        
+        // Merging 2 signatures assuming any operators with the same name and arity are the same.
+        let sig1 = Signature::new(vec![
+            (2, Some(".".to_string())),
+            (0, Some("S".to_string())),
+            (0, Some("K".to_string())),
+        ]);
+        
+        let sig2 = Signature::new(vec![
+            (2, Some("A".to_string())),
+            (1, Some("B".to_string())),
+            (0, Some("K".to_string())),
+        ]);
+        
+        sig1.merge(&sig2, MergeStrategy::OperatorsByArityAndName).expect("merge of same arity and name");
+        
+        let ops: Vec<String> = sig1.operators().iter().map(|op| op.display()).collect();
+        
+        assert_eq!(ops, vec![".", "S", "K", "A", "B"]);     
+    }
+
+    #[test]
+    fn sig_merge_test() {
+
+    }
+
+    #[test]
+    fn reify_term_test() {
+        let sig1 = Signature::new(vec![
+            (2, Some(".".to_string())),
+            (0, Some("S".to_string())),
+            (0, Some("K".to_string())),
+        ]);
+        let mut sig2 = Signature::default();
+        
+        let term = parse_term(&mut sig2, "A B").unwrap();
+        
+        let sigchange = sig1.merge(&sig2, MergeStrategy::DistinctOperators).unwrap();
+        
+        let term = sigchange.reify_term(&sig1, term);
+        
+        assert_eq!(term.pretty(), "A B");     
+    }
+
+    #[test]
+    fn reify_context_test() {
+        let sig1 = Signature::new(vec![
+            (2, Some(".".to_string())),
+            (0, Some("S".to_string())),
+            (0, Some("K".to_string())),
+        ]);
+        let mut sig2 = Signature::default();
+        
+        let context = parse_context(&mut sig2, "A([!] B)").expect("parse of A([!] B)");
+        
+        let sigchange = sig1.merge(&sig2, MergeStrategy::OperatorsByArityAndName).unwrap();
+        
+        let context = sigchange.reify_context(&sig1, context);
+        
+        assert_eq!(context.pretty(), "A([!], B)");
+    }
+
+    #[test]
+    fn reify_rule_test() {
+        let sig1 = Signature::new(vec![
+            (2, Some(".".to_string())),
+            (0, Some("S".to_string())),
+            (0, Some("K".to_string())),
+        ]);
+        let mut sig2 = Signature::default();
+        
+        let rule = parse_rule(&mut sig2, "A = B | C").unwrap();
+        
+        let sigchange = sig1.merge(&sig2, MergeStrategy::OperatorsByArityAndName).unwrap();
+        
+        let rule = sigchange.reify_rule(&sig1, rule);
+        
+        assert_eq!(rule.pretty(), "A = B | C");
+    }
+
+    #[test]
+    fn reify_trs_test() {
+        let sig1 = Signature::new(vec![
+            (2, Some(".".to_string())),
+            (0, Some("S".to_string())),
+            (0, Some("K".to_string())),
+        ]);
+        let mut sig2 = Signature::default();
+        
+        let trs = parse_trs(&mut sig2, "A = B;\nC = B;").unwrap();
+        
+        let sigchange = sig1.merge(&sig2, MergeStrategy::OperatorsByArityAndName).unwrap();
+        
+        let trs = sigchange.reify_trs(&sig1, trs);
+        
+        assert_eq!(trs.pretty(), "A = B;\nC = B;");  
+    }
+}

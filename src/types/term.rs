@@ -1123,3 +1123,446 @@ impl Term {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::{Signature, Context, Atom, Term, Variable};
+    use super::super::super::parser::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn context_display_test() {
+        let mut sig = Signature::default();
+        
+        let context = parse_context(&mut sig, 
+            "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)")
+            .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)") ;
+        
+        assert_eq!(context.display(), 
+            ".(.(.(.(x_ [!]) A) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5))");
+        }
+
+    #[test]
+    fn context_pretty_test() {
+        let mut sig = Signature::default();
+        
+        let context = parse_context(&mut sig, "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)")
+            .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)") ;
+        
+        assert_eq!(context.pretty(), "x_ [!] A [2, 1, 0] 105");
+    }
+
+    #[test]
+    fn context_atoms_test() {
+        let mut sig = Signature::default();
+        
+        let context = parse_context(&mut sig, "A(B x_ [!])").expect("parse of A(B x_ [!])");
+        
+        let atoms: Vec<String> = context.atoms().iter().map(|a| a.display()).collect();
+        
+        assert_eq!(atoms, vec!["x_", "B", "A"]);
+    }
+
+    // #[test]
+    // fn context_variables_test() {
+    //     let mut sig = Signature::default();
+    
+    //     let context = parse_context(&mut sig, "A([!]) B y_ z_").expect("parse of A([!]) B y_ z_");
+        
+    //     let var_names: Vec<String> = context.variables().iter().map(|v| v.display()).collect();
+        
+    //     assert_eq!(var_names, vec!["y_".to_string(), "z_".to_string()]);
+    // 
+    // }
+
+    #[test]
+    fn context_operators_test() {
+        let mut sig = Signature::default();
+        
+        let context = parse_context(&mut sig, "A([!]) B y_ z_").expect("parse of A([!]) B y_ z_");
+        
+        let op_names: Vec<String> = context.operators().iter().map(|v| v.display()).collect();
+        
+        assert_eq!(op_names, vec!["A".to_string(), 
+            "B".to_string(), ".".to_string()]);
+    }
+
+    #[test]
+    fn hole_test() {
+        let mut sig = Signature::default();
+        
+        let context = parse_context(&mut sig, "A([!] B([!]) y_ z_)").expect("parse of A([!] B([!]) y_ z_)");
+        
+        let p: &[usize] = &[0];
+        let p2: &[usize] = &[1, 0];
+        
+        assert_eq!(context.holes(), vec![p, p2]);
+    }
+
+    #[test]
+    fn context_head_test() {
+        let mut sig = Signature::default();
+        
+        let context = parse_context(&mut sig, "A(B([!]) z_)").expect("parse of A(B([!]) z_)");
+        
+        assert_eq!(context.head().unwrap().display(), "A");
+    }
+
+    #[test]
+    fn context_args_test() {
+        let mut sig = Signature::default();
+        
+        let context = parse_context(&mut sig, "A B").expect("parse of A B");
+        let args: Vec<String> = context.args().iter().map(|arg| arg.display()).collect();
+        
+        assert_eq!(args, vec!["A", "B"]);
+        
+        let context = parse_context(&mut sig, "A(y_)").expect("parse of A(y_)");
+        let args: Vec<String> = context.args().iter().map(|arg| arg.display()).collect();
+        
+        assert_eq!(args, vec!["y_"]);
+    }
+
+    #[test]
+    fn subcontexts_test() {
+        let mut sig = Signature::default();
+        
+        let context = parse_context(&mut sig, "A(B [!])").expect("parse of A(B [!])");
+        
+        let p: Vec<usize> = vec![];
+        let subcontext0 = parse_context(&mut sig, "A(B [!])").expect("parse of A(B [!])");
+        
+        let p1: Vec<usize> = vec![0];
+        let subcontext1 = parse_context(&mut sig, "B").expect("parse of B");
+        
+        let p2: Vec<usize> = vec![1];
+        let subcontext2 = Context::Hole;
+        
+        assert_eq!(context.subcontexts(), vec![(&subcontext0, p), (&subcontext1, p1), (&subcontext2, p2)]);
+    }
+
+    #[test]
+    fn context_size_test() {
+        let mut sig = Signature::default();
+        let context = parse_context(&mut sig, "A B").expect("parse of A B");
+        
+        assert_eq!(context.size(), 3);
+        
+        let context = parse_context(&mut sig, "A(B)").expect("parse of A(B)");
+        
+        assert_eq!(context.size(), 2);
+    }
+
+    #[test]
+    fn context_at_test() {
+        let mut sig = Signature::default();
+        let context = parse_context(&mut sig, "B(A)").expect("parse of B(A)");
+        
+        let p: &[usize] = &[7];
+        
+        assert_eq!(context.at(p), None);
+        
+        let p: &[usize] = &[0];
+        
+        assert_eq!(context.at(p).unwrap().display(), "A");
+    }
+
+    #[test]
+    fn context_replace_test() {
+        let mut sig = Signature::default();
+        
+        let context = parse_context(&mut sig, "B(A)").expect("parse of B(A)");
+        let context2 = parse_context(&mut sig, "C [!]").expect("parse of C [!]");
+        
+        let p: &[usize] = &[0];
+        let new_context = context.replace(p, context2);
+        
+        assert_eq!(new_context.unwrap().pretty(), "B(C [!])"); 
+    }
+
+    #[test]
+    fn to_term_test() {
+        let mut sig = Signature::default();
+        
+        let context = parse_context(&mut sig, "A(B [!])").expect("parse of A(B [!])");
+        
+        assert!(context.to_term().is_err());
+        
+        let context = parse_context(&mut sig, "A(B C)").expect("parse of A(B C)");
+        
+        let term = context.to_term().expect("converting context to term");
+        
+        assert_eq!(term.display(), "A(B C)"); 
+    }
+
+    // #[test]
+    // fn term_display_test() {
+    //     let mut sig = Signature::default();
+        
+    //     let term = parse_term(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)")
+    //          .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)");
+        
+    //     assert_eq!(term.display(), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5))");
+    // }
+
+    #[test]
+    fn term_pretty_test() {
+        let mut sig = Signature::default();
+        
+        let term = parse_term(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)")
+             .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)");
+        
+        assert_eq!(term.pretty(), "A B(x_) [2, 1, 0] 105");
+    }
+
+    #[test]
+    fn term_atoms_test() {
+        let mut sig = Signature::default();
+        
+        let example_term = parse_term(&mut sig, "A(B x_)").expect("parse of A(B x_)");
+        let atoms: Vec<String> = example_term.atoms().iter().map(|a| a.display()).collect();
+        
+        assert_eq!(atoms, vec!["x_", "B", "A"]);
+    }
+
+    #[test]
+    fn term_variables_test() {
+        let mut sig = Signature::default();
+        
+        let t = parse_term(&mut sig, "A B y_ z_").expect("parse of A B y_ z_");
+        let var_names: Vec<String> = t.variables().iter().map(|v| v.display()).collect();
+        
+        assert_eq!(var_names, vec!["y_", "z_"]);
+    }
+
+    #[test]
+    fn term_operators_test() {
+        let mut sig = Signature::default();
+        
+        let t = parse_term(&mut sig, "A B y_ z_").expect("parse of A B y_ z_");
+        let op_names: Vec<String> = t.operators().iter().map(|v| v.display()).collect();
+        
+        assert_eq!(op_names, vec!["A", "B", "."]);
+    }
+
+    #[test]
+    fn term_head_test() {
+        let mut sig = Signature::default();
+        
+        let op = sig.new_op(2, Some("A".to_string()));
+        let t = parse_term(&mut sig, "A(B z_)").expect("parse of A(B z_)");
+        
+        assert_eq!(t.atoms().len(), 3);
+        assert_eq!(t.head(), Atom::Operator(op));
+    }
+    
+    #[test]
+    fn term_args_test() {
+        let mut sig = Signature::default();
+        
+        let t = parse_term(&mut sig, "C(A B)").expect("parse of C(A B)");
+        let arg0 = parse_term(&mut sig, "A").expect("parse of A");
+        let arg1 = parse_term(&mut sig, "B").expect("parse of B");
+        
+        assert_eq!(t.args(), vec![arg0, arg1]);
+        
+        let t2 = parse_term(&mut sig, "A").expect("parse of A");
+        
+        assert_eq!(t2.args(), vec![]);  
+    }
+
+    #[test]
+    fn subterms_test() {
+        let mut sig = Signature::default();
+        
+        let b = sig.new_op(0, Some("B".to_string()));
+        let a = sig.new_op(1, Some("A".to_string()));
+        
+        let p: Vec<usize> = vec![];
+        let p1: Vec<usize> = vec![0];
+        let t = parse_term(&mut sig, "A(B)").expect("parse of A(B)");
+        let subterm0 = Term::Application {
+            op: a.clone(),
+            args: vec![Term::Application {
+                op: b.clone(),
+                args: vec![],
+            }],
+        };
+
+        let subterm1 = Term::Application {
+             op: b.clone(),
+             args: vec![],
+        };
+        
+        assert_eq!(t.subterms(), vec![(&subterm0, p), (&subterm1, p1)]);       
+    }
+
+    #[test]
+    fn term_size_test() {
+        let mut sig = Signature::default();
+        
+        let t = parse_term(&mut sig, "A B").expect("parse of A B");
+        
+        assert_eq!(t.size(), 3);
+        
+        let t = parse_term(&mut sig, "A(B)").expect("parse of A(B)");
+        
+        assert_eq!(t.size(), 2);
+    }
+
+    #[test]
+    fn term_at_test() {
+        let mut sig = Signature::default();
+        let op = sig.new_op(0, Some("A".to_string()));
+        let t = parse_term(&mut sig, "B(A)").expect("parse of B(A)");
+        
+        assert_eq!(t.size(), 2);
+        let p: &[usize] = &[7];
+        
+        assert_eq!(t.at(p), None);
+        
+        let p: &[usize] = &[0];
+        let args = vec![];
+        
+        assert_eq!(t.at(p), Some(&Term::Application { op, args }));        
+    }
+
+    #[test]
+    fn term_replace() {
+        let mut sig = Signature::default();
+        
+        let t = parse_term(&mut sig, "B(A)").expect("parse of B(A)");
+        let t2 = parse_term(&mut sig, "C").expect("parse of C");
+        let expected_term = parse_term(&mut sig, "B(C)").expect("parse of B(C)");
+        
+        let p: &[usize] = &[0];
+        let new_term = t.replace(p, t2);
+        
+        assert_eq!(new_term, Some(expected_term));        
+    }
+
+    #[test]
+    fn term_substitute_test() {
+        let mut sig = Signature::default();
+        
+        let term_before = parse_term(&mut sig, "S K y_ z_").expect("parse of S K y_ z_");
+        let s_term = parse_term(&mut sig, "S").expect("parse of S");
+        let k_term = parse_term(&mut sig, "K").expect("parse of K");
+        
+        let vars = sig.variables();
+        let y = &vars[0];
+        let z = &vars[1];
+        
+        let mut sub = HashMap::new();
+        sub.insert(y.clone(), s_term);
+        sub.insert(z.clone(), k_term);
+        
+        let expected_term = parse_term(&mut sig, "S K S K").expect("parse of S K S K");
+        let subbed_term = term_before.substitute(&sub);
+        
+        assert_eq!(subbed_term, expected_term);        
+    }
+
+    #[test]
+    fn constraint_substitute_test() {
+
+    }
+
+    #[test]
+    fn alpha_test() {
+        let mut sig = Signature::default();
+        let _s = sig.new_op(0, Some("S".to_string()));
+        
+        let t = parse_term(&mut sig, "S K y_ z_").expect("parse of S K y_ z_");
+        let t2 = parse_term(&mut sig, "S K a_ b_").expect("parse of S K a_ b_");
+        let t3 = parse_term(&mut sig, "S K y_").expect("parse of S K y_");
+        
+        let vars = sig.variables();
+        let (y, z, a, b) = (vars[0].clone(), vars[1].clone(), vars[2].clone(), vars[3].clone());
+        
+        assert_eq!(y.display(), "y_".to_string());
+        assert_eq!(z.display(), "z_".to_string());
+        assert_eq!(a.display(), "a_".to_string());
+        assert_eq!(b.display(), "b_".to_string());
+        
+        let mut expected_alpha: HashMap<Variable, Term> = HashMap::new();
+        expected_alpha.insert(y, Term::Variable(a));
+        expected_alpha.insert(z, Term::Variable(b));
+        
+        assert_eq!(Term::alpha(&t, &t2), Some(expected_alpha));
+        
+        assert_eq!(Term::alpha(&t, &t3), None);
+    }
+
+    #[test]
+    fn shape_equivalent_test() {
+        let mut sig = Signature::default();
+        
+        let t = parse_term(&mut sig, "S K y_ z_").expect("parse of S K y_ z_");
+        let t2 = parse_term(&mut sig, "A B x_ w_").expect("parse of A B x_ w_");
+        let t3 = parse_term(&mut sig, "S K y_").expect("parse of S K y_");
+        
+        assert!(Term::shape_equivalent(&t, &t2));
+        
+        assert!(!Term::shape_equivalent(&t, &t3));
+    }
+
+    #[test]
+    fn pmatch_test() {
+        let mut sig = Signature::default();
+        
+        let t = parse_term(&mut sig, "C(A)").expect("parse of C(A)");
+        
+        let t2 = parse_term(&mut sig, "C(x_)").expect("parse of C(x_)");
+        
+        let t3 = parse_term(&mut sig, "C(y_)").expect("parse of C(y_)");
+        
+        let t4 = parse_term(&mut sig, "A(x_)").expect("parse of A(x_)");
+        
+        assert_eq!(Term::pmatch(vec![(t, t2.clone())]), None);
+        
+        let mut expected_sub = HashMap::new();
+        
+        // maps variable x in term t2 to variable y in term t3
+        expected_sub.insert(t2.variables()[0].clone(), Term::Variable(t3.variables()[0].clone()));
+        
+        assert_eq!(Term::pmatch(vec![(t2, t3.clone())]), Some(expected_sub));
+        
+        assert_eq!(Term::pmatch(vec![(t3, t4)]), None);
+    }
+
+    #[test]
+    fn unify_test() {
+        let mut sig = Signature::default();
+        
+        let t = parse_term(&mut sig, "C(A)").expect("parse of C(A)");
+        
+        let t2 = parse_term(&mut sig, "C(x_)").expect("parse of C(x_)");
+        
+        let t3 = parse_term(&mut sig, "C(y_)").expect("parse of C(y_)");
+        
+        let t4 = parse_term(&mut sig, "B(x_)").expect("parse of B(x_)");
+        
+        let mut expected_sub = HashMap::new();
+        
+        // maps variable x in term t2 to constant A in term t
+        expected_sub.insert(
+            t2.variables()[0].clone(),
+            Term::Application {
+                op: t.operators()[0].clone(),
+                args:vec![],
+            },
+        );
+        
+        assert_eq!(Term::unify(vec![(t, t2.clone())]), Some(expected_sub));
+        
+        let mut expected_sub = HashMap::new();
+        
+        // maps variable x in term t2 to variable y in term t3
+        expected_sub.insert(t2.variables()[0].clone(), Term::Variable(t3.variables()[0].clone()));
+        
+        assert_eq!(Term::unify(vec![(t2, t3.clone())]), Some(expected_sub));
+        
+        assert_eq!(Term::unify(vec![(t3, t4)]), None);     
+    }
+}
