@@ -1163,8 +1163,8 @@ mod tests {
         assert_eq!(atoms, vec!["x_", "B", "A"]);
     }
 
-    // #[test]
-    // fn context_variables_test() {
+    #[test]
+    fn context_variables_test() {
     //     let mut sig = Signature::default();
     
     //     let context = parse_context(&mut sig, "A([!]) B y_ z_").expect("parse of A([!]) B y_ z_");
@@ -1173,7 +1173,7 @@ mod tests {
         
     //     assert_eq!(var_names, vec!["y_".to_string(), "z_".to_string()]);
     // 
-    // }
+    }
 
     #[test]
     fn context_operators_test() {
@@ -1295,15 +1295,15 @@ mod tests {
         assert_eq!(term.display(), "A(B C)"); 
     }
 
-    // #[test]
-    // fn term_display_test() {
+    #[test]
+    fn term_display_test() {
     //     let mut sig = Signature::default();
         
     //     let term = parse_term(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)")
     //          .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)");
         
     //     assert_eq!(term.display(), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5))");
-    // }
+    }
 
     #[test]
     fn term_pretty_test() {

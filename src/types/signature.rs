@@ -687,17 +687,56 @@ mod tests {
 
     #[test]
     fn new_test() {
-
+        // let mut sig = Signature::new(vec![
+        //    (2, Some(".".to_string())),
+        //    (0, Some("S".to_string())),
+        //    (0, Some("K".to_string())),
+        // ]);
+        // let ops = sig.operators();
+        
+        // let op_names: Vec<String> = ops.iter().map(|op| op.display()).collect();
+        // assert_eq!(op_names, vec![".", "S", "K"]);
+        
+        // let mut sig2 = Signature::default();
+        // let p = sig2.new_op(2, Some(".".to_string()));
+        // let s = sig2.new_op(0, Some("S".to_string()));
+        // let k = sig2.new_op(0, Some("K".to_string()));
+        
+        // assert_eq!(sig, sig2);
+        
+        // let mut sig = Signature::new(vec![]);
+        
+        // let mut sig2 = Signature::default();
+        
+        // assert_eq!(sig, sig2);
     }
 
     #[test]
     fn operators_test() {
-
+        // let mut sig = Signature:: new(vec![
+        //    (2, Some(".".to_string())),
+        //    (0, Some("S".to_string())),
+        //    (0, Some("K".to_string())),
+        // ]);
+        
+        // let ops: Vec<String> = sig.operators().iter().map(|op| op.display()).collect();;
+        
+        // assert_eq!(ops, vec![".", "S", "K"]);
     }
 
     #[test]
     fn variables_test() {
-
+        // let mut sig = Signature:: new(vec![
+        //    (2, Some(".".to_string())),
+        //    (0, Some("S".to_string())),
+        //    (0, Some("K".to_string())),
+        // ]);
+        
+        // parse_term(&mut sig, "A(x_ y_)").expect("parse of A(x_ y_)");
+        
+        // let vars: Vec<String> = sig.variables().iter().map(|v| v.display()).collect();
+        
+        // assert_eq!(vars, vec!["x_", "y_"]);
     }
 
     #[test]
@@ -713,12 +752,25 @@ mod tests {
 
     #[test]
     fn new_op_test() {
-
+        // let mut sig = Signature::default();
+        
+        // let a = sig.new_op(1, Some(".".to_string()));
+        // let s = sig.new_op(2, Some("S".to_string()));
+        // let s2 = sig.new_op(2, Some("S".to_string()));
+        
+        // assert_ne!(a, s);
+        // assert_ne!(a, s2);
+        // assert_ne!(s, s2);
     }
 
     #[test]
     fn new_var() {
-
+        // let mut sig = Signature::default();
+        
+        // let z = sig.new_var(Some("z".to_string()));
+        // let z2 = sig.new_var(Some("z".to_string()));
+        
+        // assert_ne!(z, z2);
     }
 
     #[test]
