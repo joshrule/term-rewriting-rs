@@ -1235,22 +1235,23 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn rule_new_test() {
-        //let mut sig = Signature::default();
-        //
-        //let lhs = parse_term(&mut sig, "A").expect("parse of A");
-        //let rhs = vec![parse_term(&mut sig, "B").expect("parse of B")];
-        //let r = Rule::new(lhs, rhs).unwrap();
-        //
-        //let r2 = parse_rule(&mut sig, "A = B").expect("parse of A = B");
-        //
-        //assert_eq!(r, r2);
-        //
-        //let left = parse_term(&mut sig, "A").expect("parse of A");
-        //let right = vec![parse_term(&mut sig, "B").expect("parse of B")];
-        //let r2 = Rule { lhs: left, rhs: right };
-        //
-        //assert_eq!(r, r2);
+        let mut sig = Signature::default();
+        
+        let lhs = parse_term(&mut sig, "A").expect("parse of A");
+        let rhs = vec![parse_term(&mut sig, "B").expect("parse of B")];
+        let r = Rule::new(lhs, rhs).unwrap();
+        
+        let r2 = parse_rule(&mut sig, "A = B").expect("parse of A = B");
+        
+        assert_eq!(r, r2);
+        
+        let left = parse_term(&mut sig, "A").expect("parse of A");
+        let right = vec![parse_term(&mut sig, "B").expect("parse of B")];
+        let r2 = Rule { lhs: left, rhs: right };
+        
+        assert_eq!(r, r2);
     }
 
     #[test]

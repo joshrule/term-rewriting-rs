@@ -1164,15 +1164,15 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn context_variables_test() {
-    //     let mut sig = Signature::default();
+        let mut sig = Signature::default();
     
-    //     let context = parse_context(&mut sig, "A([!]) B y_ z_").expect("parse of A([!]) B y_ z_");
+        let context = parse_context(&mut sig, "A([!]) B y_ z_").expect("parse of A([!]) B y_ z_");
         
-    //     let var_names: Vec<String> = context.variables().iter().map(|v| v.display()).collect();
+        let var_names: Vec<String> = context.variables().iter().map(|v| v.display()).collect();
         
-    //     assert_eq!(var_names, vec!["y_".to_string(), "z_".to_string()]);
-    // 
+        assert_eq!(var_names, vec!["y_".to_string(), "z_".to_string()]);
     }
 
     #[test]
@@ -1296,13 +1296,14 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn term_display_test() {
-    //     let mut sig = Signature::default();
+        let mut sig = Signature::default();
         
-    //     let term = parse_term(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)")
-    //          .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)");
+        let term = parse_term(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)")
+            .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)");
         
-    //     assert_eq!(term.display(), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5))");
+        assert_eq!(term.display(), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5))");
     }
 
     #[test]
@@ -1464,6 +1465,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn constraint_substitute_test() {
 
     }
