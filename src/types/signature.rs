@@ -686,36 +686,40 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore]
     fn new_test() {
         let mut sig = Signature::new(vec![
            (2, Some(".".to_string())),
            (0, Some("S".to_string())),
            (0, Some("K".to_string())),
         ]);
-        let ops = sig.operators();
+        let mut ops = sig.operators();
         
-        let op_names: Vec<String> = ops.iter().map(|op| op.display()).collect();
+        let mut op_names: Vec<String> = ops.iter().map(|op| op.display()).collect();
         assert_eq!(op_names, vec![".", "S", "K"]);
         
         let mut sig2 = Signature::default();
-        let p = sig2.new_op(2, Some(".".to_string()));
-        let s = sig2.new_op(0, Some("S".to_string()));
-        let k = sig2.new_op(0, Some("K".to_string()));
+        sig2.new_op(2, Some(".".to_string()));
+        sig2.new_op(0, Some("S".to_string()));
+        sig2.new_op(0, Some("K".to_string()));
+
+        ops = sig2.operators();
+        
+        op_names = ops.iter().map(|op| op.display()).collect();
+        assert_eq!(op_names, vec![".", "S", "K"]);
         
         assert_eq!(sig, sig2);
         
-        let mut sig = Signature::new(vec![]);
+        sig = Signature::new(vec![]);
         
-        let mut sig2 = Signature::default();
-        
+        sig2 = Signature::default();
+
         assert_eq!(sig, sig2);
     }
 
     #[test]
     #[ignore]
     fn operators_test() {
-        let mut sig = Signature:: new(vec![
+        let sig = Signature:: new(vec![
            (2, Some(".".to_string())),
            (0, Some("S".to_string())),
            (0, Some("K".to_string())),
