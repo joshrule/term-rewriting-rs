@@ -1203,9 +1203,15 @@ mod tests {
     fn context_head_test() {
         let mut sig = Signature::default();
         
-        let context = parse_context(&mut sig, "A(B([!]) z_)").expect("parse of A(B([!]) z_)");
+        let mut context = parse_context(&mut sig, "A(B([!]) z_)").expect("parse of A(B([!]) z_)");
         
         assert_eq!(context.head().unwrap().display(), "A");
+
+        sig = Signature::default();
+
+        context = parse_context(&mut sig, "z_").expect("parse of z_");
+
+        assert_eq!(context.head().unwrap().display(), "z_"); 
     }
 
     #[test]
