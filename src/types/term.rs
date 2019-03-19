@@ -1164,7 +1164,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn context_variables_test() {
         let mut sig = Signature::default();
     
@@ -1218,15 +1217,23 @@ mod tests {
     fn context_args_test() {
         let mut sig = Signature::default();
         
-        let context = parse_context(&mut sig, "A B").expect("parse of A B");
-        let args: Vec<String> = context.args().iter().map(|arg| arg.display()).collect();
+        let mut context = parse_context(&mut sig, "A B").expect("parse of A B");
+        let mut args: Vec<String> = context.args().iter().map(|arg| arg.display()).collect();
         
         assert_eq!(args, vec!["A", "B"]);
         
-        let context = parse_context(&mut sig, "A(y_)").expect("parse of A(y_)");
-        let args: Vec<String> = context.args().iter().map(|arg| arg.display()).collect();
+        context = parse_context(&mut sig, "A(y_)").expect("parse of A(y_)");
+        args = context.args().iter().map(|arg| arg.display()).collect();
         
         assert_eq!(args, vec!["y_"]);
+
+
+        context = parse_context(&mut sig, "y_").expect("parse of y_");
+        args = context.args().iter().map(|arg| arg.display()).collect();
+
+        let vec: Vec<String> = Vec::new();
+
+        assert_eq!(args, vec);
     }
 
     #[test]
@@ -1302,7 +1309,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn term_display_test() {
         let mut sig = Signature::default();
         
@@ -1468,12 +1474,6 @@ mod tests {
         let subbed_term = term_before.substitute(&sub);
         
         assert_eq!(subbed_term, expected_term);        
-    }
-
-    #[test]
-    #[ignore]
-    fn constraint_substitute_test() {
-
     }
 
     #[test]
