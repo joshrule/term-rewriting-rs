@@ -462,3 +462,5 @@ K x_ y_ = x_;
 BAZ(FOO, BAR(x_)) = BAZ(x_, FOO) | SUCC(x_);"
     );
 }
+
+
