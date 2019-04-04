@@ -64,6 +64,62 @@
 //! assert_eq!(parsed_term, constructed_term);
 //! ```
 //!
+//! # TRS syntax
+//!
+//! Several functions are available which parse TRS-related data structures
+//! according to the following grammar (defined in [augmented Backus-Naur form]):
+//!
+//! - [`parse`]: a [`TRS`] and list of [`Term`s] (`program`)
+//! - [`parse_trs`]: a [`TRS`] (`trs`)
+//! - [`parse_term`]: a [`Term`] (`top-level-term`)
+//! - [`parse_rule`]: a [`Rule`] (`rule`)
+//! - [`parse_context`]: a [`Context`] (`top-level-context`)
+//! - [`parse_rulecontext`]: a [`RuleContext`] (`rulecontext`)
+//!
+//! ```text
+//! program = *wsp *( *comment statement ";" *comment ) *wsp
+//!
+//! statement = rule / top-level-term
+//!
+//! rule = top-level-term *wsp "=" *wsp top-level-term
+//! rule /= rule *wsp "|" *wsp top-level-term
+//!
+//! top-level-term = term
+//! top-level-term /= top-level-term 1*wsp top-level-term
+//!
+//! term = variable
+//! term /= application
+//! term /= "(" *wsp top-level-term *wsp ")"
+//!
+//! rulecontext = top-level-term *wsp "=" *wsp top-level-term
+//! rulecontext /= rule *wsp "|" *wsp top-level-term
+//!
+//! top-level-context = context
+//! top-level-context /= top-level-context 1*wsp top-level-context
+//!
+//! context = variable
+//! context /= application
+//! context /= hole
+//! context /= "(" *wsp top-level-context *wsp ")"
+//!
+//! hole = "[!]"
+//!
+//! variable = identifier"_"
+//!
+//! application = identifier "(" [ term *( 1*wsp term ) ] ")"
+//! application /= identifier
+//! application /= binary-application
+//!
+//! ; binary application is the '.' operator with arity 2.
+//! binary-application = "(" *wsp term *wsp term *wsp ")"
+//!
+//! identifier = 1*( ALPHA / DIGIT )
+//!
+//! comment = "#" *any-char-but-newline "\n"
+//!
+//! wsp = SP / TAB / CR / LF
+//! ```
+//!
 //! # Term Rewriting Systems
 //!
 //! Term Rewriting Systems (TRS) are a simple formalism from theoretical
@@ -97,6 +153,19 @@
 //!      "Term Rewriting Systems"
 //! [4]: https://en.wikipedia.org/wiki/Rewriting
 //!      "Wikipedia - Rewriting"
+//! [augmented Backus-Naur form]: https://en.wikipedia.org/wiki/Augmented_Backus–Naur_form
+//! [`parse`]: fn.parse.html
+//! [`parse_trs`]: fn.parse_trs.html
+//! [`parse_term`]: fn.parse_term.html
+//! [`parse_rule`]: fn.parse_rule.html
+//! [`parse_context`]: fn.parse_context.html
+//! [`parse_rulecontext`]: fn.parse_rulecontext.html
+//! [`TRS`]: struct.TRS.html
+//! [`Term`s]: enum.Term.html
+//! [`Term`]: enum.Term.html
+//! [`Rule`]: struct.Rule.html
+//! [`Context`]: enum.Context.html
+//! [`RuleContext`]: struct.RuleContext.html
 
 extern crate itertools;
 #[macro_use]

@@ -34,41 +34,6 @@ impl ::std::error::Error for ParseError {
 
 /// Parse a string as a [`TRS`] and a list of [`Term`]s.
 ///
-/// # TRS syntax
-///
-/// The input is parsed as a `program`, defined as follows in [augmented Backus-Naur form]:
-///
-/// ```text
-/// program = *wsp *( *comment statement ";" *comment ) *wsp
-///
-/// statement = rule / top-level-term
-///
-/// rule = top-level-term *wsp "=" *wsp top-level-term
-/// rule /= rule *wsp "|" *wsp top-level-term
-///
-/// top-level-term = term
-/// top-level-term /= top-level-term 1*wsp top-level-term
-///
-/// term = variable / application / "(" *wsp top-level-term *wsp ")"
-///
-/// variable = identifier"_"
-///
-/// application = identifier "(" [ term *( 1*wsp term ) ] ")"
-/// application /= identifier
-/// application /= binary-application
-///
-/// ; binary application is the '.' operator with arity 2.
-/// binary-application = "(" *wsp term *wsp term *wsp ")"
-///
-/// identifier = 1*( ALPHA / DIGIT )
-///
-/// comment = "#" *any-char-but-newline "\n"
-///
-/// wsp = SP / TAB / CR / LF
-/// ```
-///
-/// # Examples
-///
 /// ```
 /// # use term_rewriting::{Signature, parse};
 /// let inp = "
@@ -87,7 +52,6 @@ impl ::std::error::Error for ParseError {
 ///
 /// [`TRS`]: struct.TRS.html
 /// [`Term`]: enum.Term.html
-/// [augmented Backus-Naur form]: https://en.wikipedia.org/wiki/Augmented_Backus–Naur_form
 pub fn parse(sig: &mut Signature, input: &str) -> Result<(TRS, Vec<Term>), ParseError> {
     let (_parser, result) = Parser::new(sig).program(CompleteStr(input));
     match result {
@@ -107,9 +71,8 @@ pub fn parse(sig: &mut Signature, input: &str) -> Result<(TRS, Vec<Term>), Parse
     }
 }
 
-/// Similar to [`parse`], but produces only a [`TRS`].
+/// Parse a string as a [`TRS`].
 ///
-/// [`parse`]: fn.parse.html
 /// [`TRS`]: struct.TRS.html
 pub fn parse_trs(sig: &mut Signature, input: &str) -> Result<TRS, ParseError> {
     let (_parser, result) = Parser::new(sig).trs(CompleteStr(input));
@@ -120,9 +83,8 @@ pub fn parse_trs(sig: &mut Signature, input: &str) -> Result<TRS, ParseError> {
     }
 }
 
-/// Similar to [`parse`], but produces only a [`Rule`].
+/// Parse a string as a [`Rule`].
 ///
-/// [`parse`]: fn.parse.html
 /// [`Rule`]: struct.Rule.html
 pub fn parse_rule(sig: &mut Signature, input: &str) -> Result<Rule, ParseError> {
     let (_parser, result) = Parser::new(sig).rule(CompleteStr(input));
@@ -133,9 +95,8 @@ pub fn parse_rule(sig: &mut Signature, input: &str) -> Result<Rule, ParseError> 
     }
 }
 
-/// Similar to [`parse`], but produces only a [`Term`].
+/// Parse a string as a [`Term`].
 ///
-/// [`parse`]: fn.parse.html
 /// [`Term`]: enum.Term.html
 pub fn parse_term(sig: &mut Signature, input: &str) -> Result<Term, ParseError> {
     let (_parser, result) = Parser::new(sig).top_term(CompleteStr(input));
@@ -146,9 +107,8 @@ pub fn parse_term(sig: &mut Signature, input: &str) -> Result<Term, ParseError> 
     }
 }
 
-/// Similar to [`parse`], but produces only a [`RuleContext`].
+/// Parse a string as a [`RuleContext`].
 ///
-/// [`parse`]: fn.parse.html
 /// [`RuleContext`]: struct.RuleContext.html
 pub fn parse_rulecontext(sig: &mut Signature, input: &str) -> Result<RuleContext, ParseError> {
     let (_parser, result) = Parser::new(sig).rulecontext(CompleteStr(input));
@@ -159,9 +119,8 @@ pub fn parse_rulecontext(sig: &mut Signature, input: &str) -> Result<RuleContext
     }
 }
 
-/// Similar to [`parse`], but produces only a [`Context`].
+/// Parse a string as a [`Context`].
 ///
-/// [`parse`]: fn.parse.html
 /// [`Context`]: enum.Context.html
 pub fn parse_context(sig: &mut Signature, input: &str) -> Result<Context, ParseError> {
     let (_parser, result) = Parser::new(sig).top_context(CompleteStr(input));
