@@ -110,7 +110,7 @@ impl Context {
                 if args.is_empty() {
                     op_str
                 } else {
-                    let args_str = args.iter().map(|arg| arg.display()).join(" ");
+                    let args_str = args.iter().map(Context::display).join(" ");
                     format!("{}({})", op_str, args_str)
                 }
             }
@@ -551,7 +551,7 @@ impl Term {
                 if args.is_empty() {
                     op_str
                 } else {
-                    let args_str = args.iter().map(|arg| arg.display()).join(" ");
+                    let args_str = args.iter().map(Term::display).join(" ");
                     format!("{}({})", op_str, args_str)
                 }
             }
@@ -865,46 +865,21 @@ impl Term {
     /// let z = &vars[1];
     ///
     /// let mut sub = HashMap::new();
-    /// sub.insert(y.clone(), s_term);
-    /// sub.insert(z.clone(), k_term);
+    /// sub.insert(y, &s_term);
+    /// sub.insert(z, &k_term);
     ///
     /// let expected_term = parse_term(&mut sig, "S K S K").expect("parse of S K S K");
     /// let subbed_term = term_before.substitute(&sub);
     ///
     /// assert_eq!(subbed_term, expected_term);
     /// ```
-    pub fn substitute(&self, sub: &HashMap<Variable, Term>) -> Term {
+    pub fn substitute(&self, sub: &HashMap<&Variable, &Term>) -> Term {
         match *self {
-            Term::Variable(ref v) => sub.get(v).unwrap_or(self).clone(),
+            Term::Variable(ref v) => (*(sub.get(v).unwrap_or(&self))).clone(),
             Term::Application { ref op, ref args } => Term::Application {
                 op: op.clone(),
                 args: args.iter().map(|t| t.substitute(sub)).collect(),
             },
-        }
-    }
-    /// Take a vector of pairs of terms and perform a substitution on each term.
-    fn constraint_substitute(
-        cs: &[(Term, Term)],
-        sub: &HashMap<Variable, Term>,
-    ) -> Vec<(Term, Term)> {
-        cs.iter()
-            .map(|&(ref s, ref t)| (s.substitute(sub), t.substitute(sub)))
-            .collect()
-    }
-    /// Compose two substitutions.
-    fn compose(
-        sub1: Option<HashMap<Variable, Term>>,
-        sub2: Option<HashMap<Variable, Term>>,
-    ) -> Option<HashMap<Variable, Term>> {
-        match (sub1, sub2) {
-            (Some(mut s1), Some(s2)) => {
-                for (k, v) in s2 {
-                    let v = v.substitute(&s1);
-                    s1.insert(k, v);
-                }
-                Some(s1)
-            }
-            _ => None,
         }
     }
     /// Compute the [alpha equivalence] for two `Term`s.
@@ -924,24 +899,26 @@ impl Term {
     /// let t3 = parse_term(&mut sig, "S K y_").expect("parse of S K y_");
     ///
     /// let vars = sig.variables();
-    /// let (y, z, a, b) = (vars[0].clone(), vars[1].clone(), vars[2].clone(), vars[3].clone());
+    /// let (y, z, a, b) = (&vars[0], &vars[1], &vars[2], &vars[3]);
     ///
     /// assert_eq!(y.display(), "y_".to_string());
     /// assert_eq!(z.display(), "z_".to_string());
     /// assert_eq!(a.display(), "a_".to_string());
     /// assert_eq!(b.display(), "b_".to_string());
     ///
-    /// let mut expected_alpha: HashMap<Variable, Term> = HashMap::new();
-    /// expected_alpha.insert(y, Term::Variable(a));
-    /// expected_alpha.insert(z, Term::Variable(b));
+    /// let ta = Term::Variable(a.clone());
+    /// let tb = Term::Variable(b.clone());
+    /// let mut expected_alpha: HashMap<&Variable, &Term> = HashMap::new();
+    /// expected_alpha.insert(y, &ta);
+    /// expected_alpha.insert(z, &tb);
     ///
     /// assert_eq!(Term::alpha(&t, &t2), Some(expected_alpha));
     ///
     /// assert_eq!(Term::alpha(&t, &t3), None);
     /// ```
-    pub fn alpha(t1: &Term, t2: &Term) -> Option<HashMap<Variable, Term>> {
-        if Term::pmatch(vec![(t2.clone(), t1.clone())]).is_some() {
-            Term::pmatch(vec![(t1.clone(), t2.clone())])
+    pub fn alpha<'a>(t1: &'a Term, t2: &'a Term) -> Option<HashMap<&'a Variable, &'a Term>> {
+        if Term::pmatch(vec![(t2, t1)]).is_some() {
+            Term::pmatch(vec![(t1, t2)])
         } else {
             None
         }
@@ -1022,18 +999,20 @@ impl Term {
     ///
     /// let t4 = parse_term(&mut sig, "A(x_)").expect("parse of A(x_)");
     ///
-    /// assert_eq!(Term::pmatch(vec![(t, t2.clone())]), None);
+    /// assert_eq!(Term::pmatch(vec![(&t, &t2)]), None);
     ///
+    /// let t_k = &t2.variables()[0];
+    /// let t_v = Term::Variable(t3.variables()[0].clone());
     /// let mut expected_sub = HashMap::new();
     ///
     /// // maps variable x in term t2 to variable y in term t3
-    /// expected_sub.insert(t2.variables()[0].clone(), Term::Variable(t3.variables()[0].clone()));
+    /// expected_sub.insert(t_k, &t_v);
     ///
-    /// assert_eq!(Term::pmatch(vec![(t2, t3.clone())]), Some(expected_sub));
+    /// assert_eq!(Term::pmatch(vec![(&t2, &t3)]), Some(expected_sub));
     ///
-    /// assert_eq!(Term::pmatch(vec![(t3, t4)]), None);
+    /// assert_eq!(Term::pmatch(vec![(&t3, &t4)]), None);
     /// ```
-    pub fn pmatch(cs: Vec<(Term, Term)>) -> Option<HashMap<Variable, Term>> {
+    pub fn pmatch<'a>(cs: Vec<(&'a Term, &'a Term)>) -> Option<HashMap<&'a Variable, &'a Term>> {
         Term::unify_internal(cs, Unification::Match)
     }
     /// Given a vector of contraints, return a substitution which satisfies the constrants.
@@ -1058,69 +1037,97 @@ impl Term {
     ///
     /// let t4 = parse_term(&mut sig, "B(x_)").expect("parse of B(x_)");
     ///
+    /// let t_k = &t2.variables()[0];
+    /// let t_v = Term::Application {
+    ///     op: t.operators()[0].clone(),
+    ///     args:vec![],
+    /// };
+    ///
     /// let mut expected_sub = HashMap::new();
     ///
     /// // maps variable x in term t2 to constant A in term t
-    /// expected_sub.insert(
-    ///     t2.variables()[0].clone(),
-    ///     Term::Application {
-    ///         op: t.operators()[0].clone(),
-    ///         args:vec![],
-    ///     },
-    /// );
+    /// expected_sub.insert(t_k, &t_v);
     ///
-    /// assert_eq!(Term::unify(vec![(t, t2.clone())]), Some(expected_sub));
+    /// assert_eq!(Term::unify(vec![(&t, &t2)]), Some(expected_sub));
+    ///
+    /// let t_v = Term::Variable(t3.variables()[0].clone());
     ///
     /// let mut expected_sub = HashMap::new();
     ///
     ///  // maps variable x in term t2 to variable y in term t3
-    /// expected_sub.insert(t2.variables()[0].clone(), Term::Variable(t3.variables()[0].clone()));
+    /// expected_sub.insert(t_k, &t_v);
     ///
-    /// assert_eq!(Term::unify(vec![(t2, t3.clone())]), Some(expected_sub));
+    /// assert_eq!(Term::unify(vec![(&t2, &t3)]), Some(expected_sub));
     ///
-    /// assert_eq!(Term::unify(vec![(t3, t4)]), None);
+    /// assert_eq!(Term::unify(vec![(&t3, &t4)]), None);
     /// ```
-    pub fn unify(cs: Vec<(Term, Term)>) -> Option<HashMap<Variable, Term>> {
+    pub fn unify<'a>(cs: Vec<(&'a Term, &'a Term)>) -> Option<HashMap<&'a Variable, &'a Term>> {
         Term::unify_internal(cs, Unification::Unify)
     }
     /// the internal implementation of unify and match.
-    fn unify_internal(
-        mut cs: Vec<(Term, Term)>,
+    fn unify_internal<'a>(
+        mut cs: Vec<(&'a Term, &'a Term)>,
         utype: Unification,
-    ) -> Option<HashMap<Variable, Term>> {
-        let c = cs.pop();
-        match c {
-            None => Some(HashMap::new()),
-            Some((ref s, ref t)) if s == t => Term::unify_internal(cs, utype),
-            Some((
-                Term::Application {
-                    op: ref h1,
-                    args: ref a1,
-                },
-                Term::Application {
-                    op: ref h2,
-                    args: ref a2,
-                },
-            )) if h1 == h2 => {
-                cs.append(&mut a1.clone().into_iter().zip(a2.clone().into_iter()).collect());
-                Term::unify_internal(cs, utype)
+    ) -> Option<HashMap<&'a Variable, &'a Term>> {
+        let mut subs: HashMap<&Variable, &Term> = HashMap::new();
+        while !cs.is_empty() {
+            let (mut s, mut t) = cs.pop().unwrap();
+
+            while let Term::Variable(ref v) = *s {
+                if subs.contains_key(v) {
+                    s = &subs[v];
+                } else {
+                    break;
+                }
             }
-            Some((Term::Variable(ref var), ref t)) if !t.variables().contains(&&var) => {
-                let mut st = HashMap::new();
-                st.insert(var.clone(), t.clone());
-                let mut cs = Term::constraint_substitute(&cs, &st);
-                Term::compose(Term::unify_internal(cs, utype), Some(st))
+
+            while let Term::Variable(ref v) = *t {
+                if subs.contains_key(v) {
+                    t = &subs[v];
+                } else {
+                    break;
+                }
             }
-            Some((ref s, Term::Variable(ref var)))
-                if !s.variables().contains(&&var) && utype != Unification::Match =>
-            {
-                let mut ts = HashMap::new();
-                ts.insert(var.clone(), s.clone());
-                let mut cs = Term::constraint_substitute(&cs, &ts);
-                Term::compose(Term::unify_internal(cs, utype), Some(ts))
+
+            // if they are equal, you're all done with them.
+            if s != t {
+                match (s, t) {
+                    (Term::Variable(ref var), Term::Variable(_)) => {
+                        subs.insert(var, t);
+                    }
+                    (Term::Variable(ref var), t) => {
+                        if !(*t).variables().contains(&&var) {
+                            subs.insert(var, t);
+                        } else {
+                            return None;
+                        }
+                    }
+                    (s, Term::Variable(ref var)) if utype != Unification::Match => {
+                        if !(*s).variables().contains(&&var) {
+                            subs.insert(var, s);
+                        } else {
+                            return None;
+                        }
+                    }
+                    (
+                        Term::Application {
+                            op: ref h1,
+                            args: ref a1,
+                        },
+                        Term::Application {
+                            op: ref h2,
+                            args: ref a2,
+                        },
+                    ) if h1 == h2 => {
+                        cs.append(&mut a1.iter().zip(a2.iter()).collect());
+                    }
+                    _ => {
+                        return None;
+                    }
+                }
             }
-            _ => None,
         }
+        Some(subs)
     }
 }
 

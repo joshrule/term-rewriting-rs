@@ -22,8 +22,8 @@ fn term_substitute_test() {
     let y = &vars[0];
     let z = &vars[1];
     let mut sub = HashMap::new();
-    sub.insert(y.clone(), s_term);
-    sub.insert(z.clone(), k_term);
+    sub.insert(y, &s_term);
+    sub.insert(z, &k_term);
 
     // build the term after substitution
     let term_after = parse_term(&mut sig, "S K S K").expect("parse of S K S K");
@@ -139,51 +139,45 @@ fn unify_test() {
     let z = &vars[1];
     let y2 = &vars[2];
 
+    let t1_0 = Term::Application {
+        op: s.clone(),
+        args: vec![],
+    };
+    let t1_1 = Term::Application {
+        op: k.clone(),
+        args: vec![],
+    };
     let mut hm1 = HashMap::new();
-    hm1.insert(
-        y.clone(),
-        Term::Application {
-            op: s.clone(),
-            args: vec![],
-        },
-    );
-    hm1.insert(
-        z.clone(),
-        Term::Application {
-            op: k.clone(),
-            args: vec![],
-        },
-    );
-    assert_eq!(Some(hm1), Term::unify(vec![(t1.clone(), t2.clone())]));
-    assert_eq!(None, Term::unify(vec![(t1.clone(), t3.clone())]));
-    assert_eq!(None, Term::unify(vec![(t2.clone(), t3.clone())]));
+    hm1.insert(y, &t1_0);
+    hm1.insert(z, &t1_1);
+    assert_eq!(Some(hm1), Term::unify(vec![(&t1, &t2)]));
+    assert_eq!(None, Term::unify(vec![(&t1, &t3)]));
+    assert_eq!(None, Term::unify(vec![(&t2, &t3)]));
+    let t2 = Term::Application {
+        op: a.clone(),
+        args: vec![
+            Term::Application {
+                op: a.clone(),
+                args: vec![
+                    Term::Application {
+                        op: k.clone(),
+                        args: vec![],
+                    },
+                    Term::Application {
+                        op: k.clone(),
+                        args: vec![],
+                    },
+                ],
+            },
+            Term::Application {
+                op: k.clone(),
+                args: vec![],
+            },
+        ],
+    };
     let mut hm2 = HashMap::new();
-    hm2.insert(
-        y2.clone(),
-        Term::Application {
-            op: a.clone(),
-            args: vec![
-                Term::Application {
-                    op: a.clone(),
-                    args: vec![
-                        Term::Application {
-                            op: k.clone(),
-                            args: vec![],
-                        },
-                        Term::Application {
-                            op: k.clone(),
-                            args: vec![],
-                        },
-                    ],
-                },
-                Term::Application {
-                    op: k.clone(),
-                    args: vec![],
-                },
-            ],
-        },
-    );
-    assert_eq!(Some(hm2), Term::unify(vec![(t3.clone(), t4.clone())]));
+    hm2.insert(y2, &t2);
+    assert_eq!(Some(hm2), Term::unify(vec![(&t3, &t4)]));
 }
 
 #[test]

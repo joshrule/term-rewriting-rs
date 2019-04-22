@@ -668,14 +668,14 @@ impl Rule {
     ///
     /// assert_eq!(r2.contains(&r), None);
     ///
+    /// let x = Term::Variable(r.variables()[0].clone());
+    /// let y = &r2.variables()[0];
     /// let mut sub = HashMap::default();
-    /// let x = r.variables()[0].clone();
-    /// let y = r2.variables()[0].clone();
-    /// sub.insert(y, Term::Variable(x));
+    /// sub.insert(y, &x);
     ///
     /// assert_eq!(r.contains(&r2).unwrap(), sub);
     /// ```
-    pub fn contains(&self, r: &Rule) -> Option<HashMap<Variable, Term>> {
+    pub fn contains<'a>(&'a self, r: &'a Rule) -> Option<HashMap<&'a Variable, &'a Term>> {
         if let Some(sub) = Term::alpha(&r.lhs, &self.lhs) {
             if r.rhs
                 .iter()
@@ -865,20 +865,19 @@ impl Rule {
     /// let r4 = parse_rule(&mut sig, "D(w_) = B").expect("parse of D(w_) = B");
     /// let r5 = parse_rule(&mut sig, "A(t_) = B").expect("parse of A(t_) = B");
     ///
-    /// assert_eq!(Rule::pmatch(r.clone(), r2), None);
-    /// assert_eq!(Rule::pmatch(r.clone(), r3), None);
-    /// assert_eq!(Rule::pmatch(r.clone(), r4), None);
+    /// assert_eq!(Rule::pmatch(&r, &r2), None);
+    /// assert_eq!(Rule::pmatch(&r, &r3), None);
+    /// assert_eq!(Rule::pmatch(&r, &r4), None);
     ///
+    /// let t_k = &r.variables()[0];
+    /// let t_v = Term::Variable(r5.variables()[0].clone());
     /// let mut expected_map = HashMap::default();
-    /// expected_map.insert(
-    ///     r.clone().variables()[0].clone(),
-    ///     Term::Variable(r5.clone().variables()[0].clone()),
-    /// );
+    /// expected_map.insert(t_k, &t_v);
     ///
-    /// assert_eq!(Rule::pmatch(r, r5), Some(expected_map));
+    /// assert_eq!(Rule::pmatch(&r, &r5), Some(expected_map));
     /// ```
-    pub fn pmatch(r1: Rule, r2: Rule) -> Option<HashMap<Variable, Term>> {
-        let cs = iter::once((r1.lhs, r2.lhs)).chain(r1.rhs.into_iter().zip(r2.rhs));
+    pub fn pmatch<'a>(r1: &'a Rule, r2: &'a Rule) -> Option<HashMap<&'a Variable, &'a Term>> {
+        let cs = iter::once((&r1.lhs, &r2.lhs)).chain(r1.rhs.iter().zip(r2.rhs.iter()));
         Term::pmatch(cs.collect())
     }
     /// [`Unify`] two [`Rule`]s.
@@ -898,26 +897,27 @@ impl Rule {
     /// let r4 = parse_rule(&mut sig, "D(w_) = B").expect("parse of D(w_) = B");
     /// let r5 = parse_rule(&mut sig, "A(t_) = B").expect("parse of A(t_) = B");
     ///
+    /// let t_k0 = &r.variables()[0];
+    /// let t_k1 = &r2.variables()[0];
     /// let b = parse_term(&mut sig, "B").expect("parse of B");
     /// let mut expected_map = HashMap::default();
-    /// expected_map.insert(r.clone().variables()[0].clone(), b.clone());
-    /// expected_map.insert(r2.clone().variables()[0].clone(), b);
+    /// expected_map.insert(t_k0, &b);
+    /// expected_map.insert(t_k1, &b);
     ///
-    /// assert_eq!(Rule::unify(r.clone(), r2), Some(expected_map));
+    /// assert_eq!(Rule::unify(&r, &r2), Some(expected_map));
     ///
-    /// assert_eq!(Rule::unify(r.clone(), r3), None);
-    /// assert_eq!(Rule::unify(r.clone(), r4), None);
+    /// assert_eq!(Rule::unify(&r, &r3), None);
+    /// assert_eq!(Rule::unify(&r, &r4), None);
     ///
+    /// let t_k = &r.variables()[0];
+    /// let t_v = Term::Variable(r5.variables()[0].clone());
     /// let mut expected_map = HashMap::default();
-    /// expected_map.insert(
-    ///     r.clone().variables()[0].clone(),
-    ///     Term::Variable(r5.clone().variables()[0].clone()),
-    /// );
+    /// expected_map.insert(t_k, &t_v);
     ///
-    /// assert_eq!(Rule::unify(r, r5), Some(expected_map));
+    /// assert_eq!(Rule::unify(&r, &r5), Some(expected_map));
     /// ```
-    pub fn unify(r1: Rule, r2: Rule) -> Option<HashMap<Variable, Term>> {
-        let cs = iter::once((r1.lhs, r2.lhs)).chain(r1.rhs.into_iter().zip(r2.rhs));
+    pub fn unify<'a>(r1: &'a Rule, r2: &'a Rule) -> Option<HashMap<&'a Variable, &'a Term>> {
+        let cs = iter::once((&r1.lhs, &r2.lhs)).chain(r1.rhs.iter().zip(r2.rhs.iter()));
         Term::unify(cs.collect())
     }
     /// Compute the [`Alpha Equivalence`] between two `Rule`s.
@@ -941,17 +941,16 @@ impl Rule {
     /// assert_eq!(Rule::alpha(&r, &r3), None);
     /// assert_eq!(Rule::alpha(&r, &r4), None);
     ///
+    /// let t_k = &r.variables()[0];
+    /// let t_v = Term::Variable(r5.variables()[0].clone());
     /// let mut expected_map = HashMap::default();
-    /// expected_map.insert(
-    ///     r.clone().variables()[0].clone(),
-    ///     Term::Variable(r5.clone().variables()[0].clone())
-    /// );
+    /// expected_map.insert(t_k, &t_v);
     ///
     /// assert_eq!(Rule::alpha(&r, &r5), Some(expected_map));
     /// ```
-    pub fn alpha(r1: &Rule, r2: &Rule) -> Option<HashMap<Variable, Term>> {
-        if Rule::pmatch(r2.clone(), r1.clone()).is_some() {
-            Rule::pmatch(r1.clone(), r2.clone())
+    pub fn alpha<'a>(r1: &'a Rule, r2: &'a Rule) -> Option<HashMap<&'a Variable, &'a Term>> {
+        if Rule::pmatch(r2, r1).is_some() {
+            Rule::pmatch(r1, r2)
         } else {
             None
         }
@@ -968,16 +967,16 @@ impl Rule {
     /// let mut r = parse_rule(&mut sig, "A(x_ y_) = A(x_) | B(y_)").expect("parse of A(x_ y_) = A(x_) | B(y_)");
     /// let c = parse_term(&mut sig, "C").expect("parse of C");
     /// let vars = r.variables();
-    /// let (x, y) = (vars[0].clone(), vars[1].clone());
+    /// let x = &vars[0];
     ///
     /// let mut substitution = HashMap::default();
-    /// substitution.insert(x, c);
+    /// substitution.insert(x, &c);
     ///
     /// let r2 = r.substitute(&substitution);
     ///
     /// assert_eq!(r2.display(), "A(C y_) = A(C) | B(y_)");
     /// ```
-    pub fn substitute(&self, sub: &HashMap<Variable, Term>) -> Rule {
+    pub fn substitute(&self, sub: &HashMap<&Variable, &Term>) -> Rule {
         Rule::new(
             self.lhs.substitute(sub),
             self.rhs.iter().map(|rhs| rhs.substitute(sub)).collect(),

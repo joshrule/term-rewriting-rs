@@ -415,8 +415,8 @@ impl TRS {
         trs1.len() == trs2.len()
             && trs1
                 .rules
-                .into_iter()
-                .zip(trs2.rules)
+                .iter()
+                .zip(trs2.rules.iter())
                 .all(|(r1, r2)| Rule::unify(r1, r2).is_some())
     }
     /// Does one TRS [`match`] another?
@@ -468,8 +468,8 @@ impl TRS {
         trs1.len() == trs2.len()
             && trs1
                 .rules
-                .into_iter()
-                .zip(trs2.rules)
+                .iter()
+                .zip(trs2.rules.iter())
                 .all(|(r1, r2)| Rule::pmatch(r1, r2).is_some())
     }
     /// Are two TRSs [`Alpha Equivalent`]?
@@ -507,7 +507,7 @@ impl TRS {
     // Return rewrites modifying the entire term, if possible, else None.
     fn rewrite_head(&self, term: &Term) -> Option<Vec<Term>> {
         for rule in &self.rules {
-            if let Some(ref sub) = Term::pmatch(vec![(rule.lhs.clone(), term.clone())]) {
+            if let Some(ref sub) = Term::pmatch(vec![(&rule.lhs, &term)]) {
                 return Some(rule.rhs.iter().map(|x| x.substitute(sub)).collect());
             }
         }

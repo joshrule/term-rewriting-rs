@@ -6,10 +6,10 @@ use term_rewriting::{trace::*, *};
 fn trace_step() {
     let mut sig = Signature::default();
     let inp = "
-        PLUS(SUCC(x_) y_) = PLUS(x_ SUCC(y_));
-        PLUS(ZERO x_) = x_;
+         PLUS(SUCC(x_) y_) = PLUS(x_ SUCC(y_));
+         PLUS(ZERO x_) = x_;
 
-        PLUS(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO));"
+         PLUS(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO));"
         .trim();
     let (trs, mut terms) = parse(&mut sig, inp).unwrap();
     let mut term = terms.pop().unwrap();
@@ -30,10 +30,10 @@ fn trace_step() {
 fn trace_rewrite() {
     let mut sig = Signature::default();
     let inp = "
-        PLUS(SUCC(x_) y_) = PLUS(x_ SUCC(y_));
-        PLUS(ZERO x_) = x_;
+         PLUS(SUCC(x_) y_) = PLUS(x_ SUCC(y_));
+         PLUS(ZERO x_) = x_;
 
-        PLUS(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO));"
+         PLUS(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO));"
         .trim();
     let (trs, mut terms) = parse(&mut sig, inp).unwrap();
     let term = terms.pop().unwrap();
