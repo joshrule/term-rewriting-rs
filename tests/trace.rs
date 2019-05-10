@@ -13,7 +13,7 @@ fn trace_step() {
         .trim();
     let (trs, mut terms) = parse(&mut sig, inp).unwrap();
     let mut term = terms.pop().unwrap();
-    let mut trace = Trace::new(&trs, &term, 0.2, None, Strategy::Normal);
+    let mut trace = Trace::new(&trs, &term, 0.2, 1.0, None, Strategy::Normal);
     let expected = vec!["PLUS(3, 1)", "PLUS(2, 2)", "PLUS(1, 3)", "PLUS(0, 4)", "4"];
     let mut node;
     for x in expected {
@@ -37,7 +37,7 @@ fn trace_rewrite() {
         .trim();
     let (trs, mut terms) = parse(&mut sig, inp).unwrap();
     let term = terms.pop().unwrap();
-    let mut trace = Trace::new(&trs, &term, 0.2, None, Strategy::Normal);
+    let mut trace = Trace::new(&trs, &term, 0.2, 1.0, None, Strategy::Normal);
     trace.rewrite(3);
 
     // leaves

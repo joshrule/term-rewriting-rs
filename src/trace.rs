@@ -17,7 +17,7 @@
 //!     .trim();
 //! let (trs, mut terms) = parse(&mut sig, inp).unwrap();
 //! let mut term = terms.pop().unwrap();
-//! let mut trace = Trace::new(&trs, &term, 0.5, None, Strategy::Normal);
+//! let mut trace = Trace::new(&trs, &term, 0.5, 1.0, None, Strategy::Normal);
 //!
 //! let expected = vec!["PLUS(3, 1)", "PLUS(2, 2)", "PLUS(1, 3)", "PLUS(0, 4)", "4"];
 //! let got = trace
@@ -54,6 +54,7 @@ pub struct Trace<'a> {
     root: TraceNode,
     unobserved: BinaryHeap<TraceNode>,
     p_observe: f64,
+    noise_level: f64,
     max_term_size: Option<usize>,
     strategy: Strategy,
 }
@@ -64,6 +65,7 @@ impl<'a> Trace<'a> {
         trs: &'a TRS,
         term: &Term,
         p_observe: f64,
+        noise_level: f64,
         max_term_size: Option<usize>,
         strategy: Strategy,
     ) -> Trace<'a> {
@@ -75,6 +77,7 @@ impl<'a> Trace<'a> {
             root,
             unobserved,
             p_observe,
+            noise_level,
             max_term_size,
             strategy,
         }
@@ -142,11 +145,14 @@ impl<'a> Trace<'a> {
     }
     /// A lower bound on the probability that `self` rewrites to `term`.
     pub fn rewrites_to(&mut self, max_steps: usize, term: &Term) -> f64 {
-        // NOTE: we only use tree equality and don't consider tree edit distance
+        // NOTE: we use Term::shared_score rather than equality
         self.rewrite(max_steps);
         let lps = self.root.accumulate(|n| {
             let n_r = &n.0.read().expect("poisoned TraceNode");
-            Term::alpha(term, &n_r.term).map(|_| n_r.log_p)
+            let ln_p = n_r.log_p;
+            let score = Term::shared_score(term, &n_r.term);
+            let ln_adj_score = score.powf(self.noise_level).ln();
+            Some(ln_p + ln_adj_score)
         });
         if lps.is_empty() {
             f64::NEG_INFINITY
