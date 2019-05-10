@@ -613,16 +613,19 @@ impl Rule {
     /// # use term_rewriting::{Signature, Term, Rule, parse_term, parse_rule};
     /// let mut sig = Signature::default();
     ///
-    /// let mut r = parse_rule(&mut sig, "A = B").expect("parse A = B");
-    /// let r2 = parse_rule(&mut sig, "A = C").expect("parse A = C");
+    /// let mut r = parse_rule(&mut sig, "A(x_) = B").expect("parse A(x_) = B");
+    /// let r2 = parse_rule(&mut sig, "A(y_) = C(y_)").expect("parse A(y_) = C(y_)");
     /// r.merge(&r2);
     ///
-    /// assert_eq!(r.display(), "A = B | C");
+    /// assert_eq!(r.display(), "A(x_) = B | C(x_)");
     /// ```
     pub fn merge(&mut self, r: &Rule) {
-        if let Some(s) = Term::alpha(&self.lhs, &r.lhs) {
+        if let Some(s) = Term::alpha(&r.lhs, &self.lhs) {
             for rhs in r.rhs.clone() {
-                self.rhs.push(rhs.substitute(&s));
+                let new_rhs = rhs.substitute(&s);
+                if !self.rhs.contains(&new_rhs) {
+                    self.rhs.push(new_rhs);
+                }
             }
         }
     }
