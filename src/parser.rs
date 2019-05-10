@@ -159,7 +159,7 @@ impl<'a> Parser<'a> {
                 .iter()
                 .enumerate()
                 .skip(self.dv)
-                .find(|&(_, ref var_name)| var_name.as_ref().map(|s| s.as_str()) == Some(name))
+                .find(|&(_, ref var_name)| var_name.as_ref().map(String::as_str) == Some(name))
                 .map(|(id, _)| Variable {
                     id,
                     sig: self.sig.clone(),
@@ -190,7 +190,7 @@ impl<'a> Parser<'a> {
             .iter()
             .enumerate()
             .find(|&(_, &(op_arity, ref op_name))| {
-                op_arity == arity && op_name.as_ref().map(|s| s.as_str()) == Some(name)
+                op_arity == arity && op_name.as_ref().map(String::as_str) == Some(name)
             })
             .map(|(id, _)| Operator {
                 id,

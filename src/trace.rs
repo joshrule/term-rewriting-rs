@@ -296,7 +296,7 @@ impl TraceNode {
             .expect("poisoned TraceNode")
             .parent
             .as_ref()
-            .and_then(|w| w.upgrade())
+            .and_then(Weak::upgrade)
             .map(TraceNode)
     }
     /// The children `TraceNode`s of this evaluation step.

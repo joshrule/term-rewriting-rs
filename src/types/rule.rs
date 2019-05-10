@@ -102,7 +102,7 @@ impl RuleContext {
     /// ```
     pub fn display(&self) -> String {
         let lhs_str = self.lhs.display();
-        let rhs_str = self.rhs.iter().map(|rhs| rhs.display()).join(" | ");
+        let rhs_str = self.rhs.iter().map(Context::display).join(" | ");
         format!("{} = {}", lhs_str, rhs_str)
     }
     /// A human-readable serialization of the `RuleContext`.
@@ -120,7 +120,7 @@ impl RuleContext {
     /// ```
     pub fn pretty(&self) -> String {
         let lhs_str = self.lhs.pretty();
-        let rhs_str = self.rhs.iter().map(|rhs| rhs.pretty()).join(" | ");
+        let rhs_str = self.rhs.iter().map(Context::pretty).join(" | ");
         format!("{} = {}", lhs_str, rhs_str)
     }
     /// Get all the [`subcontexts`] and [`Place`]s in a `RuleContext`.
@@ -337,7 +337,7 @@ impl RuleContext {
         let rhs = self
             .rhs
             .iter()
-            .map(|rhs| rhs.to_term())
+            .map(Context::to_term)
             .collect::<Result<_, _>>()?;
         Rule::new(lhs, rhs).ok_or(())
     }
@@ -404,7 +404,7 @@ impl Rule {
     /// ```
     pub fn display(&self) -> String {
         let lhs_str = self.lhs.display();
-        let rhs_str = self.rhs.iter().map(|rhs| rhs.display()).join(" | ");
+        let rhs_str = self.rhs.iter().map(Term::display).join(" | ");
         format!("{} = {}", lhs_str, rhs_str)
     }
     /// A human-readable serialization of the `Rule`.
@@ -422,7 +422,7 @@ impl Rule {
     /// ```
     pub fn pretty(&self) -> String {
         let lhs_str = self.lhs.pretty();
-        let rhs_str = self.rhs.iter().map(|rhs| rhs.pretty()).join(" | ");
+        let rhs_str = self.rhs.iter().map(Term::pretty).join(" | ");
         format!("{} = {}", lhs_str, rhs_str)
     }
     /// The total number of subterms across all [`Term`]s in the `Rule`.
