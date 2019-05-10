@@ -1,7 +1,7 @@
 use super::types::*;
 
 use nom::types::CompleteStr;
-use nom::{alphanumeric, multispace0, multispace1};
+use nom::{multispace0, multispace1};
 use std::fmt;
 
 named!(lparen<CompleteStr, CompleteStr>,     tag!("("));
@@ -10,7 +10,7 @@ named!(pipe<CompleteStr, CompleteStr>,       tag!("|"));
 named!(semicolon<CompleteStr, CompleteStr>,  tag!(";"));
 named!(rule_kw<CompleteStr, CompleteStr>,    tag!("="));
 named!(underscore<CompleteStr, CompleteStr>, tag!("_"));
-named!(identifier<CompleteStr, CompleteStr>, call!(alphanumeric));
+named!(identifier<CompleteStr, CompleteStr>, is_not!("[!]| #_:()=;"));
 
 #[derive(Debug, PartialEq)]
 /// The error type for parsing operations.
@@ -485,9 +485,7 @@ mod tests {
         let mut sig = Signature::default();
         let mut p = Parser::new(&mut sig);
         let abc = p.get_var("abc");
-        println!("point 3");
         let (_, var) = p.variable(CompleteStr("abc_"));
-        println!("point 4");
         assert_eq!(var, Ok((CompleteStr(""), Term::Variable(abc))));
     }
 
