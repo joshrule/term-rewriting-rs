@@ -845,6 +845,40 @@ impl Term {
             }
         }
     }
+    /// Compute the percentage of shared subterms between two `Term`s.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_term, Term};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t1 = parse_term(&mut sig, "S (K y_ z_)").expect("parse of S K y_ z_");
+    /// let t2 = parse_term(&mut sig, "S (K w_ x_)").expect("parse of S K w_ x_");
+    /// let t3 = parse_term(&mut sig, "K (K w_ x_) S").expect("parse of S K w_ x_");
+    ///
+    /// // Identical Terms
+    /// assert_eq!(Term::shared_score(&t1, &t1), 1.0);
+    ///
+    /// // Alpha-equivalent Terms
+    /// assert_eq!(Term::shared_score(&t1, &t2), 1.0);
+    ///
+    /// // Distinct Terms
+    /// assert_eq!(Term::shared_score(&t1, &t3), 0.75);
+    /// ```
+    pub fn shared_score(t1: &Term, t2: &Term) -> f64 {
+        let t1s = t1.subterms().iter().map(|x| x.0).collect_vec();
+        let mut t2s = t2.subterms().iter().map(|x| x.0).collect_vec();
+        let total = (t1s.len() + t2s.len()) as f64;
+        let mut count = 0.0;
+        for o in t1s {
+            if let Some((idx, _)) = t2s.iter().find_position(|t| Term::alpha(o, t).is_some()) {
+                count += 2.0;
+                t2s.swap_remove(idx);
+            }
+        }
+        count / total
+    }
     /// Given a mapping from [`Variable`]s to `Term`s, perform a substitution.
     ///
     /// [`Variable`]: struct.Variable.html
