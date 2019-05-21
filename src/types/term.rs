@@ -845,6 +845,23 @@ impl Term {
             }
         }
     }
+    /// Replace all occurrences of `old_term` with `new_term`
+    pub fn replace_all(&self, old_term: &Term, new_term: &Term) -> Term {
+        match *self {
+            ref x if x == old_term => new_term.clone(),
+            Term::Variable(_) => self.clone(),
+            Term::Application { ref op, ref args } => {
+                let new_args = args
+                    .iter()
+                    .map(|arg| arg.replace_all(old_term, new_term))
+                    .collect_vec();
+                Term::Application {
+                    op: op.clone(),
+                    args: new_args,
+                }
+            }
+        }
+    }
     /// Compute the percentage of shared subterms between two `Term`s.
     ///
     /// # Examples
