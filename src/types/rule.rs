@@ -990,68 +990,68 @@ impl Rule {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{Signature, Term};
     use super::super::super::parser::*;
-    use std::collections::HashMap;
+    use super::super::{Signature, Term};
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn rulecontext_new_test() {
         let mut sig = Signature::default();
-        
+
         let left = parse_context(&mut sig, "A(B C [!])").expect("parse of A(B C [!])");
         let b = parse_context(&mut sig, "B [!]").expect("parse of B [!]");
         let c = parse_context(&mut sig, "C").expect("parse of C");
-        
+
         let r = RuleContext::new(left, vec![b, c]).unwrap();
-        
+
         assert_eq!(r.pretty(), "A(B, C, [!]) = B [!] | C");
-        
+
         let left = parse_context(&mut sig, "A(B C [!])").expect("parse of A(B C [!])");
         let b = parse_context(&mut sig, "B [!] x_").expect("parse of B [!] x_");
         let c = parse_context(&mut sig, "C").expect("parse of C");
-        
+
         assert_eq!(RuleContext::new(left, vec![b, c]), None);
-        
+
         let left = parse_context(&mut sig, "x_").expect("parse of x_");
         let b = parse_context(&mut sig, "B [!]").expect("parse of B [!]");
-        
-        assert_eq!(RuleContext::new(left, vec![b]), None);       
+
+        assert_eq!(RuleContext::new(left, vec![b]), None);
     }
 
     #[test]
     fn rulecontext_display_test() {
         let mut sig = Signature::default();
-        
+
         let rule = parse_rulecontext(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = [!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))")
             .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = [!] CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
-        
+
         assert_eq!(rule.display(), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5)) = .([!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL))))");
     }
 
     #[test]
     fn rule_context_pretty_test() {
         let mut sig = Signature::default();
-        
+
         let rule = parse_rulecontext(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = [!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))")
             .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = [!] CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
-        
+
         assert_eq!(rule.pretty(), "A B(x_) [2, 1, 0] 105 = [!] [A, B(x_), 2]");
     }
 
     #[test]
     fn subcontexts_test() {
         let mut sig = Signature::default();
-        
-        let r =
-            parse_rulecontext(&mut sig, "A(x_ [!]) = C(x_) | D([!])")
+
+        let r = parse_rulecontext(&mut sig, "A(x_ [!]) = C(x_) | D([!])")
             .expect("parse of A(x_ B[!]) = C(x_) | D([!])");
-        
-        let subcontexts: Vec<String> = r.subcontexts()
+
+        let subcontexts: Vec<String> = r
+            .subcontexts()
             .iter()
             .map(|(c, p)| format!("({}, {:?})", c.display(), p))
             .collect();
-        
+
         assert_eq!(
             subcontexts,
             vec![
@@ -1069,55 +1069,57 @@ mod tests {
     #[test]
     fn holes_test() {
         let mut sig = Signature::default();
-        
-        let r =
-            parse_rulecontext(&mut sig, "A(x_ [!]) = C(x_) | D([!])").expect("parse of A(x_ B[!]) = C(x_) | D([!])");
-        
+
+        let r = parse_rulecontext(&mut sig, "A(x_ [!]) = C(x_) | D([!])")
+            .expect("parse of A(x_ B[!]) = C(x_) | D([!])");
+
         let p: &[usize] = &[0, 1];
         let p2: &[usize] = &[2, 0];
-        
-        assert_eq!(r.holes(), vec![p, p2]); 
+
+        assert_eq!(r.holes(), vec![p, p2]);
     }
 
     #[test]
     fn rulecontext_variables_test() {
         let mut sig = Signature::default();
-        
-        let r = parse_rulecontext(&mut sig, "A(x_ [!]) = C(x_)").expect("parse of A(x_ [!]) = C(x_)");
+
+        let r =
+            parse_rulecontext(&mut sig, "A(x_ [!]) = C(x_)").expect("parse of A(x_ [!]) = C(x_)");
         let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
-        
+
         assert_eq!(r_variables, vec!["x_"]);
-        
+
         let r = parse_rulecontext(&mut sig, "B(y_ z_) = C [!]").expect("parse of B(y_ z_) = C [!]");
         let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
-        
+
         assert_eq!(r_variables, vec!["y_", "z_"]);
     }
 
     #[test]
     fn rulecontext_operators_test() {
         let mut sig = Signature::default();
-        
+
         let r = parse_rulecontext(&mut sig, "A(D E) = C([!])").expect("parse of A(D E) = C([!])");
         let r_ops: Vec<String> = r.operators().iter().map(|o| o.display()).collect();
-        
+
         assert_eq!(r_ops, vec!["D", "E", "A", "C"]);
-        
+
         let r = parse_rulecontext(&mut sig, "B(F x_) = C [!]").expect("parse of B(F x_) = C [!]");
         let r_ops: Vec<String> = r.operators().iter().map(|o| o.display()).collect();
-        
-        assert_eq!(r_ops, vec!["F", "B", "C", "."]);   
+
+        assert_eq!(r_ops, vec!["F", "B", "C", "."]);
     }
 
     #[test]
     fn rulecontext_at_test() {
         let mut sig = Signature::default();
-        
-        let r = parse_rulecontext(&mut sig, "A(x_ [!]) = B | C(x_ [!])").expect("parse of A(x_ [!]) = B | C(x_ [!])");
-        
+
+        let r = parse_rulecontext(&mut sig, "A(x_ [!]) = B | C(x_ [!])")
+            .expect("parse of A(x_ [!]) = B | C(x_ [!])");
+
         assert_eq!(r.at(&[0]).unwrap().display(), "A(x_ [!])");
-        assert_eq!(r.at(&[0,1]).unwrap().display(), "[!]");
-        assert_eq!(r.at(&[0,0]).unwrap().display(), "x_");
+        assert_eq!(r.at(&[0, 1]).unwrap().display(), "[!]");
+        assert_eq!(r.at(&[0, 0]).unwrap().display(), "x_");
         assert_eq!(r.at(&[1]).unwrap().display(), "B");
         assert_eq!(r.at(&[2]).unwrap().display(), "C(x_ [!])");
     }
@@ -1125,232 +1127,238 @@ mod tests {
     #[test]
     fn rulecontext_replace_test() {
         let mut sig = Signature::default();
-        
-        let r = parse_rulecontext(&mut sig, "A(x_) = B | C(x_) | [!]").expect("parse of A(x_) = B| C(x_) | [!]");
+
+        let r = parse_rulecontext(&mut sig, "A(x_) = B | C(x_) | [!]")
+            .expect("parse of A(x_) = B| C(x_) | [!]");
         let new_context = parse_context(&mut sig, "E [!]").expect("parse of E [!]");
         let new_r = r.replace(&[1], new_context);
-        
+
         assert_ne!(r, new_r.clone().unwrap());
         assert_eq!(new_r.unwrap().pretty(), "A(x_) = E [!] | C(x_) | [!]");
-   
     }
 
     #[test]
     fn to_rule_test() {
         let mut sig = Signature::default();
-        
-        let r = parse_rulecontext(&mut sig, "A(x_ [!]) = B | C(x_ [!])").expect("parse of A(x_ [!]) = B | C(x_ [!])");
-        
+
+        let r = parse_rulecontext(&mut sig, "A(x_ [!]) = B | C(x_ [!])")
+            .expect("parse of A(x_ [!]) = B | C(x_ [!])");
+
         assert!(r.to_rule().is_err());
-        
-        let r = parse_rulecontext(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B | C(x_)");
+
+        let r =
+            parse_rulecontext(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B | C(x_)");
         let rule = r.to_rule().expect("converting RuleContext to Rule");
-        
+
         assert_eq!(rule.pretty(), "A(x_) = B | C(x_)");
     }
 
     #[test]
     fn rule_display_test() {
         let mut sig = Signature::default();
-        
+
         let rule = parse_rule(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))")
             .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
-        
+
         assert_eq!(rule.display(), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5)) = CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))");
     }
 
     #[test]
     fn rule_pretty_test() {
         let mut sig = Signature::default();
-        
+
         let rule = parse_rule(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))")
             .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
-        
+
         assert_eq!(rule.pretty(), "A B(x_) [2, 1, 0] 105 = [A, B(x_), 2]");
     }
 
     #[test]
     fn size_test() {
         let mut sig = Signature::default();
-        
+
         let r = parse_rule(&mut sig, "A(x_) = B(x_) | C").expect("parse of A(x_) = B(x_) | C");
-        
+
         assert_eq!(r.size(), 5);
     }
 
     #[test]
     fn len_test() {
         let mut sig = Signature::default();
-        
+
         let r = parse_rule(&mut sig, "A(x_) = B(x_) | C").expect("parse of A(x_) = B(x_) | C");
-        
+
         assert_eq!(r.size(), 5);
     }
 
     #[test]
     fn is_empty_test() {
         let mut sig = Signature::default();
-        
+
         let r = parse_rule(&mut sig, "A(x_) = B(x_) | C").expect("parse of A(x_) = B(x_) | C");
-        
+
         assert!(!r.is_empty());
-        
+
         let lhs = parse_term(&mut sig, "A").expect("parse of A");
-        let rhs : Vec<Term> = vec![];
+        let rhs: Vec<Term> = vec![];
         let r = Rule::new(lhs, rhs).unwrap();
-        
+
         assert!(r.is_empty());
     }
 
     #[test]
     fn rhs_test() {
         let mut sig = Signature::default();
-        
+
         let r = parse_rule(&mut sig, "A = B").expect("parse of A = B");
         let b = parse_term(&mut sig, "B").expect("parse of B");
-        
+
         assert_eq!(r.rhs().unwrap(), b);
-        
+
         let r = parse_rule(&mut sig, "A = B | C").expect("parse of A = B | C");
-        
+
         assert_eq!(r.rhs(), Option::None);
     }
 
     #[test]
     fn clauses_test() {
         let mut sig = Signature::default();
-        
+
         let r = parse_rule(&mut sig, "A = B").expect("parse of A = B");
-        
+
         assert_eq!(r.clauses(), vec![r]);
-        
+
         let r = parse_rule(&mut sig, "A = B | C").expect("parse of A = B | C");
         let r1 = parse_rule(&mut sig, "A = B").expect("parse of A = B");
         let r2 = parse_rule(&mut sig, "A = C").expect("parse of A = C");
-        
+
         assert_eq!(r.clauses(), vec![r1, r2]);
     }
 
     #[test]
-    fn is_valid_test() {
-
-    }
+    fn is_valid_test() {}
 
     #[test]
     #[ignore]
     fn rule_new_test() {
         let mut sig = Signature::default();
-        
+
         let lhs = parse_term(&mut sig, "A").expect("parse of A");
         let rhs = vec![parse_term(&mut sig, "B").expect("parse of B")];
         let r = Rule::new(lhs, rhs).unwrap();
-        
+
         let r2 = parse_rule(&mut sig, "A = B").expect("parse of A = B");
-        
+
         assert_eq!(r, r2);
-        
+
         let left = parse_term(&mut sig, "A").expect("parse of A");
         let right = vec![parse_term(&mut sig, "B").expect("parse of B")];
-        let r2 = Rule { lhs: left, rhs: right };
-        
+        let r2 = Rule {
+            lhs: left,
+            rhs: right,
+        };
+
         assert_eq!(r, r2);
     }
 
     #[test]
     fn add_test() {
         let mut sig = Signature::default();
-        
+
         let c = parse_term(&mut sig, "C").expect("parse of C");
         let mut r = parse_rule(&mut sig, "A = B").expect("parse of A = B");
-        
+
         assert_eq!(r.display(), "A = B");
-        
+
         r.add(c);
-        
+
         assert_eq!(r.display(), "A = B | C");
     }
 
     #[test]
     fn merge_test() {
         let mut sig = Signature::default();
-        
+
         let mut r = parse_rule(&mut sig, "A = B").expect("parse A = B");
         let r2 = parse_rule(&mut sig, "A = C").expect("parse A = C");
         r.merge(&r2);
-        
+
         assert_eq!(r.display(), "A = B | C");
     }
 
     #[test]
     fn discard_test() {
         let mut sig = Signature::default();
-        
+
         let mut r = parse_rule(&mut sig, "A(x_) = B(x_) | C").expect("parse of A(x_) = B(x_) | C");
         let r2 = parse_rule(&mut sig, "A(y_) = B(y_)").expect("parse of A(y_) = B(y_)");
         r.discard(&r2);
-        
+
         assert_eq!(r.display(), "A(x_) = C");
     }
 
     #[test]
     fn contains_test() {
         let mut sig = Signature::default();
-        
+
         let r = parse_rule(&mut sig, "A(x_) = B(x_) | C").expect("parse of A(x_) = B(x_) | C");
         let r2 = parse_rule(&mut sig, "A(y_) = B(y_)").expect("parse of A(y_) = B(y_)");
-        
+
         assert_eq!(r2.contains(&r), None);
-        
-        let mut sub = HashMap::default();
-        let x = r.variables()[0].clone();
-        let y = r2.variables()[0].clone();
-        sub.insert(y, Term::Variable(x));
-        
-        assert_eq!(r.contains(&r2).unwrap(), sub);
+
+        {
+            let x = Term::Variable(r.variables()[0].clone());
+            let y = &r2.variables()[0];
+            let mut sub = HashMap::new();
+            sub.insert(y, &x);
+
+            assert_eq!(r.contains(&r2).unwrap(), sub);
+        }
     }
 
     #[test]
     fn rule_variables_test() {
         let mut sig = Signature::default();
-        
+
         let r = parse_rule(&mut sig, "A(x_) = C(x_)").expect("parse of A(x_) = C(x_)");
         let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
-        
+
         assert_eq!(r_variables, vec!["x_"]);
-        
+
         let r = parse_rule(&mut sig, "B(y_ z_) = C").expect("parse of B(y_ z_) = C");
         let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
-        
+
         assert_eq!(r_variables, vec!["y_", "z_"]);
     }
 
     #[test]
     fn rule_operators_test() {
         let mut sig = Signature::default();
-        
+
         let r = parse_rule(&mut sig, "A(D E) = C").expect("parse of A(D E) = C");
         let r_ops: Vec<String> = r.operators().iter().map(|o| o.display()).collect();
-        
+
         assert_eq!(r_ops, vec!["D", "E", "A", "C"]);
-        
+
         let r = parse_rule(&mut sig, "B(F x_) = C").expect("parse of B(F x_) = C");
         let r_ops: Vec<String> = r.operators().iter().map(|o| o.display()).collect();
-        
+
         assert_eq!(r_ops, vec!["F", "B", "C"]);
     }
 
     #[test]
     fn subterms_test() {
         let mut sig = Signature::default();
-        
-        let r =
-            parse_rule(&mut sig, "A(x_ B) = C(x_) | D(B)").expect("parse of A(x_ B) = C(x_) | D(B)");
-        
-        let subterms: Vec<String> = r.subterms()
+
+        let r = parse_rule(&mut sig, "A(x_ B) = C(x_) | D(B)")
+            .expect("parse of A(x_ B) = C(x_) | D(B)");
+
+        let subterms: Vec<String> = r
+            .subterms()
             .iter()
             .map(|(t, p)| format!("{}, {:?}", t.display(), p))
             .collect();
-        
+
         assert_eq!(
             subterms,
             vec![
@@ -1368,11 +1376,11 @@ mod tests {
     #[test]
     fn rule_at_test() {
         let mut sig = Signature::default();
-        
+
         let r = parse_rule(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B | C(x_)");
-        
+
         assert_eq!(r.at(&[0]).unwrap().display(), "A(x_)");
-        assert_eq!(r.at(&[0,0]).unwrap().display(), "x_");
+        assert_eq!(r.at(&[0, 0]).unwrap().display(), "x_");
         assert_eq!(r.at(&[1]).unwrap().display(), "B");
         assert_eq!(r.at(&[2]).unwrap().display(), "C(x_)");
     }
@@ -1380,105 +1388,113 @@ mod tests {
     #[test]
     fn rule_replace_test() {
         let mut sig = Signature::default();
-        
+
         let r = parse_rule(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B| C(x_)");
         let new_term = parse_term(&mut sig, "E").expect("parse of E");
         let new_rule = r.replace(&[1], new_term);
-        
+
         assert_ne!(r, new_rule.clone().unwrap());
-        
+
         assert_eq!(new_rule.unwrap().display(), "A(x_) = E | C(x_)");
     }
 
     #[test]
     fn pmatch_test() {
         let mut sig = Signature::default();
-        
+
         let r = parse_rule(&mut sig, "A(x_) = B").expect("parse of A(x_) = B");
         let r2 = parse_rule(&mut sig, "A(y_) = y_").expect("parse of A(y_) = y_");
         let r3 = parse_rule(&mut sig, "A(z_) = C").expect("parse of A(z_) = C");
         let r4 = parse_rule(&mut sig, "D(w_) = B").expect("parse of D(w_) = B");
         let r5 = parse_rule(&mut sig, "A(t_) = B").expect("parse of A(t_) = B");
-        
-        assert_eq!(Rule::pmatch(r.clone(), r2), None);
-        assert_eq!(Rule::pmatch(r.clone(), r3), None);
-        assert_eq!(Rule::pmatch(r.clone(), r4), None);
-        
-        let mut expected_map = HashMap::default();
-        expected_map.insert(
-            r.clone().variables()[0].clone(),
-            Term::Variable(r5.clone().variables()[0].clone()),
-        );
-        
-        assert_eq!(Rule::pmatch(r, r5), Some(expected_map));
+
+        assert_eq!(Rule::pmatch(&r, &r2), None);
+        assert_eq!(Rule::pmatch(&r, &r3), None);
+        assert_eq!(Rule::pmatch(&r, &r4), None);
+
+        {
+            let subbee = &r.variables()[0];
+            let subbed = Term::Variable(r5.variables()[0].clone());
+            let mut expected_map = HashMap::default();
+            expected_map.insert(subbee, &subbed);
+
+            assert_eq!(Rule::pmatch(&r, &r5), Some(expected_map));
+        }
     }
 
     #[test]
     fn unify_test() {
         let mut sig = Signature::default();
-        
+
         let r = parse_rule(&mut sig, "A(x_) = B").expect("parse of A(x_) = B");
         let r2 = parse_rule(&mut sig, "A(y_) = y_").expect("parse of A(y_) = y_");
         let r3 = parse_rule(&mut sig, "A(z_) = C").expect("parse of A(z_) = C");
         let r4 = parse_rule(&mut sig, "D(w_) = B").expect("parse of D(w_) = B");
         let r5 = parse_rule(&mut sig, "A(t_) = B").expect("parse of A(t_) = B");
-        
-        let b = parse_term(&mut sig, "B").expect("parse of B");
-        let mut expected_map = HashMap::default();
-        expected_map.insert(r.clone().variables()[0].clone(), b.clone());
-        expected_map.insert(r2.clone().variables()[0].clone(), b);
-        
-        assert_eq!(Rule::unify(r.clone(), r2), Some(expected_map));
-        
-        assert_eq!(Rule::unify(r.clone(), r3), None);
-        assert_eq!(Rule::unify(r.clone(), r4), None);
-        
-        let mut expected_map = HashMap::default();
-        expected_map.insert(
-            r.clone().variables()[0].clone(),
-             Term::Variable(r5.clone().variables()[0].clone()),
-        );
-        
-        assert_eq!(Rule::unify(r, r5), Some(expected_map));  
+
+        {
+            let subbee1 = &r.variables()[0];
+            let subbee2 = &r2.variables()[0];
+            let b = parse_term(&mut sig, "B").expect("parse of B");
+            let mut expected_map = HashMap::default();
+            expected_map.insert(subbee1, &b);
+            expected_map.insert(subbee2, &b);
+
+            assert_eq!(Rule::unify(&r, &r2), Some(expected_map));
+        }
+
+        assert_eq!(Rule::unify(&r, &r3), None);
+        assert_eq!(Rule::unify(&r, &r4), None);
+
+        {
+            let subbee = &r.variables()[0];
+            let subbed = Term::Variable(r5.variables()[0].clone());
+            let mut expected_map = HashMap::default();
+            expected_map.insert(subbee, &subbed);
+
+            assert_eq!(Rule::unify(&r, &r5), Some(expected_map));
+        }
     }
 
     #[test]
     fn alpha_test() {
         let mut sig = Signature::default();
-        
+
         let r = parse_rule(&mut sig, "A(x_) = B").expect("parse of A(x_) = B");
         let r2 = parse_rule(&mut sig, "A(y_) = y_").expect("parse of A(y_) = y_");
         let r3 = parse_rule(&mut sig, "A(z_) = C").expect("parse of A(z_) = C");
         let r4 = parse_rule(&mut sig, "D(w_) = B").expect("parse of D(w_) = B");
         let r5 = parse_rule(&mut sig, "A(t_) = B").expect("parse of A(t_) = B");
-        
+
         assert_eq!(Rule::alpha(&r, &r2), None);
         assert_eq!(Rule::alpha(&r, &r3), None);
         assert_eq!(Rule::alpha(&r, &r4), None);
-        
-        let mut expected_map = HashMap::default();
-        expected_map.insert(
-            r.clone().variables()[0].clone(),
-            Term::Variable(r5.clone().variables()[0].clone())
-        );
-        
-        assert_eq!(Rule::alpha(&r, &r5), Some(expected_map));
+
+        {
+            let subbee = &r.variables()[0];
+            let subbed = Term::Variable(r5.variables()[0].clone());
+            let mut expected_map = HashMap::default();
+            expected_map.insert(subbee, &subbed);
+
+            assert_eq!(Rule::alpha(&r, &r5), Some(expected_map));
+        }
     }
 
     #[test]
     fn substitute_test() {
         let mut sig = Signature::default();
-        
-        let r = parse_rule(&mut sig, "A(x_ y_) = A(x_) | B(y_)").expect("parse of A(x_ y_) = A(x_) | B(y_)");
+
+        let r = parse_rule(&mut sig, "A(x_ y_) = A(x_) | B(y_)")
+            .expect("parse of A(x_ y_) = A(x_) | B(y_)");
         let c = parse_term(&mut sig, "C").expect("parse of C");
         let vars = r.variables();
-        let x = vars[0].clone();
+        let x = &vars[0];
 
         let mut substitution = HashMap::default();
-        substitution.insert(x, c);
-        
+        substitution.insert(x, &c);
+
         let r2 = r.substitute(&substitution);
-        
+
         assert_eq!(r2.display(), "A(C y_) = A(C) | B(y_)");
     }
 }
