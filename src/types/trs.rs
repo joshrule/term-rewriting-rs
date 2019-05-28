@@ -1,7 +1,8 @@
-use super::{Operator, Rule, Term};
+use super::{Atom, Operator, Rule, Term, Variable};
 use itertools::Itertools;
 use rand::seq::sample_iter;
 use rand::Rng;
+use std::collections::HashMap;
 use std::fmt;
 
 /// A first-order term rewriting system.
@@ -560,6 +561,163 @@ impl TRS {
             }
         }
     }
+    // performs all possible rewrites, interpreting the term as a string
+    fn rewrite_as_string(&self, term: &Term) -> Option<Vec<Term>> {
+        let string = TRS::convert_term_to_string(term)?;
+        let mut rewrites = vec![];
+        for rule in &self.rules {
+            let pattern = TRS::convert_rule_to_strings(rule)?;
+            for breaks in TRS::gen_breaks(&pattern.0, string.len())?.iter() {
+                if let Some(matches) = TRS::match_pattern(&pattern.0, &breaks[..], &string) {
+                    for rhs in &pattern.1 {
+                        let new_string = TRS::substitute_pattern(&rhs[..], &matches)?;
+                        let new_term = TRS::convert_to_term(&new_string)?;
+                        rewrites.push(new_term)
+                    }
+                }
+            }
+        }
+        Some(rewrites)
+    }
+    fn convert_term_to_string(term: &Term) -> Option<Vec<Atom>> {
+        match *term {
+            Term::Variable(ref v) => Some(vec![Atom::Variable(v.clone())]),
+            Term::Application { ref op, ref args } => match (op.name(), op.arity()) {
+                (_, 0) => Some(vec![Atom::Operator(op.clone())]),
+                (Some(ref s), 2) if s.as_str() == "." => {
+                    let results = args.iter().map(TRS::convert_term_to_string).collect_vec();
+                    let mut string = vec![];
+                    for result in results {
+                        if let Some(mut chars) = result {
+                            string.append(&mut chars);
+                        } else {
+                            return None;
+                        }
+                    }
+                    Some(string)
+                }
+                _ => None,
+            },
+        }
+    }
+    fn convert_rule_to_strings(rule: &Rule) -> Option<(Vec<Atom>, Vec<Vec<Atom>>)> {
+        let lhs = TRS::convert_term_to_string(&rule.lhs)?;
+        let rhs = rule
+            .rhs
+            .iter()
+            .map(TRS::convert_term_to_string)
+            .collect::<Option<Vec<_>>>()?;
+        Some((lhs, rhs))
+    }
+    fn gen_breaks(pattern: &[Atom], n: usize) -> Option<Vec<Vec<usize>>> {
+        let breaks = (0..=n)
+            .combinations(pattern.len() - 1)
+            .map(|mut x| {
+                x.insert(0, 0);
+                x.push(n);
+                x
+            })
+            .filter(|x| TRS::valid_option(&pattern, &x))
+            .collect_vec();
+        Some(breaks)
+    }
+    fn valid_option(pattern: &[Atom], breaks: &[usize]) -> bool {
+        for (i, atom) in pattern.iter().enumerate() {
+            if let Atom::Operator(_) = atom {
+                if breaks[i + 1] - breaks[i] != 1 {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+    fn match_pattern(
+        pattern: &[Atom],
+        breaks: &[usize],
+        string: &[Atom],
+    ) -> Option<HashMap<Variable, Vec<Atom>>> {
+        let mut matches: HashMap<Variable, Vec<Atom>> = HashMap::new();
+
+        for (i, atom) in pattern.iter().enumerate() {
+            match atom {
+                Atom::Variable(ref v)
+                    if matches.contains_key(v)
+                        && matches[v] != string[breaks[i]..breaks[i + 1]].to_vec() =>
+                {
+                    return None
+                }
+                Atom::Operator(_) if string[breaks[i]..breaks[i + 1]] != [atom.clone()] => {
+                    return None
+                }
+                _ => (),
+            }
+
+            if let Atom::Variable(ref v) = atom {
+                if !matches.contains_key(v) {
+                    matches.insert(v.clone(), string[breaks[i]..breaks[i + 1]].to_vec());
+                }
+            }
+        }
+        Some(matches)
+    }
+    fn substitute_pattern(
+        pattern: &[Atom],
+        matches: &HashMap<Variable, Vec<Atom>>,
+    ) -> Option<Vec<Atom>> {
+        let mut string = vec![];
+        for atom in pattern.iter() {
+            match atom {
+                Atom::Variable(ref v) if matches.contains_key(v) => {
+                    string.append(&mut matches[v].clone())
+                }
+                Atom::Operator(_) => string.push(atom.clone()),
+                _ => return None,
+            }
+        }
+        Some(string)
+    }
+    fn convert_to_term(string: &[Atom]) -> Option<Term> {
+        if string.is_empty() {
+            return None;
+        }
+        let (mut term, bin_op_op) = match string[0] {
+            Atom::Variable(ref v) => (
+                Term::Variable(v.clone()),
+                v.sig
+                    .operators()
+                    .into_iter()
+                    .find(|x| x.arity() == 2 && x.name() == Some(".".to_string())),
+            ),
+            Atom::Operator(ref op) => (
+                Term::Application {
+                    op: op.clone(),
+                    args: vec![],
+                },
+                op.sig
+                    .operators()
+                    .into_iter()
+                    .find(|x| x.arity() == 2 && x.name() == Some(".".to_string())),
+            ),
+        };
+        if let Some(bin_op) = bin_op_op {
+            for character in string[1..].iter() {
+                let mut subterm = match *character {
+                    Atom::Variable(ref v) => Term::Variable(v.clone()),
+                    Atom::Operator(ref op) => Term::Application {
+                        op: op.clone(),
+                        args: vec![],
+                    },
+                };
+                term = Term::Application {
+                    op: bin_op.clone(),
+                    args: vec![term, subterm],
+                }
+            }
+            Some(term)
+        } else {
+            None
+        }
+    }
     /// Perform a single rewrite step.
     ///
     /// # Examples
@@ -604,6 +762,7 @@ impl TRS {
                     .rewrite_args(app, strategy)
                     .or_else(|| self.rewrite_head(app)),
                 Strategy::All => self.rewrite_all(app),
+                Strategy::String => self.rewrite_as_string(app),
             },
         }
     }
@@ -1082,6 +1241,8 @@ pub enum Strategy {
     Eager,
     /// Perform all possible rewrites
     All,
+    /// Rewrite term as a string (i.e. leaves only)
+    String,
 }
 impl fmt::Display for Strategy {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -1089,6 +1250,7 @@ impl fmt::Display for Strategy {
             Strategy::Normal => write!(f, "Normal"),
             Strategy::Eager => write!(f, "Eager"),
             Strategy::All => write!(f, "All"),
+            Strategy::String => write!(f, "String"),
         }
     }
 }
