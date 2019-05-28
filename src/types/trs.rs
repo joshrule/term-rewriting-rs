@@ -506,12 +506,18 @@ impl TRS {
     }
     // Return rewrites modifying the entire term, if possible, else None.
     fn rewrite_head(&self, term: &Term) -> Option<Vec<Term>> {
+        let mut rewrites = vec![];
         for rule in &self.rules {
             if let Some(ref sub) = Term::pmatch(vec![(&rule.lhs, &term)]) {
-                return Some(rule.rhs.iter().map(|x| x.substitute(sub)).collect());
+                let mut items = rule.rhs.iter().map(|x| x.substitute(sub)).collect();
+                rewrites.append(&mut items);
             }
         }
-        None
+        if rewrites.is_empty() {
+            None
+        } else {
+            Some(rewrites)
+        }
     }
     // Return rewrites modifying subterms, if possible, else None.
     fn rewrite_args(&self, term: &Term, strategy: Strategy) -> Option<Vec<Term>> {
