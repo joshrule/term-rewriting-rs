@@ -167,18 +167,7 @@ impl<'a> Iterator for Trace<'a> {
     /// remaining unobserved nodes.
     fn next(&mut self) -> Option<TraceNode> {
         // get a node that isn't already in the trace
-        let mut new_node = None;
-        while let Some(candidate) = self.unobserved.pop() {
-            if !self
-                .root
-                .iter()
-                .any(|n| n.state() != TraceState::Unobserved && n.term() == candidate.term())
-            {
-                new_node = Some(candidate);
-                break;
-            }
-        }
-        if let Some(node) = new_node {
+        if let Some(node) = self.unobserved.pop() {
             {
                 let mut node_w = node.0.write().expect("poisoned TraceNode");
                 match self.max_term_size {
