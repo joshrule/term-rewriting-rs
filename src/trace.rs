@@ -17,7 +17,7 @@
 //!     .trim();
 //! let (trs, mut terms) = parse(&mut sig, inp).unwrap();
 //! let mut term = terms.pop().unwrap();
-//! let mut trace = Trace::new(&trs, &term, 0.5, 1.0, None, Strategy::Normal);
+//! let mut trace = Trace::new(&trs, &term, 0.5, None, None, Strategy::Normal);
 //!
 //! let expected = vec!["PLUS(3, 1)", "PLUS(2, 2)", "PLUS(1, 3)", "PLUS(0, 4)", "4"];
 //! let got = trace
@@ -36,9 +36,10 @@ use rand::{
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::f64;
+use std::fmt;
 use std::sync::{Arc, RwLock, Weak};
 
-use {Strategy, Term, TRS};
+use super::{Strategy, Term, TRS};
 
 /// A `Trace` provides first-class control over [`Term`] rewriting.
 ///
@@ -54,8 +55,8 @@ pub struct Trace<'a> {
     root: TraceNode,
     unobserved: BinaryHeap<TraceNode>,
     p_observe: f64,
-    noise_level: f64,
     max_term_size: Option<usize>,
+    max_depth: Option<usize>,
     strategy: Strategy,
 }
 impl<'a> Trace<'a> {
@@ -65,8 +66,8 @@ impl<'a> Trace<'a> {
         trs: &'a TRS,
         term: &Term,
         p_observe: f64,
-        noise_level: f64,
         max_term_size: Option<usize>,
+        max_depth: Option<usize>,
         strategy: Strategy,
     ) -> Trace<'a> {
         let root = TraceNode::new(term.clone(), TraceState::Unobserved, 0.0, 0, None, vec![]);
@@ -77,8 +78,8 @@ impl<'a> Trace<'a> {
             root,
             unobserved,
             p_observe,
-            noise_level,
             max_term_size,
+            max_depth,
             strategy,
         }
     }
@@ -144,15 +145,18 @@ impl<'a> Trace<'a> {
         }
     }
     /// A lower bound on the probability that `self` rewrites to `term`.
-    pub fn rewrites_to(&mut self, max_steps: usize, term: &Term) -> f64 {
-        // NOTE: we use Term::shared_score rather than equality
+    pub fn rewrites_to(
+        &mut self,
+        max_steps: usize,
+        term: &Term,
+        weighter: Box<dyn Fn(&Term, &Term) -> f64>,
+    ) -> f64 {
         self.rewrite(max_steps);
         let lps = self.root.accumulate(|n| {
             let n_r = &n.0.read().expect("poisoned TraceNode");
-            let ln_p = n_r.log_p;
-            let score = Term::shared_score(term, &n_r.term);
-            let ln_adj_score = score.powf(self.noise_level).ln();
-            Some(ln_p + ln_adj_score)
+            // weight the log-probability by some parameterizable function
+            let weight = weighter(term, &n_r.term);
+            Some(n_r.log_p + weight)
         });
         if lps.is_empty() {
             f64::NEG_INFINITY
@@ -166,31 +170,47 @@ impl<'a> Iterator for Trace<'a> {
     /// Record single-step rewrites on the highest-scoring unobserved node. `None` if there are no
     /// remaining unobserved nodes.
     fn next(&mut self) -> Option<TraceNode> {
-        // get a node that isn't already in the trace
         if let Some(node) = self.unobserved.pop() {
             {
                 let mut node_w = node.0.write().expect("poisoned TraceNode");
-                match self.max_term_size {
-                    Some(max_term_size) if node_w.term.size() > max_term_size => {
-                        node_w.state = TraceState::TooBig;
-                    }
+                match (self.max_term_size, self.max_depth) {
+                    (Some(n), _) if node_w.term.size() > n => node_w.state = TraceState::TooBig,
+                    (_, Some(n)) if node_w.depth >= n => node_w.state = TraceState::TooDeep,
                     _ => match self.trs.rewrite(&node_w.term, self.strategy) {
                         None => node_w.state = TraceState::Normal,
                         Some(ref rewrites) if rewrites.is_empty() => {
                             node_w.state = TraceState::Normal
                         }
                         Some(rewrites) => {
-                            let term_selection_p = -(rewrites.len() as f64).ln();
-                            node_w.log_p += self.p_observe.ln();
+                            let (small_enough, too_big): (Vec<_>, Vec<_>) =
+                                rewrites.into_iter().partition(|t| {
+                                    self.max_term_size.is_none()
+                                        || t.size() <= self.max_term_size.unwrap()
+                                });
                             node_w.state = TraceState::Rewritten;
-                            for term in rewrites {
-                                let new_p = node_w.log_p + term_selection_p;
+                            if !small_enough.is_empty() {
+                                let term_selection_p = -(small_enough.len() as f64).ln();
+                                let branch_mass = (1.0 - self.p_observe).ln() + node_w.log_p;
+                                let child_mass = branch_mass + term_selection_p;
+                                node_w.log_p += self.p_observe.ln();
+                                for term in small_enough {
+                                    let new_node = self.new_node(
+                                        term,
+                                        Some(&node),
+                                        node_w.depth + 1,
+                                        TraceState::Unobserved,
+                                        child_mass,
+                                    );
+                                    node_w.children.push(new_node);
+                                }
+                            }
+                            for term in too_big {
                                 let new_node = self.new_node(
                                     term,
                                     Some(&node),
                                     node_w.depth + 1,
-                                    TraceState::Unobserved,
-                                    new_p,
+                                    TraceState::TooBig,
+                                    f64::NEG_INFINITY,
                                 );
                                 node_w.children.push(new_node);
                             }
@@ -220,7 +240,7 @@ struct TraceNodeStore {
 ///
 /// [`Term`]: ../enum.Term.html
 /// [`Trace`]: struct.Trace.html
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TraceState {
     /// For a [`TraceNode`] which is part of the [`Trace`] but has not yet itself been examined or
     /// rewritten.
@@ -234,6 +254,11 @@ pub enum TraceState {
     /// [`Term`]: ../struct.Term.html
     /// [`TraceNode`]: struct.TraceNode.html
     TooBig,
+    /// For a [`TraceNode`] which has been examined and found to be too deep in the [`Trace`].
+    ///
+    /// [`TraceNode`]: struct.TraceNode.html
+    /// [`Trace`]: struct.Trace.html
+    TooDeep,
     /// For a [`TraceNode`] which has been examined and whose [`Term`] is already in normal form.
     ///
     /// [`Term`]: ../struct.Term.html
@@ -243,6 +268,17 @@ pub enum TraceState {
     ///
     /// [`TraceNode`]: struct.TraceNode.html
     Rewritten,
+}
+impl fmt::Display for TraceState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TraceState::Unobserved => write!(f, "Unobserved"),
+            TraceState::TooBig => write!(f, "TooBig"),
+            TraceState::TooDeep => write!(f, "TooDeep"),
+            TraceState::Normal => write!(f, "Normal"),
+            TraceState::Rewritten => write!(f, "Rewritten"),
+        }
+    }
 }
 
 /// A `TraceNode` describes a specific evaluation step in the [`Trace`].

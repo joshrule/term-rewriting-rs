@@ -456,6 +456,190 @@ impl Context {
             }
         }
     }
+    /// Compute the [alpha equivalence] for two `Context`s.
+    ///
+    /// [alpha equivalence]: https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
+    pub fn alpha<'a>(
+        t1: &'a Context,
+        t2: &'a Context,
+    ) -> Option<HashMap<&'a Variable, &'a Context>> {
+        Context::pmatch(vec![(t2, t1)]).and_then(|_| Context::pmatch(vec![(t1, t2)]))
+    }
+    /// Given a vector of constraints, return a substitution which satisfies the
+    /// constraints. If the constraints are not satisfiable, return `None`.
+    /// Constraints are in the form of patterns, where substitutions are only
+    /// considered for variables in the first `Context` of each pair.
+    ///
+    /// For more information see [`Pattern Matching`].
+    ///
+    /// [`Pattern Matching`]: https://en.wikipedia.org/wiki/Pattern_matching
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Context, parse_context};
+    /// # use std::collections::{HashMap, HashSet};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t1 = parse_context(&mut sig, "C(A)").expect("parse of C(A)");
+    /// let t2 = parse_context(&mut sig, "C([!])").expect("parse of C([!])");
+    /// let t3 = parse_context(&mut sig, "C([!])").expect("parse of C(x_)");
+    /// let t4 = parse_context(&mut sig, "C(x_)").expect("parse of C(x_)");
+    ///
+    /// assert_eq!(Context::pmatch(vec![(&t1, &t2)]), None);
+    /// assert_eq!(Context::pmatch(vec![(&t2, &t1)]), None);
+    /// assert_eq!(Context::pmatch(vec![(&t2, &t3)]), Some(HashMap::new()));
+    ///
+    /// // Map variable x in term t4 to hole [!] in term t3.
+    /// let t_k = &t4.variables()[0];
+    /// let t_v = Context::Hole;
+    /// let mut expected_sub = HashMap::new();
+    /// expected_sub.insert(t_k, &t_v);
+    ///
+    /// assert_eq!(Context::pmatch(vec![(&t4, &t3)]), Some(expected_sub));
+    /// ```
+    pub fn pmatch<'a>(
+        cs: Vec<(&'a Context, &'a Context)>,
+    ) -> Option<HashMap<&'a Variable, &'a Context>> {
+        Context::unify_internal(cs, Unification::Match)
+    }
+    /// Given a vector of constraints, return a substitution which satisfies the
+    /// constraints. If the constraints are not satisfiable, return `None`.
+    ///
+    /// For more information see [`Unification`].
+    ///
+    /// [`Unification`]: https://en.wikipedia.org/wiki/Unification_(computer_science)
+    ///
+    /// # Examples
+    ///
+    /// Given
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Context, parse_term};
+    /// # use std::collections::{HashMap, HashSet};
+    /// let mut sig = Signature::default();
+    /// ```
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Context, parse_context};
+    /// # use std::collections::{HashMap, HashSet};
+    /// # let mut sig = Signature::default();
+    /// let t1 = parse_context(&mut sig, "C(A)").expect("parse of C(A)");
+    /// let t2 = parse_context(&mut sig, "C([!])").expect("parse of C([!])");
+    ///
+    /// assert_eq!(Context::unify(vec![(&t1, &t2)]), None);
+    /// ```
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Context, parse_context};
+    /// # use std::collections::{HashMap, HashSet};
+    /// # let mut sig = Signature::default();
+    /// let t1 = parse_context(&mut sig, "C(x_)").expect("parse of C(x_)");
+    /// let t2 = parse_context(&mut sig, "C([!])").expect("parse of C([!])");
+    ///
+    /// // Map variable x in term t2 to variable y in term t2.
+    /// let mut expected_sub = HashMap::new();
+    /// let t_k = &t1.variables()[0];
+    /// let t_v = Context::Hole;
+    /// expected_sub.insert(t_k, &t_v);
+    ///
+    /// assert_eq!(Context::unify(vec![(&t1, &t2)]), Some(expected_sub));
+    /// ```
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Context, parse_context};
+    /// # use std::collections::{HashMap, HashSet};
+    /// # let mut sig = Signature::default();
+    /// let t1 = parse_context(&mut sig, "C([!])").expect("parse of C([!])");
+    /// let t2 = parse_context(&mut sig, "C([!])").expect("parse of C([!])");
+    ///
+    /// assert_eq!(Context::unify(vec![(&t1, &t2)]), Some(HashMap::new()));
+    /// ```
+    pub fn unify<'a>(
+        cs: Vec<(&'a Context, &'a Context)>,
+    ) -> Option<HashMap<&'a Variable, &'a Context>> {
+        Context::unify_internal(cs, Unification::Unify)
+    }
+    /// the internal implementation of unify and match.
+    fn unify_internal<'a>(
+        mut cs: Vec<(&'a Context, &'a Context)>,
+        utype: Unification,
+    ) -> Option<HashMap<&'a Variable, &'a Context>> {
+        let mut subs: HashMap<&Variable, &Context> = HashMap::new();
+        while !cs.is_empty() {
+            let (mut s, mut t) = cs.pop().unwrap();
+
+            while let Context::Variable(ref v) = *s {
+                if subs.contains_key(v) {
+                    s = &subs[v];
+                } else {
+                    break;
+                }
+            }
+
+            while let Context::Variable(ref v) = *t {
+                if subs.contains_key(v) {
+                    t = &subs[v];
+                } else {
+                    break;
+                }
+            }
+
+            // if they are equal, you're all done with them.
+            if s != t {
+                match (s, t) {
+                    (Context::Hole, Context::Hole) => (),
+                    (Context::Variable(ref var), Context::Variable(_)) => {
+                        subs.insert(var, t);
+                    }
+                    (Context::Variable(ref var), t) => {
+                        if !(*t).variables().contains(&&var) {
+                            subs.insert(var, t);
+                        } else {
+                            return None;
+                        }
+                    }
+                    (s, Context::Variable(ref var)) if utype != Unification::Match => {
+                        if !(*s).variables().contains(&&var) {
+                            subs.insert(var, s);
+                        } else {
+                            return None;
+                        }
+                    }
+                    (
+                        Context::Application {
+                            op: ref h1,
+                            args: ref a1,
+                        },
+                        Context::Application {
+                            op: ref h2,
+                            args: ref a2,
+                        },
+                    ) if h1 == h2 => {
+                        cs.append(&mut a1.iter().zip(a2.iter()).collect());
+                    }
+                    _ => {
+                        return None;
+                    }
+                }
+            }
+        }
+        Some(subs)
+    }
+}
+impl From<&Term> for Context {
+    fn from(t: &Term) -> Context {
+        match *t {
+            Term::Variable(ref v) => Context::Variable(v.clone()),
+            Term::Application { ref op, ref args } => {
+                let args = args.iter().map(Context::from).collect();
+                Context::Application {
+                    op: op.clone(),
+                    args,
+                }
+            }
+        }
+    }
 }
 impl From<Term> for Context {
     fn from(t: Term) -> Context {
@@ -463,6 +647,19 @@ impl From<Term> for Context {
             Term::Variable(v) => Context::Variable(v),
             Term::Application { op, args } => {
                 let args = args.into_iter().map(Context::from).collect();
+                Context::Application { op, args }
+            }
+        }
+    }
+}
+impl From<Atom> for Context {
+    fn from(a: Atom) -> Context {
+        match a {
+            Atom::Variable(v) => Context::Variable(v),
+            Atom::Operator(op) => {
+                let args = iter::repeat(Context::Hole)
+                    .take(op.arity() as usize)
+                    .collect_vec();
                 Context::Application { op, args }
             }
         }
@@ -735,6 +932,85 @@ impl Term {
             }
         }
     }
+    /// Every slice (i.e. subcontext) of the `Term`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_term, Term};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t1 = parse_term(&mut sig, "x_").expect("parse of x_");
+    /// assert_eq!(t1.slices().len(), 2);
+    ///
+    /// let t2 = parse_term(&mut sig, "B").expect("parse of B");
+    /// assert_eq!(t2.slices().len(), 2);
+    ///
+    /// let t3 = parse_term(&mut sig, "A(C(x_ A(B)))").expect("parse of A(C(x_ A(B)))");
+    ///
+    /// let slices = t3.slices();
+    /// for slice in &slices {
+    ///     println!("{}", slice.pretty());
+    /// }
+    ///
+    /// assert_eq!(slices.len(), 22);
+    ///
+    /// // 1. [!]
+    /// // 2. A([!])
+    /// // 3. A(C([!] [!]))
+    /// // 4. A(C(x_ [!]))
+    /// // 5. A(C(x_ A([!])))
+    /// // 6. A(C([!] A(B)))
+    /// // 7. A(C([!] A([!])))
+    /// // 8. A(C(x_ A(B)))
+    /// // 9. [!]
+    /// // 10. C([!] [!])
+    /// // 11. C(x_ [!])
+    /// // 12. C(x_ A([!]))
+    /// // 13. C([!] A(B))
+    /// // 14. C([!] A([!]))
+    /// // 15. C(x_ A(B))
+    /// // 16. [!]
+    /// // 17. x_
+    /// // 18. [!]
+    /// // 19. A([!])
+    /// // 20. A(B)
+    /// // 21. [!]
+    /// // 22. B
+    /// ```
+    pub fn slices(&self) -> Vec<Context> {
+        // TODO: use a HashMap to make me more efficient.
+        self.subterms()
+            .iter()
+            .flat_map(|(t, _)| t.slices_at())
+            .collect_vec()
+    }
+    /// Compute one-hole contexts for a term.
+    pub fn contexts(&self, max_holes: usize) -> Vec<Context> {
+        self.slices_at()
+            .into_iter()
+            .filter(|x| x.holes().len() <= max_holes)
+            .collect_vec()
+    }
+    /// Compute slices rooted at some point.
+    fn slices_at(&self) -> Vec<Context> {
+        match *self {
+            Term::Application { ref op, ref args } if !args.is_empty() => {
+                let arg_slices = args.iter().map(Term::slices_at).collect_vec();
+                let slices = arg_slices
+                    .iter()
+                    .cloned()
+                    .multi_cartesian_product()
+                    .map(|slice_args| Context::Application {
+                        op: op.clone(),
+                        args: slice_args,
+                    })
+                    .collect_vec();
+                iter::once(Context::Hole).chain(slices).collect_vec()
+            }
+            _ => vec![Context::Hole, Context::from(self)],
+        }
+    }
     /// The number of distinct [`Place`]s in the `Term`.
     ///
     /// [`Place`]: type.Place.html
@@ -881,16 +1157,18 @@ impl Term {
     /// assert_eq!(Term::shared_score(&t1, &t2), 1.0);
     ///
     /// // Distinct Terms
-    /// assert_eq!(Term::shared_score(&t1, &t3), 0.75);
+    /// assert_eq!(Term::shared_score(&t1, &t3), 0.5);
     /// ```
     pub fn shared_score(t1: &Term, t2: &Term) -> f64 {
         let t1s = t1.subterms().iter().map(|x| x.0).collect_vec();
         let mut t2s = t2.subterms().iter().map(|x| x.0).collect_vec();
-        let total = (t1s.len() + t2s.len()) as f64;
+        let t1_total: usize = t1s.iter().map(|&x| x.size()).sum();
+        let t2_total: usize = t2s.iter().map(|&x| x.size()).sum();
+        let total: f64 = (t1_total + t2_total) as f64;
         let mut count = 0.0;
         for o in t1s {
             if let Some((idx, _)) = t2s.iter().find_position(|t| Term::alpha(o, t).is_some()) {
-                count += 2.0;
+                count += 2.0 * (o.size() as f64);
                 t2s.swap_remove(idx);
             }
         }
@@ -968,11 +1246,7 @@ impl Term {
     /// assert_eq!(Term::alpha(&t, &t3), None);
     /// ```
     pub fn alpha<'a>(t1: &'a Term, t2: &'a Term) -> Option<HashMap<&'a Variable, &'a Term>> {
-        if Term::pmatch(vec![(t2, t1)]).is_some() {
-            Term::pmatch(vec![(t1, t2)])
-        } else {
-            None
-        }
+        Term::pmatch(vec![(t2, t1)]).and_then(|_| Term::pmatch(vec![(t1, t2)]))
     }
     /// Returns whether two `Term`s are shape equivalent.
     ///
@@ -1042,26 +1316,23 @@ impl Term {
     /// # use std::collections::{HashMap, HashSet};
     /// let mut sig = Signature::default();
     ///
-    /// let t = parse_term(&mut sig, "C(A)").expect("parse of C(A)");
+    /// let t1 = parse_term(&mut sig, "C(A)").expect("parse of C(A)");
     ///
     /// let t2 = parse_term(&mut sig, "C(x_)").expect("parse of C(x_)");
     ///
-    /// let t3 = parse_term(&mut sig, "C(y_)").expect("parse of C(y_)");
+    /// assert_eq!(Term::pmatch(vec![(&t1, &t2)]), None);
     ///
-    /// let t4 = parse_term(&mut sig, "A(x_)").expect("parse of A(x_)");
-    ///
-    /// assert_eq!(Term::pmatch(vec![(&t, &t2)]), None);
-    ///
+    /// // maps variable x in term t2 to constant A in term t1
     /// let t_k = &t2.variables()[0];
-    /// let t_v = Term::Variable(t3.variables()[0].clone());
+    /// let t_v = parse_term(&mut sig, "A").expect("parse of A");
     /// let mut expected_sub = HashMap::new();
-    ///
-    /// // maps variable x in term t2 to variable y in term t3
     /// expected_sub.insert(t_k, &t_v);
     ///
-    /// assert_eq!(Term::pmatch(vec![(&t2, &t3)]), Some(expected_sub));
+    /// assert_eq!(Term::pmatch(vec![(&t2, &t1)]), Some(expected_sub));
     ///
-    /// assert_eq!(Term::pmatch(vec![(&t3, &t4)]), None);
+    /// let t3 = parse_term(&mut sig, "A(x_)").expect("parse of A(x_)");
+    ///
+    /// assert_eq!(Term::pmatch(vec![(&t2, &t3)]), None);
     /// ```
     pub fn pmatch<'a>(cs: Vec<(&'a Term, &'a Term)>) -> Option<HashMap<&'a Variable, &'a Term>> {
         Term::unify_internal(cs, Unification::Match)
@@ -1075,42 +1346,54 @@ impl Term {
     ///
     /// # Examples
     ///
+    /// Given
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Context, parse_term};
+    /// # use std::collections::{HashMap, HashSet};
+    /// let mut sig = Signature::default();
+    /// ```
+    ///
     /// ```
     /// # use term_rewriting::{Signature, Term, parse_term};
     /// # use std::collections::{HashMap, HashSet};
-    /// let mut sig = Signature::default();
-    ///
-    /// let t = parse_term(&mut sig, "C(A)").expect("parse of C(A)");
-    ///
+    /// # let mut sig = Signature::default();
+    /// let t1 = parse_term(&mut sig, "C(A)").expect("parse of C(A)");
     /// let t2 = parse_term(&mut sig, "C(x_)").expect("parse of C(x_)");
     ///
-    /// let t3 = parse_term(&mut sig, "C(y_)").expect("parse of C(y_)");
-    ///
-    /// let t4 = parse_term(&mut sig, "B(x_)").expect("parse of B(x_)");
-    ///
+    /// // Map variable x in term t2 to constant A in term t1.
+    /// let mut expected_sub = HashMap::new();
     /// let t_k = &t2.variables()[0];
-    /// let t_v = Term::Application {
-    ///     op: t.operators()[0].clone(),
-    ///     args:vec![],
-    /// };
-    ///
-    /// let mut expected_sub = HashMap::new();
-    ///
-    /// // maps variable x in term t2 to constant A in term t
+    /// let t_v = parse_term(&mut sig, "A").expect("parse of A");
     /// expected_sub.insert(t_k, &t_v);
     ///
-    /// assert_eq!(Term::unify(vec![(&t, &t2)]), Some(expected_sub));
+    /// assert_eq!(Term::unify(vec![(&t1, &t2)]), Some(expected_sub));
+    /// ```
     ///
-    /// let t_v = Term::Variable(t3.variables()[0].clone());
+    /// ```
+    /// # use term_rewriting::{Signature, Term, parse_term};
+    /// # use std::collections::{HashMap, HashSet};
+    /// # let mut sig = Signature::default();
+    /// let t1 = parse_term(&mut sig, "C(x_)").expect("parse of C(x_)");
+    /// let t2 = parse_term(&mut sig, "C(y_)").expect("parse of C(y_)");
     ///
+    /// // Map variable x in term t2 to variable y in term t2.
     /// let mut expected_sub = HashMap::new();
-    ///
-    ///  // maps variable x in term t2 to variable y in term t3
+    /// let t_k = &t1.variables()[0];
+    /// let t_v = Term::Variable(t2.variables()[0].clone());
     /// expected_sub.insert(t_k, &t_v);
     ///
-    /// assert_eq!(Term::unify(vec![(&t2, &t3)]), Some(expected_sub));
+    /// assert_eq!(Term::unify(vec![(&t1, &t2)]), Some(expected_sub));
+    /// ```
     ///
-    /// assert_eq!(Term::unify(vec![(&t3, &t4)]), None);
+    /// ```
+    /// # use term_rewriting::{Signature, Term, parse_term};
+    /// # use std::collections::{HashMap, HashSet};
+    /// # let mut sig = Signature::default();
+    /// let t1 = parse_term(&mut sig, "C(x_)").expect("parse of C(x_)");
+    /// let t2 = parse_term(&mut sig, "B(x_)").expect("parse of B(x_)");
+    ///
+    /// assert_eq!(Term::unify(vec![(&t1, &t2)]), None);
     /// ```
     pub fn unify<'a>(cs: Vec<(&'a Term, &'a Term)>) -> Option<HashMap<&'a Variable, &'a Term>> {
         Term::unify_internal(cs, Unification::Unify)

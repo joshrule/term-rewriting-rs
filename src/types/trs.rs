@@ -1,7 +1,6 @@
-use super::{Atom, Operator, Rule, Term, Variable};
+use super::{Atom, Operator, Rule, Signature, Term, Variable};
 use itertools::Itertools;
-use rand::seq::sample_iter;
-use rand::Rng;
+use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -87,7 +86,7 @@ impl TRS {
     ///
     /// let str_before = t.display();
     ///
-    /// assert!(t.make_deterministic(& mut r));
+    /// assert!(t.make_deterministic());
     ///
     /// assert_ne!(t.display(), str_before);
     ///
@@ -108,17 +107,11 @@ impl TRS {
     /// D = E;"));
     /// # }
     /// ```
-    pub fn make_deterministic<R: Rng>(&mut self, rng: &mut R) -> bool {
+    pub fn make_deterministic(&mut self) -> bool {
         if !self.is_deterministic {
-            self.rules = self
-                .rules
-                .iter()
-                .cloned()
-                .map(|r| {
-                    let new_rhs = sample_iter(rng, r.rhs, 1).expect("sample_iter failed.");
-                    Rule::new(r.lhs, new_rhs).expect("making new rule from old rule failed")
-                })
-                .collect();
+            for rule in self.rules.iter_mut() {
+                rule.rhs.truncate(1);
+            }
             self.is_deterministic = true;
             true
         } else {
@@ -148,7 +141,7 @@ impl TRS {
     /// D = E;").expect("parse of A = B | C; D = E");
     /// let mut r = rand::thread_rng();
     ///
-    /// t.make_deterministic(& mut r);
+    /// t.make_deterministic();
     ///
     /// let str_before = t.display();
     /// let r = parse_rule(&mut sig, "C = B | D").expect("parse of C = B | D");
@@ -197,7 +190,7 @@ impl TRS {
     ///
     /// assert!(!t.is_deterministic());
     ///
-    /// t.make_deterministic(& mut r);
+    /// t.make_deterministic();
     ///
     /// assert!(t.is_deterministic());
     /// # }
@@ -510,8 +503,12 @@ impl TRS {
         let mut rewrites = vec![];
         for rule in &self.rules {
             if let Some(ref sub) = Term::pmatch(vec![(&rule.lhs, &term)]) {
-                let mut items = rule.rhs.iter().map(|x| x.substitute(sub)).collect();
-                rewrites.append(&mut items);
+                let mut items = rule.rhs.iter().map(|x| x.substitute(sub)).collect_vec();
+                if self.is_deterministic && !items.is_empty() {
+                    return Some(vec![items.remove(0)]);
+                } else {
+                    rewrites.append(&mut items);
+                }
             }
         }
         if rewrites.is_empty() {
@@ -578,6 +575,48 @@ impl TRS {
             }
         }
         Some(rewrites)
+    }
+    pub fn convert_list_to_string(term: &Term, sig: &mut Signature) -> Option<Vec<Atom>> {
+        match *term {
+            Term::Variable(ref v) => Some(vec![Atom::Variable(v.clone())]),
+            Term::Application { ref op, ref args } => match (op.name(), op.arity()) {
+                (Some(ref s), 0) if s.as_str() == "NIL" => Some(vec![]),
+                (Some(ref s), 2) if s.as_str() == "CONS" => {
+                    let head = TRS::num_to_atom(&args[0], sig);
+                    let tail = TRS::convert_list_to_string(&args[1], sig);
+                    let mut string = vec![];
+                    match (head, tail) {
+                        (Some(head), Some(mut tail)) => {
+                            string.push(head);
+                            string.append(&mut tail);
+                            Some(string)
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            },
+        }
+    }
+    fn num_to_atom(term: &Term, sig: &mut Signature) -> Option<Atom> {
+        match *term {
+            Term::Variable(_) => None,
+            Term::Application { .. } => {
+                let term_string = term.pretty();
+                if (0..=99).any(|n| n.to_string() == term_string.clone()) {
+                    match sig
+                        .operators()
+                        .iter()
+                        .find(|op| op.name() == Some(term_string.clone()) && op.arity() == 0)
+                    {
+                        Some(op) => Some(Atom::Operator(op.clone())),
+                        None => Some(Atom::Operator(sig.new_op(0, Some(term_string)))),
+                    }
+                } else {
+                    None
+                }
+            }
+        }
     }
     fn convert_term_to_string(term: &Term) -> Option<Vec<Atom>> {
         match *term {
@@ -701,7 +740,7 @@ impl TRS {
         };
         if let Some(bin_op) = bin_op_op {
             for character in string[1..].iter() {
-                let mut subterm = match *character {
+                let subterm = match *character {
                     Atom::Variable(ref v) => Term::Variable(v.clone()),
                     Atom::Operator(ref op) => Term::Application {
                         op: op.clone(),
@@ -718,6 +757,46 @@ impl TRS {
             None
         }
     }
+    /// madness: `p_string` treats two `Term`s as strings and computes a
+    /// probabilistic edit distance between them.
+    pub fn p_string(
+        x: &Term,
+        y: &Term,
+        dist: PStringDist,
+        t_max: usize,
+        d_max: usize,
+    ) -> Option<f64> {
+        let x_string = TRS::convert_term_to_string(x)?;
+        //println!("x: {}", TRS::print_string(&x_string[..]));
+        let y_string = TRS::convert_term_to_string(y)?;
+        //println!("y: {}", TRS::print_string(&y_string[..]));
+        let p = PString::new(x_string, y_string, dist).compute(t_max, d_max);
+        //println!("p: {}", p.ln());
+        Some(p.ln())
+    }
+    /// madness: `p_list` treats two list `Term`s as strings and computes a
+    /// probabilistic edit distance between them.
+    pub fn p_list(x: &Term, y: &Term, dist: PStringDist, t_max: usize, d_max: usize) -> f64 {
+        // println!("x: {}", x.pretty());
+        // println!("y: {}", y.pretty());
+        let mut sig = Signature::default();
+        let x_string = TRS::convert_list_to_string(x, &mut sig);
+        let y_string = TRS::convert_list_to_string(y, &mut sig);
+        match (x_string, y_string) {
+            (Some(x_string), Some(y_string)) => {
+                // println!("x: {}", TRS::print_string(&x_string[..]));
+                // println!("y: {}", TRS::print_string(&y_string[..]));
+                let p = PString::new(x_string, y_string, dist).compute(t_max, d_max);
+                // println!("p: {}", p.ln());
+                p.ln()
+            }
+            _ => {
+                // println!("p: {}", std::f64::NEG_INFINITY);
+                std::f64::NEG_INFINITY
+            }
+        }
+    }
+
     /// Perform a single rewrite step.
     ///
     /// # Examples
@@ -1233,7 +1312,7 @@ impl TRS {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub enum Strategy {
     /// Perform only the leftmost-innermost rewrite
     Normal,
@@ -1306,6 +1385,145 @@ impl ::std::error::Error for TRSError {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PStringDist {
+    pub beta: f64,
+    pub p_insertion: f64,
+    pub p_deletion: f64,
+    pub p_correct_sub: f64,
+    pub p_incorrect_sub: PStringIncorrect,
+}
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+pub enum PStringIncorrect {
+    Constant(f64),
+    Bounded {
+        low: usize,
+        high: usize,
+        weight: f64,
+    },
+}
+
+struct PString {
+    cache: HashMap<(usize, usize, usize), f64>,
+    m: usize,
+    n: usize,
+    x: Vec<Atom>,
+    y: Vec<Atom>,
+    dist: PStringDist,
+}
+impl PString {
+    fn new(x: Vec<Atom>, y: Vec<Atom>, dist: PStringDist) -> PString {
+        let cache = HashMap::new();
+        let m = x.len();
+        let n = y.len();
+        PString {
+            cache,
+            m,
+            n,
+            x,
+            y,
+            dist,
+        }
+    }
+    pub fn compute(&mut self, t_max: usize, d_max: usize) -> f64 {
+        let t_start = if self.n > self.m { self.n - self.m } else { 0 };
+        let t_end = if self.m > d_max + self.n {
+            0
+        } else {
+            t_max.min(d_max + self.n - self.m)
+        };
+        (t_start..=t_end)
+            .filter_map(|t| {
+                if t > self.n || self.n > self.m + t {
+                    None
+                } else {
+                    let d = self.m + t - self.n;
+                    let s = self.n - t;
+                    Some(self.rho_t(t) * self.query((t, d, s)) * self.normalizer(t))
+                }
+            })
+            .sum()
+    }
+    fn rho_t(&self, t: usize) -> f64 {
+        (1.0 - self.dist.beta) * self.dist.beta.powi(t as i32)
+    }
+    fn normalizer(&self, t: usize) -> f64 {
+        // m!t!/(m+t)! = min(m,t)!/(\prod_{i = max(m,t)..m+t} i)
+        if self.m == 0 && t == 0 {
+            1.0
+        } else {
+            let min_mt = t.min(self.m);
+            let max_mt = t.max(self.m);
+            let numerator: f64 = (1..=min_mt).product::<usize>() as f64;
+            let denominator: f64 = (max_mt..=(self.m + t)).product::<usize>() as f64;
+            numerator / denominator
+        }
+    }
+    fn p_sub(&self, x: &Atom, y: &Atom) -> f64 {
+        if x == y {
+            self.dist.p_correct_sub
+        } else {
+            match self.dist.p_incorrect_sub {
+                PStringIncorrect::Constant(p) => p,
+                PStringIncorrect::Bounded { low, high, weight } => {
+                    let n_x = x.display().parse::<usize>(); // 75
+                    let n_y = y.display().parse::<usize>(); // 81
+                                                            // println!("n_x: {:?}, n_y: {:?}", n_x, n_y);
+                    match (n_x, n_y) {
+                        (Ok(n_x), Ok(n_y)) => {
+                            let range = high + 1 - low; // 100
+                            let d_xy = if n_x > n_y { n_x - n_y } else { n_y - n_x }; // 6
+                            let peak = if n_x == low || n_x == high {
+                                range
+                            } else {
+                                (high + 1 - n_x).max(n_x + 1 - low)
+                            }; // 76
+                            let mass_y = peak - d_xy; // 70
+                            let z = (1..peak).sum::<usize>()
+                                + (1..peak).rev().take(high - n_x).sum::<usize>();
+                            weight * (mass_y as f64) / (z as f64)
+                        }
+                        _ => 0.0,
+                    }
+                }
+            }
+        }
+    }
+    fn query(&mut self, key: (usize, usize, usize)) -> f64 {
+        if self.cache.contains_key(&key) {
+            return self.cache[&key];
+        }
+        let new_val = match key {
+            (0, 0, 0) => 1.0,
+            (t, 0, 0) if t > 0 => self.query((t - 1, 0, 0)) * self.dist.p_insertion,
+            (0, d, 0) if d > 0 => self.query((0, d - 1, 0)) * self.dist.p_deletion,
+            (0, 0, s) if s > 0 => {
+                self.query((0, 0, s - 1)) * self.p_sub(&self.x[s - 1], &self.y[s - 1])
+            }
+            (t, d, 0) if t > 0 && d > 0 => {
+                self.query((t - 1, d, 0)) * self.dist.p_insertion
+                    + self.query((t, d - 1, 0)) * self.dist.p_deletion
+            }
+            (t, 0, s) if t > 0 && s > 0 => {
+                self.query((t - 1, 0, s)) * self.dist.p_insertion
+                    + self.query((t, 0, s - 1)) * self.p_sub(&self.x[s - 1], &self.y[s + t - 1])
+            }
+            (0, d, s) if d > 0 && s > 0 => {
+                self.query((0, d - 1, s)) * self.dist.p_deletion
+                    + self.query((0, d, s - 1)) * self.p_sub(&self.x[s + d - 1], &self.y[s - 1])
+            }
+            (t, d, s) if t > 0 && d > 0 && s > 0 => {
+                self.query((t - 1, d, s)) * self.dist.p_insertion
+                    + self.query((t, d - 1, s)) * self.dist.p_deletion
+                    + self.query((t, d, s - 1)) * self.p_sub(&self.x[s + d - 1], &self.y[s + t - 1])
+            }
+            _ => 0.0,
+        };
+        self.cache.insert(key, new_val);
+        new_val
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::super::parser::*;
@@ -1334,11 +1552,9 @@ mod tests {
         )
         .expect("parse of A = B | C; D = E");
 
-        let mut r = rand::thread_rng();
-
         let str_before = t.display();
 
-        assert!(t.make_deterministic(&mut r));
+        assert!(t.make_deterministic());
 
         assert_ne!(t.display(), str_before);
 
@@ -1360,9 +1576,7 @@ mod tests {
 
         let mut t = parse_trs(&mut sig, "A = B | C; D = E;").expect("parse of A = B | C; D = E");
 
-        let mut r = rand::thread_rng();
-
-        t.make_deterministic(&mut r);
+        t.make_deterministic();
 
         let str_before = t.display();
         let r = parse_rule(&mut sig, "C = B | D").expect("parse of C = B | D");
@@ -1389,11 +1603,10 @@ mod tests {
             D = E;",
         )
         .expect("parse of A = B | C; D = E");
-        let mut r = rand::thread_rng();
 
         assert!(!t.is_deterministic());
 
-        t.make_deterministic(&mut r);
+        t.make_deterministic();
 
         assert!(t.is_deterministic());
     }

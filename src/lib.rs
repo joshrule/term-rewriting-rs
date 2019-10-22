@@ -171,6 +171,8 @@ extern crate itertools;
 #[macro_use]
 extern crate nom;
 extern crate rand;
+extern crate serde;
+extern crate serde_derive;
 
 mod parser;
 mod pretty;

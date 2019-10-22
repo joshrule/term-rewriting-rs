@@ -10,8 +10,11 @@ documentation = "https://docs.rs/term_rewriting"
 description = "A Rust library for representing, parsing, and computing with first-order term rewriting systems."
 keywords = ["term-rewriting", "language", "rewriting", "parser"]
 categories = ["science", "data-structures", "algorithms", "parser-implementations"]
+edition= "2018"
 
 [dependencies]
-nom = "4.0"
-itertools = "0.7"
-rand = "0.5"
+nom = "=4.1.1"
+itertools = "0.8"
+rand = "0.7"
+serde = "1.0"
+serde_derive = "1.0"

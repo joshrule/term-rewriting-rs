@@ -26,6 +26,20 @@ impl Variable {
     pub fn name(&self) -> Option<String> {
         self.sig.sig.read().expect("poisoned signature").variables[self.id].clone()
     }
+    /// Returns a `Variable`'s id.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::Signature;
+    /// let mut sig = Signature::default();
+    /// let var = sig.new_var(Some("z".to_string()));
+    ///
+    /// assert_eq!(var.id(), 0);
+    /// ```
+    pub fn id(&self) -> usize {
+        self.id
+    }
     /// Serialize a `Variable`.
     ///
     /// # Examples
@@ -88,6 +102,20 @@ impl Operator {
         self.sig.sig.read().expect("poisoned signature").operators[self.id]
             .1
             .clone()
+    }
+    /// Returns an `Operator`'s id.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::Signature;
+    /// let mut sig = Signature::default();
+    /// let op = sig.new_op(2, Some("z".to_string()));
+    ///
+    /// assert_eq!(op.id(), 0);
+    /// ```
+    pub fn id(&self) -> usize {
+        self.id
     }
     /// Serialize an `Operator`.
     ///

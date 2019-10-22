@@ -123,6 +123,12 @@ impl RuleContext {
         let rhs_str = self.rhs.iter().map(Context::pretty).join(" | ");
         format!("{} = {}", lhs_str, rhs_str)
     }
+    /// The total number of subcontexts across all [`Context`]s in the `RuleContext`.
+    ///
+    /// [`Context`]: enum.Context.html
+    pub fn size(&self) -> usize {
+        self.lhs.size() + self.rhs.iter().map(Context::size).sum::<usize>()
+    }
     /// Get all the [`subcontexts`] and [`Place`]s in a `RuleContext`.
     ///
     /// [`subcontexts`]: struct.Context.html
@@ -531,9 +537,9 @@ impl Rule {
         // the lhs must be an application
         if let Term::Application { .. } = *lhs {
             // variables(rhs) must be a subset of variables(lhs)
-            let lhs_vars: HashSet<_> = lhs.variables().into_iter().collect();
-            let rhs_vars: HashSet<_> = rhs.iter().flat_map(Term::variables).collect();
-            rhs_vars.is_subset(&lhs_vars)
+            let lhs_vars = lhs.variables().into_iter().collect_vec();
+            let mut rhs_vars = rhs.iter().flat_map(Term::variables);
+            rhs_vars.all(|v| lhs_vars.contains(&v))
         } else {
             false
         }
