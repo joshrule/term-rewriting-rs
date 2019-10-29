@@ -496,7 +496,12 @@ impl TRS {
     /// assert!(TRS::alphas(&t0, &t2));
     /// ```
     pub fn alphas(trs1: &TRS, trs2: &TRS) -> bool {
-        TRS::pmatches(trs2.clone(), trs1.clone()) && TRS::pmatches(trs1.clone(), trs2.clone())
+        trs1.len() == trs2.len()
+            && trs1
+                .rules
+                .iter()
+                .zip(&trs2.rules[..])
+                .all(|(r1, r2)| Rule::alpha(r1, r2).is_some())
     }
     // Return rewrites modifying the entire term, if possible, else None.
     fn rewrite_head(&self, term: &Term) -> Option<Vec<Term>> {
@@ -871,7 +876,7 @@ impl TRS {
     /// ```
     pub fn get(&self, lhs: &Term) -> Option<(usize, Rule)> {
         for (idx, rule) in self.rules.iter().enumerate() {
-            if Term::alpha(lhs, &rule.lhs).is_some() {
+            if Term::alpha(vec![(lhs, &rule.lhs)]).is_some() {
                 return Some((idx, rule.clone()));
             }
         }

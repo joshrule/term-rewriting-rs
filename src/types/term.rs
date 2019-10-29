@@ -592,14 +592,14 @@ impl Context {
                     (Context::Variable(ref var), Context::Variable(_)) => {
                         subs.insert(var, t);
                     }
-                    (Context::Variable(ref var), t) => {
+                    (Context::Variable(ref var), t) if utype != Unification::Alpha => {
                         if !(*t).variables().contains(&&var) {
                             subs.insert(var, t);
                         } else {
                             return None;
                         }
                     }
-                    (s, Context::Variable(ref var)) if utype != Unification::Match => {
+                    (s, Context::Variable(ref var)) if utype == Unification::Unify => {
                         if !(*s).variables().contains(&&var) {
                             subs.insert(var, s);
                         } else {
@@ -1167,7 +1167,10 @@ impl Term {
         let total: f64 = (t1_total + t2_total) as f64;
         let mut count = 0.0;
         for o in t1s {
-            if let Some((idx, _)) = t2s.iter().find_position(|t| Term::alpha(o, t).is_some()) {
+            if let Some((idx, _)) = t2s
+                .iter()
+                .find_position(|t| Term::alpha(vec![(o, t)]).is_some())
+            {
                 count += 2.0 * (o.size() as f64);
                 t2s.swap_remove(idx);
             }
@@ -1230,23 +1233,18 @@ impl Term {
     /// let vars = sig.variables();
     /// let (y, z, a, b) = (&vars[0], &vars[1], &vars[2], &vars[3]);
     ///
-    /// assert_eq!(y.display(), "y_".to_string());
-    /// assert_eq!(z.display(), "z_".to_string());
-    /// assert_eq!(a.display(), "a_".to_string());
-    /// assert_eq!(b.display(), "b_".to_string());
-    ///
     /// let ta = Term::Variable(a.clone());
     /// let tb = Term::Variable(b.clone());
     /// let mut expected_alpha: HashMap<&Variable, &Term> = HashMap::new();
     /// expected_alpha.insert(y, &ta);
     /// expected_alpha.insert(z, &tb);
     ///
-    /// assert_eq!(Term::alpha(&t, &t2), Some(expected_alpha));
+    /// assert_eq!(Term::alpha(vec![(&t, &t2)]), Some(expected_alpha));
     ///
-    /// assert_eq!(Term::alpha(&t, &t3), None);
+    /// assert_eq!(Term::alpha(vec![(&t, &t3)]), None);
     /// ```
-    pub fn alpha<'a>(t1: &'a Term, t2: &'a Term) -> Option<HashMap<&'a Variable, &'a Term>> {
-        Term::pmatch(vec![(t2, t1)]).and_then(|_| Term::pmatch(vec![(t1, t2)]))
+    pub fn alpha<'a>(cs: Vec<(&'a Term, &'a Term)>) -> Option<HashMap<&'a Variable, &'a Term>> {
+        Term::unify_internal(cs, Unification::Alpha)
     }
     /// Returns whether two `Term`s are shape equivalent.
     ///
@@ -1429,14 +1427,14 @@ impl Term {
                     (Term::Variable(ref var), Term::Variable(_)) => {
                         subs.insert(var, t);
                     }
-                    (Term::Variable(ref var), t) => {
+                    (Term::Variable(ref var), t) if utype != Unification::Alpha => {
                         if !(*t).variables().contains(&&var) {
                             subs.insert(var, t);
                         } else {
                             return None;
                         }
                     }
-                    (s, Term::Variable(ref var)) if utype != Unification::Match => {
+                    (s, Term::Variable(ref var)) if utype == Unification::Unify => {
                         if !(*s).variables().contains(&&var) {
                             subs.insert(var, s);
                         } else {
@@ -1455,9 +1453,7 @@ impl Term {
                     ) if h1 == h2 => {
                         cs.append(&mut a1.iter().zip(a2.iter()).collect());
                     }
-                    _ => {
-                        return None;
-                    }
+                    _ => return None,
                 }
             }
         }
@@ -1851,10 +1847,10 @@ mod tests {
             expected_alpha.insert(&y, &ta);
             expected_alpha.insert(&z, &tb);
 
-            assert_eq!(Term::alpha(&t, &t2), Some(expected_alpha));
+            assert_eq!(Term::alpha(vec![(&t, &t2)]), Some(expected_alpha));
         }
 
-        assert_eq!(Term::alpha(&t, &t3), None);
+        assert_eq!(Term::alpha(vec![(&t, &t3)]), None);
     }
 
     #[test]

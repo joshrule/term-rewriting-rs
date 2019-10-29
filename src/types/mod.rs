@@ -19,5 +19,6 @@ pub type Place = Vec<usize>;
 #[derive(PartialEq, Eq)]
 enum Unification {
     Match,
+    Alpha,
     Unify,
 }

@@ -626,7 +626,7 @@ impl Rule {
     /// assert_eq!(r.display(), "A(x_) = B | C(x_)");
     /// ```
     pub fn merge(&mut self, r: &Rule) {
-        if let Some(s) = Term::alpha(&r.lhs, &self.lhs) {
+        if let Some(s) = Term::alpha(vec![(&r.lhs, &self.lhs)]) {
             for rhs in r.rhs.clone() {
                 let new_rhs = rhs.substitute(&s);
                 if !self.rhs.contains(&new_rhs) {
@@ -650,7 +650,7 @@ impl Rule {
     /// assert_eq!(r.display(), "A(x_) = C");
     /// ```
     pub fn discard(&mut self, r: &Rule) -> Option<Rule> {
-        if let Some(sub) = Term::alpha(&r.lhs, &self.lhs) {
+        if let Some(sub) = Term::alpha(vec![(&r.lhs, &self.lhs)]) {
             let terms = r
                 .rhs
                 .iter()
@@ -685,7 +685,7 @@ impl Rule {
     /// assert_eq!(r.contains(&r2).unwrap(), sub);
     /// ```
     pub fn contains<'a>(&'a self, r: &'a Rule) -> Option<HashMap<&'a Variable, &'a Term>> {
-        if let Some(sub) = Term::alpha(&r.lhs, &self.lhs) {
+        if let Some(sub) = Term::alpha(vec![(&r.lhs, &self.lhs)]) {
             if r.rhs
                 .iter()
                 .all(|rhs| self.rhs.contains(&rhs.substitute(&sub)))
@@ -958,11 +958,8 @@ impl Rule {
     /// assert_eq!(Rule::alpha(&r, &r5), Some(expected_map));
     /// ```
     pub fn alpha<'a>(r1: &'a Rule, r2: &'a Rule) -> Option<HashMap<&'a Variable, &'a Term>> {
-        if Rule::pmatch(r2, r1).is_some() {
-            Rule::pmatch(r1, r2)
-        } else {
-            None
-        }
+        let cs = iter::once((&r1.lhs, &r2.lhs)).chain(r1.rhs.iter().zip(r2.rhs.iter()));
+        Term::alpha(cs.collect())
     }
     /// Substitute through a `Rule`.
     ///
