@@ -582,45 +582,55 @@ impl TRS {
         Some(rewrites)
     }
     pub fn convert_list_to_string(term: &Term, sig: &mut Signature) -> Option<Vec<Atom>> {
-        match *term {
-            Term::Variable(ref v) => Some(vec![Atom::Variable(v.clone())]),
-            Term::Application { ref op, ref args } => match (op.name(), op.arity()) {
-                (Some(ref s), 0) if s.as_str() == "NIL" => Some(vec![]),
-                (Some(ref s), 2) if s.as_str() == "CONS" => {
-                    let head = TRS::num_to_atom(&args[0], sig);
-                    let tail = TRS::convert_list_to_string(&args[1], sig);
-                    let mut string = vec![];
-                    match (head, tail) {
-                        (Some(head), Some(mut tail)) => {
-                            string.push(head);
-                            string.append(&mut tail);
-                            Some(string)
-                        }
-                        _ => None,
-                    }
-                }
-                _ => None,
-            },
+        if term.as_guarded_application("NIL", 0).is_some() {
+            Some(vec![])
+        } else {
+            let (_, args) = term.as_guarded_application(".", 2)?;
+            let (_, inner_args) = args[0].as_guarded_application(".", 2)?;
+            inner_args[0].as_guarded_application("CONS", 0)?;
+            let mut string = vec![TRS::num_to_atom(&inner_args[1], sig)?];
+            string.append(&mut TRS::convert_list_to_string(&args[1], sig)?);
+            Some(string)
+        }
+    }
+    fn digit_to_usize(term: &Term) -> Option<usize> {
+        let (op, _) = term.as_application()?;
+        match (op.name(), op.arity()) {
+            (Some(ref s), 0) if s.as_str() == "0" => Some(0),
+            (Some(ref s), 0) if s.as_str() == "1" => Some(1),
+            (Some(ref s), 0) if s.as_str() == "2" => Some(2),
+            (Some(ref s), 0) if s.as_str() == "3" => Some(3),
+            (Some(ref s), 0) if s.as_str() == "4" => Some(4),
+            (Some(ref s), 0) if s.as_str() == "5" => Some(5),
+            (Some(ref s), 0) if s.as_str() == "6" => Some(6),
+            (Some(ref s), 0) if s.as_str() == "7" => Some(7),
+            (Some(ref s), 0) if s.as_str() == "8" => Some(8),
+            (Some(ref s), 0) if s.as_str() == "9" => Some(9),
+            _ => None,
+        }
+    }
+    fn num_to_usize(term: &Term) -> Option<usize> {
+        let (_, args) = term.as_guarded_application(".", 2)?;
+        if args[0].as_guarded_application("DIGIT", 0).is_some() {
+            TRS::digit_to_usize(&args[1])
+        } else {
+            let (_, inner_args) = args[0].as_guarded_application(".", 2)?;
+            inner_args[0].as_guarded_application("DECC", 0)?;
+            let sigs = TRS::num_to_usize(&inner_args[1])?;
+            let digit = TRS::digit_to_usize(&args[1])?;
+            Some(sigs * 10 + digit)
         }
     }
     fn num_to_atom(term: &Term, sig: &mut Signature) -> Option<Atom> {
-        match *term {
-            Term::Variable(_) => None,
-            Term::Application { .. } => {
-                let term_string = term.pretty();
-                if (0..=99).any(|n| n.to_string() == term_string.clone()) {
-                    match sig
-                        .operators()
-                        .iter()
-                        .find(|op| op.name() == Some(term_string.clone()) && op.arity() == 0)
-                    {
-                        Some(op) => Some(Atom::Operator(op.clone())),
-                        None => Some(Atom::Operator(sig.new_op(0, Some(term_string)))),
-                    }
-                } else {
-                    None
-                }
-            }
+        let n = TRS::num_to_usize(term)?;
+        if n < 100 {
+            sig.operators()
+                .iter()
+                .find(|op| op.name() == Some(n.to_string()) && op.arity() == 0)
+                .map(|op| Atom::from(op.clone()))
+                .or_else(|| Some(Atom::from(sig.new_op(0, Some(n.to_string())))))
+        } else {
+            None
         }
     }
     fn convert_term_to_string(term: &Term) -> Option<Vec<Atom>> {
