@@ -331,13 +331,29 @@ impl PartialEq for Signature {
     }
 }
 impl Eq for Signature {}
+impl PartialOrd for Signature {
+    fn partial_cmp(&self, other: &Signature) -> Option<std::cmp::Ordering> {
+        self.sig
+            .read()
+            .expect("poisoned signature")
+            .partial_cmp(&other.sig.read().expect("poisoned signature"))
+    }
+}
+impl Ord for Signature {
+    fn cmp(&self, other: &Signature) -> std::cmp::Ordering {
+        self.sig
+            .read()
+            .expect("poisoned signature")
+            .cmp(&other.sig.read().expect("poisoned signature"))
+    }
+}
 impl Hash for Signature {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.sig.read().expect("poisoned signature").hash(state);
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialOrd, Ord)]
 pub(crate) struct Sig {
     /// Stores the (arity, name) for every [`Operator`].
     /// [`Operator`]: struct.Operator.html
@@ -451,6 +467,7 @@ impl PartialEq for Sig {
                 .all(|(&(arity1, _), &(arity2, _))| arity1 == arity2)
     }
 }
+impl Eq for Sig {}
 
 /// Specifies how to merge two signatures.
 /// See [`Signature::merge`].

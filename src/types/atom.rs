@@ -6,7 +6,7 @@ use super::Signature;
 ///
 /// [`Signature`]: struct.Signature.html
 /// [`Signature::new_var`]: struct.Signature.html#method.new_var
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Variable {
     pub(crate) sig: Signature,
     pub(crate) id: usize,
@@ -67,7 +67,7 @@ impl Variable {
 ///
 /// [`Signature`]: struct.Signature.html
 /// [`Signature::new_op`]: struct.Signature.html#method.new_op
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Operator {
     pub(crate) sig: Signature,
     pub(crate) id: usize,
