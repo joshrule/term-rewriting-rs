@@ -174,7 +174,10 @@ impl Context {
             Context::Hole => vec![],
             Context::Variable(ref v) => vec![v.clone()],
             Context::Application { ref args, .. } => {
-                args.iter().flat_map(Context::variables).unique().collect()
+                let mut vars = args.iter().flat_map(Context::variables).collect_vec();
+                vars.sort();
+                vars.dedup();
+                vars
             }
         }
     }
@@ -196,11 +199,14 @@ impl Context {
     /// ```
     pub fn operators(&self) -> Vec<Operator> {
         if let Context::Application { ref op, ref args } = *self {
-            args.iter()
+            let mut ops = args
+                .iter()
                 .flat_map(Context::operators)
                 .chain(iter::once(op.clone()))
-                .unique()
-                .collect()
+                .collect_vec();
+            ops.sort();
+            ops.dedup();
+            ops
         } else {
             vec![]
         }
@@ -809,7 +815,10 @@ impl Term {
         match *self {
             Term::Variable(ref v) => vec![v.clone()],
             Term::Application { ref args, .. } => {
-                args.iter().flat_map(Term::variables).unique().collect()
+                let mut vars = args.iter().flat_map(Term::variables).collect_vec();
+                vars.sort();
+                vars.dedup();
+                vars
             }
         }
     }
@@ -831,12 +840,16 @@ impl Term {
     pub fn operators(&self) -> Vec<Operator> {
         match *self {
             Term::Variable(_) => vec![],
-            Term::Application { ref op, ref args } => args
-                .iter()
-                .flat_map(Term::operators)
-                .chain(iter::once(op.clone()))
-                .unique()
-                .collect(),
+            Term::Application { ref op, ref args } => {
+                let mut ops = args
+                    .iter()
+                    .flat_map(Term::operators)
+                    .chain(iter::once(op.clone()))
+                    .collect_vec();
+                ops.sort();
+                ops.dedup();
+                ops
+            }
         }
     }
     /// The head of the `Term`.
