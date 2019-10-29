@@ -402,6 +402,13 @@ impl Context {
     pub fn replace(&self, place: &[usize], subcontext: Context) -> Option<Context> {
         self.replace_helper(&*place, subcontext)
     }
+    pub fn fill(&self, fillers: &[Context]) -> Option<Context> {
+        let mut context = self.clone();
+        for (i, hole) in self.holes().iter().enumerate().take(fillers.len()) {
+            context = context.replace(hole, fillers[i].clone())?;
+        }
+        Some(context)
+    }
     fn replace_helper(&self, place: &[usize], subcontext: Context) -> Option<Context> {
         if place.is_empty() {
             Some(subcontext)
