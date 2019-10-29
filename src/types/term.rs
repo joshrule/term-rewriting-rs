@@ -783,6 +783,29 @@ impl Term {
     pub fn pretty(&self) -> String {
         Pretty::pretty(self)
     }
+    /// A short-cut for creating `Application`s.
+    pub fn apply(op: Operator, args: Vec<Term>) -> Option<Term> {
+        if op.arity() == (args.len() as u32) {
+            Some(Term::Application { op, args })
+        } else {
+            None
+        }
+    }
+    pub fn as_application(&self) -> Option<(&Operator, &[Term])> {
+        match self {
+            Term::Variable(_) => None,
+            Term::Application { ref op, ref args } => Some((op, args)),
+        }
+    }
+    pub fn as_guarded_application(&self, name: &str, arity: u32) -> Option<(&Operator, &[Term])> {
+        match self {
+            Term::Variable(_) => None,
+            Term::Application { ref op, ref args } => match (op.name(), op.arity()) {
+                (Some(ref s), a) if s.as_str() == name && a == arity => Some((op, args)),
+                _ => None,
+            },
+        }
+    }
     /// Every [`Atom`] used in the `Term`.
     ///
     /// [`Atom`]: enum.Atom.html
@@ -1005,12 +1028,62 @@ impl Term {
             .flat_map(|(t, _)| t.slices_at())
             .collect_vec()
     }
-    /// Compute one-hole contexts for a term.
+    /// Compute one-hole `Context`s for a `Term`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_term, Term};
+    /// let mut sig = Signature::default();
+    /// let t = parse_term(&mut sig, "A (B C) B").expect("parse of A (B C) B");
+    ///
+    /// let contexts = t.contexts(1);
+    /// for context in &contexts {
+    ///     println!("{}", context.pretty());
+    /// }
+    /// assert_eq!(contexts.len(), 8);
+    ///
+    /// println!("");
+    /// let contexts = t.contexts(2);
+    /// for context in &contexts {
+    ///     println!("{}", context.pretty());
+    /// }
+    /// assert_eq!(contexts.len(), 17);
     pub fn contexts(&self, max_holes: usize) -> Vec<Context> {
-        self.slices_at()
-            .into_iter()
-            .filter(|x| x.holes().len() <= max_holes)
-            .collect_vec()
+        let (_, places): (Vec<_>, Vec<Place>) = self.subterms().into_iter().unzip();
+        let master = Context::from(self);
+        let mut contexts = vec![];
+        for n_holes in 0..=max_holes {
+            for holes in Term::select_holes(vec![], &places, n_holes) {
+                let mut context = master.clone();
+                for hole in holes {
+                    context = context.replace(&hole, Context::Hole).unwrap();
+                }
+                contexts.push(context);
+            }
+        }
+        contexts
+    }
+    fn select_holes(selected: Vec<Place>, places: &[Place], n: usize) -> Vec<Vec<Place>> {
+        if n == 0 {
+            vec![selected]
+        } else if places.is_empty() {
+            vec![]
+        } else {
+            let mut holess = vec![];
+            for i in 0..places.len() {
+                if !selected.iter().any(|s| places[i].starts_with(s)) {
+                    let mut new_selected = selected.clone();
+                    new_selected.push(places[i].clone());
+                    holess.append(&mut Term::select_holes(
+                        new_selected,
+                        &places[(i + 1)..],
+                        n - 1,
+                    ))
+                }
+            }
+            holess
+        }
     }
     /// Compute slices rooted at some point.
     fn slices_at(&self) -> Vec<Context> {
