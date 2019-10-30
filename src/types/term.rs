@@ -1,5 +1,5 @@
 use super::super::pretty::Pretty;
-use super::{Atom, Operator, Place, Unification, Variable};
+use super::{Atom, Operator, Place, Signature, Unification, Variable};
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::iter;
@@ -28,7 +28,7 @@ use std::iter;
 /// // Constructing a Context using the Parser.
 /// let context2 = parse_context(&mut sig, "A(B x_ [!])").expect("parse of A(B x_ [!])");
 ///
-/// assert_eq!(context.display(), context2.display());
+/// assert_eq!(context.display(&sig), context2.display(&sig));
 /// ```
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Context {
@@ -45,7 +45,7 @@ pub enum Context {
     /// let mut sig = Signature::default();
     /// let h2 = parse_context(&mut sig, "[!]").expect("parse of [!]");
     ///
-    /// assert_eq!(h.display(), h2.display());
+    /// assert_eq!(h.display(&sig), h2.display(&sig));
     /// ```
     Hole,
     /// A concrete but unspecified `Context` (e.g. `x`, `y`)
@@ -63,7 +63,7 @@ pub enum Context {
     /// //Contstructing a Context Variable using the parser.
     /// let var2 = parse_context(&mut sig, "x_").expect("parse of x_");
     ///
-    /// assert_eq!(var.display(), var2.display());
+    /// assert_eq!(var.display(&sig), var2.display(&sig));
     /// ```
     Variable(Variable),
     /// An [`Operator`] applied to zero or more `Context`s (e.g. (`f(x, y)`, `g()`)
@@ -99,18 +99,18 @@ impl Context {
     /// let context = parse_context(&mut sig, "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)")
     ///     .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)") ;
     ///
-    /// assert_eq!(context.display(), ".(.(.(.(x_ [!]) A) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5))");
+    /// assert_eq!(context.display(&sig), ".(.(.(.(x_ [!]) A) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5))");
     /// ```
-    pub fn display(&self) -> String {
+    pub fn display(&self, sig: &Signature) -> String {
         match self {
             Context::Hole => "[!]".to_string(),
-            Context::Variable(v) => v.display(),
+            Context::Variable(v) => v.display(sig),
             Context::Application { op, args } => {
-                let op_str = op.display();
+                let op_str = op.display(sig);
                 if args.is_empty() {
                     op_str
                 } else {
-                    let args_str = args.iter().map(Context::display).join(" ");
+                    let args_str = args.iter().map(|c| c.display(sig)).join(" ");
                     format!("{}({})", op_str, args_str)
                 }
             }
@@ -127,10 +127,10 @@ impl Context {
     /// let context = parse_context(&mut sig, "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)")
     ///     .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)") ;
     ///
-    /// assert_eq!(context.pretty(), "x_ [!] A [2, 1, 0] 105");
+    /// assert_eq!(context.pretty(&sig), "x_ [!] A [2, 1, 0] 105");
     /// ```
-    pub fn pretty(&self) -> String {
-        Pretty::pretty(self)
+    pub fn pretty(&self, sig: &Signature) -> String {
+        Pretty::pretty(self, sig)
     }
     /// Every [`Atom`] used in the `Context`.
     ///
@@ -144,7 +144,7 @@ impl Context {
     ///
     /// let context = parse_context(&mut sig, "A(B x_ [!])").expect("parse of A(B x_ [!])");
     ///
-    /// let atoms: Vec<String> = context.atoms().iter().map(|a| a.display()).collect();
+    /// let atoms: Vec<String> = context.atoms().iter().map(|a| a.display(&sig)).collect();
     ///
     /// assert_eq!(atoms, vec!["x_", "B", "A"]);
     /// ```
@@ -165,14 +165,14 @@ impl Context {
     ///
     /// let context = parse_context(&mut sig, "A([!]) B y_ z_").expect("parse of A([!]) B y_ z_");
     ///
-    /// let var_names: Vec<String> = context.variables().iter().map(|v| v.display()).collect();
+    /// let var_names: Vec<String> = context.variables().iter().map(|v| v.display(&sig)).collect();
     ///
     /// assert_eq!(var_names, vec!["y_".to_string(), "z_".to_string()]);
     /// ```
     pub fn variables(&self) -> Vec<Variable> {
         match *self {
             Context::Hole => vec![],
-            Context::Variable(ref v) => vec![v.clone()],
+            Context::Variable(v) => vec![v],
             Context::Application { ref args, .. } => {
                 let mut vars = args.iter().flat_map(Context::variables).collect_vec();
                 vars.sort();
@@ -193,16 +193,16 @@ impl Context {
     ///
     /// let context = parse_context(&mut sig, "A([!]) B y_ z_").expect("parse of A([!]) B y_ z_");
     ///
-    /// let op_names: Vec<String> = context.operators().iter().map(|v| v.display()).collect();
+    /// let op_names: Vec<String> = context.operators().iter().map(|v| v.display(&sig)).collect();
     ///
     /// assert_eq!(op_names, vec!["A".to_string(), "B".to_string(), ".".to_string()]);
     /// ```
     pub fn operators(&self) -> Vec<Operator> {
-        if let Context::Application { ref op, ref args } = *self {
+        if let Context::Application { op, ref args } = *self {
             let mut ops = args
                 .iter()
                 .flat_map(Context::operators)
-                .chain(iter::once(op.clone()))
+                .chain(iter::once(op))
                 .collect_vec();
             ops.sort();
             ops.dedup();
@@ -251,13 +251,13 @@ impl Context {
     ///
     /// let context = parse_context(&mut sig, "A(B([!]) z_)").expect("parse of A(B([!]) z_)");
     ///
-    /// assert_eq!(context.head().unwrap().display(), "A");
+    /// assert_eq!(context.head().unwrap().display(&sig), "A");
     /// ```
     pub fn head(&self) -> Option<Atom> {
-        match self {
+        match *self {
             Context::Hole => None,
-            Context::Variable(v) => Some(Atom::Variable(v.clone())),
-            Context::Application { op, .. } => Some(Atom::Operator(op.clone())),
+            Context::Variable(v) => Some(Atom::Variable(v)),
+            Context::Application { op, .. } => Some(Atom::Operator(op)),
         }
     }
     /// The args of the `Context`.
@@ -269,12 +269,12 @@ impl Context {
     /// let mut sig = Signature::default();
     ///
     /// let context = parse_context(&mut sig, "A B").expect("parse of A B");
-    /// let args: Vec<String> = context.args().iter().map(|arg| arg.display()).collect();
+    /// let args: Vec<String> = context.args().iter().map(|arg| arg.display(&sig)).collect();
     ///
     /// assert_eq!(args, vec!["A", "B"]);
     ///
     /// let context = parse_context(&mut sig, "A(y_)").expect("parse of A(y_)");
-    /// let args: Vec<String> = context.args().iter().map(|arg| arg.display()).collect();
+    /// let args: Vec<String> = context.args().iter().map(|arg| arg.display(&sig)).collect();
     ///
     /// assert_eq!(args, vec!["y_"]);
     /// ```
@@ -363,7 +363,7 @@ impl Context {
     ///
     /// let p: &[usize] = &[0];
     ///
-    /// assert_eq!(context.at(p).unwrap().display(), "A");
+    /// assert_eq!(context.at(p).unwrap().display(&sig), "A");
     /// ```
     #[cfg_attr(feature = "cargo-clippy", allow(clippy::ptr_arg))]
     pub fn at(&self, place: &[usize]) -> Option<&Context> {
@@ -397,7 +397,7 @@ impl Context {
     /// let p: &[usize] = &[0];
     /// let new_context = context.replace(p, context2);
     ///
-    /// assert_eq!(new_context.unwrap().pretty(), "B(C [!])");
+    /// assert_eq!(new_context.unwrap().pretty(&sig), "B(C [!])");
     /// ```
     pub fn replace(&self, place: &[usize], subcontext: Context) -> Option<Context> {
         self.replace_helper(&*place, subcontext)
@@ -414,17 +414,14 @@ impl Context {
             Some(subcontext)
         } else {
             match *self {
-                Context::Application { ref op, ref args } if place[0] <= args.len() => {
+                Context::Application { op, ref args } if place[0] <= args.len() => {
                     if let Some(context) =
                         args[place[0]].replace_helper(&place[1..].to_vec(), subcontext)
                     {
                         let mut new_args = args.clone();
                         new_args.remove(place[0]);
                         new_args.insert(place[0], context);
-                        Some(Context::Application {
-                            op: op.clone(),
-                            args: new_args,
-                        })
+                        Some(Context::Application { op, args: new_args })
                     } else {
                         None
                     }
@@ -451,19 +448,19 @@ impl Context {
     ///
     /// let term = context.to_term().expect("converting context to term");
     ///
-    /// assert_eq!(term.display(), "A(B C)");
+    /// assert_eq!(term.display(&sig), "A(B C)");
     /// ```
     pub fn to_term(&self) -> Result<Term, ()> {
         match *self {
             Context::Hole => Err(()),
-            Context::Variable(ref v) => Ok(Term::Variable(v.clone())),
-            Context::Application { ref op, ref args } => {
+            Context::Variable(v) => Ok(Term::Variable(v)),
+            Context::Application { op, ref args } => {
                 let mut mapped_args = vec![];
                 for arg in args {
                     mapped_args.push(arg.to_term()?);
                 }
                 Ok(Term::Application {
-                    op: op.clone(),
+                    op,
                     args: mapped_args,
                 })
             }
@@ -642,13 +639,10 @@ impl Context {
 impl From<&Term> for Context {
     fn from(t: &Term) -> Context {
         match *t {
-            Term::Variable(ref v) => Context::Variable(v.clone()),
-            Term::Application { ref op, ref args } => {
+            Term::Variable(v) => Context::Variable(v),
+            Term::Application { op, ref args } => {
                 let args = args.iter().map(Context::from).collect();
-                Context::Application {
-                    op: op.clone(),
-                    args,
-                }
+                Context::Application { op, args }
             }
         }
     }
@@ -750,17 +744,17 @@ impl Term {
     /// let term = parse_term(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)")
     ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)");
     ///
-    /// assert_eq!(term.display(), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5))");
+    /// assert_eq!(term.display(&sig), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5))");
     /// ```
-    pub fn display(&self) -> String {
+    pub fn display(&self, sig: &Signature) -> String {
         match self {
-            Term::Variable(ref v) => v.display(),
+            Term::Variable(ref v) => v.display(sig),
             Term::Application { ref op, ref args } => {
-                let op_str = op.display();
+                let op_str = op.display(sig);
                 if args.is_empty() {
                     op_str
                 } else {
-                    let args_str = args.iter().map(Term::display).join(" ");
+                    let args_str = args.iter().map(|t| t.display(sig)).join(" ");
                     format!("{}({})", op_str, args_str)
                 }
             }
@@ -777,10 +771,10 @@ impl Term {
     /// let term = parse_term(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)")
     ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)");
     ///
-    /// assert_eq!(term.pretty(), "A B(x_) [2, 1, 0] 105");
+    /// assert_eq!(term.pretty(&sig), "A B(x_) [2, 1, 0] 105");
     /// ```
-    pub fn pretty(&self) -> String {
-        Pretty::pretty(self)
+    pub fn pretty(&self, sig: &Signature) -> String {
+        Pretty::pretty(self, sig)
     }
     /// A short-cut for creating `Application`s.
     pub fn apply(op: Operator, args: Vec<Term>) -> Option<Term> {
@@ -796,10 +790,15 @@ impl Term {
             Term::Application { ref op, ref args } => Some((op, args)),
         }
     }
-    pub fn as_guarded_application(&self, name: &str, arity: u32) -> Option<(&Operator, &[Term])> {
+    pub fn as_guarded_application(
+        &self,
+        sig: &Signature,
+        name: &str,
+        arity: u32,
+    ) -> Option<(&Operator, &[Term])> {
         match self {
             Term::Variable(_) => None,
-            Term::Application { ref op, ref args } => match (op.name(), op.arity()) {
+            Term::Application { ref op, ref args } => match (op.name(sig), op.arity()) {
                 (Some(ref s), a) if s.as_str() == name && a == arity => Some((op, args)),
                 _ => None,
             },
@@ -816,7 +815,7 @@ impl Term {
     /// let mut sig = Signature::default();
     ///
     /// let example_term = parse_term(&mut sig, "A(B x_)").expect("parse of A(B x_)");
-    /// let atoms: Vec<String> = example_term.atoms().iter().map(|a| a.display()).collect();
+    /// let atoms: Vec<String> = example_term.atoms().iter().map(|a| a.display(&sig)).collect();
     ///
     /// assert_eq!(atoms, vec!["x_", "B", "A"]);
     /// ```
@@ -836,13 +835,13 @@ impl Term {
     /// let mut sig = Signature::default();
     ///
     /// let t = parse_term(&mut sig, "A B y_ z_").expect("parse of A B y_ z_");
-    /// let var_names: Vec<String> = t.variables().iter().map(|v| v.display()).collect();
+    /// let var_names: Vec<String> = t.variables().iter().map(|v| v.display(&sig)).collect();
     ///
     /// assert_eq!(var_names, vec!["y_", "z_"]);
     /// ```
     pub fn variables(&self) -> Vec<Variable> {
         match *self {
-            Term::Variable(ref v) => vec![v.clone()],
+            Term::Variable(v) => vec![v],
             Term::Application { ref args, .. } => {
                 let mut vars = args.iter().flat_map(Term::variables).collect_vec();
                 vars.sort();
@@ -862,18 +861,18 @@ impl Term {
     /// let mut sig = Signature::default();
     ///
     /// let t = parse_term(&mut sig, "A B y_ z_").expect("parse of A B y_ z_");
-    /// let op_names: Vec<String> = t.operators().iter().map(|v| v.display()).collect();
+    /// let op_names: Vec<String> = t.operators().iter().map(|v| v.display(&sig)).collect();
     ///
     /// assert_eq!(op_names, vec!["A", "B", "."]);
     /// ```
     pub fn operators(&self) -> Vec<Operator> {
         match *self {
             Term::Variable(_) => vec![],
-            Term::Application { ref op, ref args } => {
+            Term::Application { op, ref args } => {
                 let mut ops = args
                     .iter()
                     .flat_map(Term::operators)
-                    .chain(iter::once(op.clone()))
+                    .chain(iter::once(op))
                     .collect_vec();
                 ops.sort();
                 ops.dedup();
@@ -896,9 +895,9 @@ impl Term {
     /// assert_eq!(t.head(), Atom::Operator(op));
     /// ```
     pub fn head(&self) -> Atom {
-        match self {
-            Term::Variable(v) => Atom::Variable(v.clone()),
-            Term::Application { op, .. } => Atom::Operator(op.clone()),
+        match *self {
+            Term::Variable(v) => Atom::Variable(v),
+            Term::Application { op, .. } => Atom::Operator(op),
         }
     }
     /// The arguments of the `Term`.
@@ -992,7 +991,7 @@ impl Term {
     ///
     /// let slices = t3.slices();
     /// for slice in &slices {
-    ///     println!("{}", slice.pretty());
+    ///     println!("{}", slice.pretty(&sig));
     /// }
     ///
     /// assert_eq!(slices.len(), 22);
@@ -1038,14 +1037,14 @@ impl Term {
     ///
     /// let contexts = t.contexts(1);
     /// for context in &contexts {
-    ///     println!("{}", context.pretty());
+    ///     println!("{}", context.pretty(&sig));
     /// }
     /// assert_eq!(contexts.len(), 8);
     ///
     /// println!("");
     /// let contexts = t.contexts(2);
     /// for context in &contexts {
-    ///     println!("{}", context.pretty());
+    ///     println!("{}", context.pretty(&sig));
     /// }
     /// assert_eq!(contexts.len(), 17);
     pub fn contexts(&self, max_holes: usize) -> Vec<Context> {
@@ -1087,14 +1086,14 @@ impl Term {
     /// Compute slices rooted at some point.
     fn slices_at(&self) -> Vec<Context> {
         match *self {
-            Term::Application { ref op, ref args } if !args.is_empty() => {
+            Term::Application { op, ref args } if !args.is_empty() => {
                 let arg_slices = args.iter().map(Term::slices_at).collect_vec();
                 let slices = arg_slices
                     .iter()
                     .cloned()
                     .multi_cartesian_product()
                     .map(|slice_args| Context::Application {
-                        op: op.clone(),
+                        op,
                         args: slice_args,
                     })
                     .collect_vec();
@@ -1195,16 +1194,13 @@ impl Term {
             Some(subterm)
         } else {
             match *self {
-                Term::Application { ref op, ref args } if place[0] <= args.len() => {
+                Term::Application { op, ref args } if place[0] <= args.len() => {
                     if let Some(term) = args[place[0]].replace_helper(&place[1..].to_vec(), subterm)
                     {
                         let mut new_args = args.clone();
                         new_args.remove(place[0]);
                         new_args.insert(place[0], term);
-                        Some(Term::Application {
-                            op: op.clone(),
-                            args: new_args,
-                        })
+                        Some(Term::Application { op, args: new_args })
                     } else {
                         None
                     }
@@ -1218,15 +1214,12 @@ impl Term {
         match *self {
             ref x if x == old_term => new_term.clone(),
             Term::Variable(_) => self.clone(),
-            Term::Application { ref op, ref args } => {
+            Term::Application { op, ref args } => {
                 let new_args = args
                     .iter()
                     .map(|arg| arg.replace_all(old_term, new_term))
                     .collect_vec();
-                Term::Application {
-                    op: op.clone(),
-                    args: new_args,
-                }
+                Term::Application { op, args: new_args }
             }
         }
     }
@@ -1299,9 +1292,9 @@ impl Term {
     /// ```
     pub fn substitute(&self, sub: &HashMap<&Variable, &Term>) -> Term {
         match *self {
-            Term::Variable(ref v) => (*(sub.get(v).unwrap_or(&self))).clone(),
-            Term::Application { ref op, ref args } => Term::Application {
-                op: op.clone(),
+            Term::Variable(v) => (*(sub.get(&v).unwrap_or(&self))).clone(),
+            Term::Application { op, ref args } => Term::Application {
+                op,
                 args: args.iter().map(|t| t.substitute(sub)).collect(),
             },
         }
@@ -1368,20 +1361,20 @@ impl Term {
         omap: &mut HashMap<Operator, Operator>,
     ) -> bool {
         match (t1, t2) {
-            (&Term::Variable(ref v1), &Term::Variable(ref v2)) => {
-                v2 == vmap.entry(v1.clone()).or_insert_with(|| v2.clone())
+            (&Term::Variable(v1), &Term::Variable(v2)) => {
+                v2 == *vmap.entry(v1).or_insert_with(|| v2)
             }
             (
                 &Term::Application {
-                    op: ref op1,
+                    op: op1,
                     args: ref args1,
                 },
                 &Term::Application {
-                    op: ref op2,
+                    op: op2,
                     args: ref args2,
                 },
             ) => {
-                op2 == omap.entry(op1.clone()).or_insert_with(|| op2.clone())
+                op2 == *omap.entry(op1).or_insert_with(|| op2)
                     && args1
                         .iter()
                         .zip(args2)
@@ -1567,7 +1560,7 @@ mod tests {
             "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)")
             .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)") ;
 
-        assert_eq!(context.display(),
+        assert_eq!(context.display(&sig),
             ".(.(.(.(x_ [!]) A) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5))");
     }
 
@@ -1578,7 +1571,7 @@ mod tests {
         let context = parse_context(&mut sig, "x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)")
             .expect("parse of x_ [!] A CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)") ;
 
-        assert_eq!(context.pretty(), "x_ [!] A [2, 1, 0] 105");
+        assert_eq!(context.pretty(&sig), "x_ [!] A [2, 1, 0] 105");
     }
 
     #[test]
@@ -1587,7 +1580,7 @@ mod tests {
 
         let context = parse_context(&mut sig, "A(B x_ [!])").expect("parse of A(B x_ [!])");
 
-        let atoms: Vec<String> = context.atoms().iter().map(|a| a.display()).collect();
+        let atoms: Vec<String> = context.atoms().iter().map(|a| a.display(&sig)).collect();
 
         assert_eq!(atoms, vec!["x_", "B", "A"]);
     }
@@ -1598,7 +1591,11 @@ mod tests {
 
         let context = parse_context(&mut sig, "A([!]) B y_ z_").expect("parse of A([!]) B y_ z_");
 
-        let var_names: Vec<String> = context.variables().iter().map(|v| v.display()).collect();
+        let var_names: Vec<String> = context
+            .variables()
+            .iter()
+            .map(|v| v.display(&sig))
+            .collect();
 
         assert_eq!(var_names, vec!["y_".to_string(), "z_".to_string()]);
     }
@@ -1609,7 +1606,11 @@ mod tests {
 
         let context = parse_context(&mut sig, "A([!]) B y_ z_").expect("parse of A([!]) B y_ z_");
 
-        let op_names: Vec<String> = context.operators().iter().map(|v| v.display()).collect();
+        let op_names: Vec<String> = context
+            .operators()
+            .iter()
+            .map(|v| v.display(&sig))
+            .collect();
 
         assert_eq!(
             op_names,
@@ -1636,13 +1637,13 @@ mod tests {
 
         let mut context = parse_context(&mut sig, "A(B([!]) z_)").expect("parse of A(B([!]) z_)");
 
-        assert_eq!(context.head().unwrap().display(), "A");
+        assert_eq!(context.head().unwrap().display(&sig), "A");
 
         sig = Signature::default();
 
         context = parse_context(&mut sig, "z_").expect("parse of z_");
 
-        assert_eq!(context.head().unwrap().display(), "z_");
+        assert_eq!(context.head().unwrap().display(&sig), "z_");
     }
 
     #[test]
@@ -1650,17 +1651,17 @@ mod tests {
         let mut sig = Signature::default();
 
         let mut context = parse_context(&mut sig, "A B").expect("parse of A B");
-        let mut args: Vec<String> = context.args().iter().map(|arg| arg.display()).collect();
+        let mut args: Vec<String> = context.args().iter().map(|arg| arg.display(&sig)).collect();
 
         assert_eq!(args, vec!["A", "B"]);
 
         context = parse_context(&mut sig, "A(y_)").expect("parse of A(y_)");
-        args = context.args().iter().map(|arg| arg.display()).collect();
+        args = context.args().iter().map(|arg| arg.display(&sig)).collect();
 
         assert_eq!(args, vec!["y_"]);
 
         context = parse_context(&mut sig, "y_").expect("parse of y_");
-        args = context.args().iter().map(|arg| arg.display()).collect();
+        args = context.args().iter().map(|arg| arg.display(&sig)).collect();
 
         let vec: Vec<String> = Vec::new();
 
@@ -1711,7 +1712,7 @@ mod tests {
 
         let p: &[usize] = &[0];
 
-        assert_eq!(context.at(p).unwrap().display(), "A");
+        assert_eq!(context.at(p).unwrap().display(&sig), "A");
     }
 
     #[test]
@@ -1724,7 +1725,7 @@ mod tests {
         let p: &[usize] = &[0];
         let new_context = context.replace(p, context2);
 
-        assert_eq!(new_context.unwrap().pretty(), "B(C [!])");
+        assert_eq!(new_context.unwrap().pretty(&sig), "B(C [!])");
     }
 
     #[test]
@@ -1739,7 +1740,7 @@ mod tests {
 
         let term = context.to_term().expect("converting context to term");
 
-        assert_eq!(term.display(), "A(B C)");
+        assert_eq!(term.display(&sig), "A(B C)");
     }
 
     #[test]
@@ -1749,7 +1750,7 @@ mod tests {
         let term = parse_term(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)")
             .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)");
 
-        assert_eq!(term.display(), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5))");
+        assert_eq!(term.display(&sig), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5))");
     }
 
     #[test]
@@ -1759,7 +1760,7 @@ mod tests {
         let term = parse_term(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)")
              .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5)");
 
-        assert_eq!(term.pretty(), "A B(x_) [2, 1, 0] 105");
+        assert_eq!(term.pretty(&sig), "A B(x_) [2, 1, 0] 105");
     }
 
     #[test]
@@ -1767,7 +1768,11 @@ mod tests {
         let mut sig = Signature::default();
 
         let example_term = parse_term(&mut sig, "A(B x_)").expect("parse of A(B x_)");
-        let atoms: Vec<String> = example_term.atoms().iter().map(|a| a.display()).collect();
+        let atoms: Vec<String> = example_term
+            .atoms()
+            .iter()
+            .map(|a| a.display(&sig))
+            .collect();
 
         assert_eq!(atoms, vec!["x_", "B", "A"]);
     }
@@ -1777,7 +1782,7 @@ mod tests {
         let mut sig = Signature::default();
 
         let t = parse_term(&mut sig, "A B y_ z_").expect("parse of A B y_ z_");
-        let var_names: Vec<String> = t.variables().iter().map(|v| v.display()).collect();
+        let var_names: Vec<String> = t.variables().iter().map(|v| v.display(&sig)).collect();
 
         assert_eq!(var_names, vec!["y_", "z_"]);
     }
@@ -1787,7 +1792,7 @@ mod tests {
         let mut sig = Signature::default();
 
         let t = parse_term(&mut sig, "A B y_ z_").expect("parse of A B y_ z_");
-        let op_names: Vec<String> = t.operators().iter().map(|v| v.display()).collect();
+        let op_names: Vec<String> = t.operators().iter().map(|v| v.display(&sig)).collect();
 
         assert_eq!(op_names, vec!["A", "B", "."]);
     }
@@ -1927,10 +1932,10 @@ mod tests {
             vars[3].clone(),
         );
 
-        assert_eq!(y.display(), "y_".to_string());
-        assert_eq!(z.display(), "z_".to_string());
-        assert_eq!(a.display(), "a_".to_string());
-        assert_eq!(b.display(), "b_".to_string());
+        assert_eq!(y.display(&sig), "y_".to_string());
+        assert_eq!(z.display(&sig), "z_".to_string());
+        assert_eq!(a.display(&sig), "a_".to_string());
+        assert_eq!(b.display(&sig), "b_".to_string());
 
         {
             let ta = Term::Variable(a);

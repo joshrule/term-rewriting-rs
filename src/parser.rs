@@ -160,10 +160,7 @@ impl<'a> Parser<'a> {
                 .enumerate()
                 .skip(self.dv)
                 .find(|&(_, ref var_name)| var_name.as_ref().map(String::as_str) == Some(name))
-                .map(|(id, _)| Variable {
-                    id,
-                    sig: self.sig.clone(),
-                })
+                .map(|(id, _)| Variable { id })
         }
     }
     /// Returns a [`Variable`] `v` where `v` has the lowest `id` of any [`Variable`] in
@@ -192,10 +189,7 @@ impl<'a> Parser<'a> {
             .find(|&(_, &(op_arity, ref op_name))| {
                 op_arity == arity && op_name.as_ref().map(String::as_str) == Some(name)
             })
-            .map(|(id, _)| Operator {
-                id,
-                sig: self.sig.clone(),
-            })
+            .map(|(id, _)| Operator { id, arity })
     }
     /// Returns an [`Operator`] with the given `name` with arity `arity`,
     /// creating it if necessary.

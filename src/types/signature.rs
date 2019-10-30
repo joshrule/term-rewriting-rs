@@ -61,7 +61,7 @@ impl Signature {
     /// ]);
     /// let ops = sig.operators();
     ///
-    /// let op_names: Vec<String> = ops.iter().map(|op| op.display()).collect();
+    /// let op_names: Vec<String> = ops.iter().map(|op| op.display(&sig)).collect();
     /// assert_eq!(op_names, vec![".", "S", "K"]);
     ///
     /// let mut sig2 = Signature::default();
@@ -96,7 +96,7 @@ impl Signature {
     ///     (0, Some("K".to_string())),
     /// ]);
     ///
-    /// let ops: Vec<String> = sig.operators().iter().map(|op| op.display()).collect();;
+    /// let ops: Vec<String> = sig.operators().iter().map(|op| op.display(&sig)).collect();;
     ///
     /// assert_eq!(ops, vec![".", "S", "K"]);
     ///```
@@ -108,7 +108,7 @@ impl Signature {
             .into_iter()
             .map(|id| Operator {
                 id,
-                sig: self.clone(),
+                arity: self.sig.read().expect("poisoned signature").operators[id].0,
             })
             .collect()
     }
@@ -128,7 +128,7 @@ impl Signature {
     ///
     /// parse_term(&mut sig, "A(x_ y_)").expect("parse of A(x_ y_)");
     ///
-    /// let vars: Vec<String> = sig.variables().iter().map(|v| v.display()).collect();
+    /// let vars: Vec<String> = sig.variables().iter().map(|v| v.display(&sig)).collect();
     ///
     /// assert_eq!(vars, vec!["x_", "y_"]);
     ///```
@@ -138,10 +138,7 @@ impl Signature {
             .expect("poisoned signature")
             .variables()
             .into_iter()
-            .map(|id| Variable {
-                id,
-                sig: self.clone(),
-            })
+            .map(|id| Variable { id })
             .collect()
     }
     /// Returns every [`Atom`] known to the `Signature`.
@@ -156,7 +153,7 @@ impl Signature {
     ///
     /// parse_term(&mut sig, "A(x_ B(y_))").expect("parse of A(x_ B(y_))");
     ///
-    /// let atoms: Vec<String> = sig.atoms().iter().map(|a| a.display()).collect();
+    /// let atoms: Vec<String> = sig.atoms().iter().map(|a| a.display(&sig)).collect();
     ///
     /// assert_eq!(atoms, vec!["x_", "y_", "B", "A"]);
     /// ```
@@ -189,10 +186,7 @@ impl Signature {
             .write()
             .expect("poisoned signature")
             .new_op(arity, name);
-        Operator {
-            id,
-            sig: self.clone(),
-        }
+        Operator { id, arity }
     }
     /// Create a new [`Variable`] distinct from all existing [`Variable`]s.
     ///
@@ -211,10 +205,7 @@ impl Signature {
     /// ```
     pub fn new_var(&mut self, name: Option<String>) -> Variable {
         let id = self.sig.write().expect("poisoned signature").new_var(name);
-        Variable {
-            id,
-            sig: self.clone(),
-        }
+        Variable { id }
     }
     /// Merge two `Signature`s. All [`Term`]s, [`Context`]s, [`Rule`]s, and [`TRS`]s associated
     /// with the `other` `Signature` should be `reified` using methods provided
@@ -245,7 +236,7 @@ impl Signature {
     ///
     /// sig1.merge(&sig2, MergeStrategy::DistinctOperators);
     ///
-    /// let ops: Vec<String> = sig1.operators().iter().map(|op| op.display()).collect();
+    /// let ops: Vec<String> = sig1.operators().iter().map(|op| op.display(&sig1)).collect();
     ///
     /// assert_eq!(ops, vec![".", "S", "K", "A", "B", "C"]);
     ///
@@ -264,7 +255,7 @@ impl Signature {
     ///
     /// sig1.merge(&sig2, MergeStrategy::SameOperators);
     ///
-    /// let ops: Vec<String> = sig1.operators().iter().map(|op| op.display()).collect();
+    /// let ops: Vec<String> = sig1.operators().iter().map(|op| op.display(&sig1)).collect();
     ///
     /// assert_eq!(ops, vec![".", "S", "K"]);
     ///
@@ -298,7 +289,7 @@ impl Signature {
     ///
     /// sig1.merge(&sig2, MergeStrategy::OperatorsByArityAndName);
     ///
-    /// let ops: Vec<String> = sig1.operators().iter().map(|op| op.display()).collect();
+    /// let ops: Vec<String> = sig1.operators().iter().map(|op| op.display(&sig1)).collect();
     ///
     /// assert_eq!(ops, vec![".", "S", "K", "A", "B"]);
     /// ```
@@ -510,17 +501,17 @@ pub enum MergeStrategy {
 ///
 /// let term = parse_term(&mut sig2, "A B").unwrap();
 ///
-/// assert_eq!(term.pretty(), "A B");
+/// assert_eq!(term.pretty(&sig2), "A B");
 ///
 /// let sigchange = sig1.merge(&sig2, MergeStrategy::OperatorsByArityAndName).unwrap();
 ///
-/// let ops: Vec<String> = sig1.operators().iter().map(|op| op.display()).collect();
+/// let ops: Vec<String> = sig1.operators().iter().map(|op| op.display(&sig1)).collect();
 ///
 /// assert_eq!(ops, vec![".", "S", "K", "A", "B"]);
 ///
 /// let term = sigchange.reify_term(&sig1, term);
 ///
-/// assert_eq!(term.pretty(), "A B");
+/// assert_eq!(term.pretty(&sig1), "A B");
 /// ```
 pub struct SignatureChange {
     op_map: HashMap<usize, usize>,
@@ -549,27 +540,21 @@ impl SignatureChange {
     ///
     /// let term = sigchange.reify_term(&sig1, term);
     ///
-    /// assert_eq!(term.pretty(), "A B");
+    /// assert_eq!(term.pretty(&sig1), "A B");
     /// ```
     pub fn reify_term(&self, sig: &Signature, term: Term) -> Term {
         match term {
-            Term::Variable(Variable { id, .. }) => {
+            Term::Variable(Variable { id }) => {
                 let id = id + self.delta_var;
-                Term::Variable(Variable {
-                    id,
-                    sig: sig.clone(),
-                })
+                Term::Variable(Variable { id })
             }
             Term::Application {
-                op: Operator { id, .. },
+                op: Operator { id, arity },
                 args,
             } => {
                 let id = self.op_map[&id];
                 Term::Application {
-                    op: Operator {
-                        id,
-                        sig: sig.clone(),
-                    },
+                    op: Operator { id, arity },
                     args: args.into_iter().map(|t| self.reify_term(sig, t)).collect(),
                 }
             }
@@ -597,28 +582,22 @@ impl SignatureChange {
     ///
     /// let context = sigchange.reify_context(&sig1, context);
     ///
-    /// assert_eq!(context.pretty(), "A([!], B)");
+    /// assert_eq!(context.pretty(&sig1), "A([!], B)");
     /// ```
     pub fn reify_context(&self, sig: &Signature, context: Context) -> Context {
         match context {
             Context::Hole => Context::Hole,
-            Context::Variable(Variable { id, .. }) => {
+            Context::Variable(Variable { id }) => {
                 let id = id + self.delta_var;
-                Context::Variable(Variable {
-                    id,
-                    sig: sig.clone(),
-                })
+                Context::Variable(Variable { id })
             }
             Context::Application {
-                op: Operator { id, .. },
+                op: Operator { id, arity },
                 args,
             } => {
                 let id = self.op_map[&id];
                 Context::Application {
-                    op: Operator {
-                        id,
-                        sig: sig.clone(),
-                    },
+                    op: Operator { id, arity },
                     args: args
                         .into_iter()
                         .map(|t| self.reify_context(sig, t))
@@ -649,7 +628,7 @@ impl SignatureChange {
     ///
     /// let rule = sigchange.reify_rule(&sig1, rule);
     ///
-    /// assert_eq!(rule.pretty(), "A = B | C");
+    /// assert_eq!(rule.pretty(&sig1), "A = B | C");
     /// ```
     pub fn reify_rule(&self, sig: &Signature, rule: Rule) -> Rule {
         let Rule { lhs, rhs } = rule;
@@ -681,7 +660,7 @@ impl SignatureChange {
     ///
     /// let trs = sigchange.reify_trs(&sig1, trs);
     ///
-    /// assert_eq!(trs.pretty(),
+    /// assert_eq!(trs.pretty(&sig1),
     /// "A = B;
     /// C = B;");
     /// ```
@@ -710,7 +689,7 @@ mod tests {
         ]);
         let mut ops = sig.operators();
 
-        let mut op_names: Vec<String> = ops.iter().map(|op| op.display()).collect();
+        let mut op_names: Vec<String> = ops.iter().map(|op| op.display(&sig)).collect();
         assert_eq!(op_names, vec![".", "S", "K"]);
 
         let mut sig2 = Signature::default();
@@ -720,7 +699,7 @@ mod tests {
 
         ops = sig2.operators();
 
-        op_names = ops.iter().map(|op| op.display()).collect();
+        op_names = ops.iter().map(|op| op.display(&sig)).collect();
         assert_eq!(op_names, vec![".", "S", "K"]);
 
         assert_eq!(sig, sig2);
@@ -741,7 +720,7 @@ mod tests {
             (0, Some("K".to_string())),
         ]);
 
-        let ops: Vec<String> = sig.operators().iter().map(|op| op.display()).collect();;
+        let ops: Vec<String> = sig.operators().iter().map(|op| op.display(&sig)).collect();;
 
         assert_eq!(ops, vec![".", "S", "K"]);
     }
@@ -757,7 +736,7 @@ mod tests {
 
         parse_term(&mut sig, "A(x_ y_)").expect("parse of A(x_ y_)");
 
-        let vars: Vec<String> = sig.variables().iter().map(|v| v.display()).collect();
+        let vars: Vec<String> = sig.variables().iter().map(|v| v.display(&sig)).collect();
 
         assert_eq!(vars, vec!["x_", "y_"]);
     }
@@ -768,7 +747,7 @@ mod tests {
 
         parse_term(&mut sig, "A(x_ B(y_))").expect("parse of A(x_ B(y_))");
 
-        let atoms: Vec<String> = sig.atoms().iter().map(|a| a.display()).collect();
+        let atoms: Vec<String> = sig.atoms().iter().map(|a| a.display(&sig)).collect();
 
         assert_eq!(atoms, vec!["x_", "y_", "B", "A"]);
     }
@@ -816,7 +795,11 @@ mod tests {
         sig1.merge(&sig2, MergeStrategy::DistinctOperators)
             .expect("merge of distinct operators");
 
-        let ops: Vec<String> = sig1.operators().iter().map(|op| op.display()).collect();
+        let ops: Vec<String> = sig1
+            .operators()
+            .iter()
+            .map(|op| op.display(&sig1))
+            .collect();
 
         assert_eq!(ops, vec![".", "S", "K", "A", "B", "C"]);
 
@@ -836,7 +819,11 @@ mod tests {
         sig1.merge(&sig2, MergeStrategy::SameOperators)
             .expect("merge of same operators");
 
-        let ops: Vec<String> = sig1.operators().iter().map(|op| op.display()).collect();
+        let ops: Vec<String> = sig1
+            .operators()
+            .iter()
+            .map(|op| op.display(&sig1))
+            .collect();
 
         assert_eq!(ops, vec![".", "S", "K"]);
 
@@ -871,7 +858,11 @@ mod tests {
         sig1.merge(&sig2, MergeStrategy::OperatorsByArityAndName)
             .expect("merge of same arity and name");
 
-        let ops: Vec<String> = sig1.operators().iter().map(|op| op.display()).collect();
+        let ops: Vec<String> = sig1
+            .operators()
+            .iter()
+            .map(|op| op.display(&sig1))
+            .collect();
 
         assert_eq!(ops, vec![".", "S", "K", "A", "B"]);
     }
@@ -894,7 +885,7 @@ mod tests {
 
         let term = sigchange.reify_term(&sig1, term);
 
-        assert_eq!(term.pretty(), "A B");
+        assert_eq!(term.pretty(&sig1), "A B");
     }
 
     #[test]
@@ -914,7 +905,7 @@ mod tests {
 
         let context = sigchange.reify_context(&sig1, context);
 
-        assert_eq!(context.pretty(), "A([!], B)");
+        assert_eq!(context.pretty(&sig1), "A([!], B)");
     }
 
     #[test]
@@ -934,7 +925,7 @@ mod tests {
 
         let rule = sigchange.reify_rule(&sig1, rule);
 
-        assert_eq!(rule.pretty(), "A = B | C");
+        assert_eq!(rule.pretty(&sig1), "A = B | C");
     }
 
     #[test]
@@ -954,6 +945,6 @@ mod tests {
 
         let trs = sigchange.reify_trs(&sig1, trs);
 
-        assert_eq!(trs.pretty(), "A = B;\nC = B;");
+        assert_eq!(trs.pretty(&sig1), "A = B;\nC = B;");
     }
 }

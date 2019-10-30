@@ -1,4 +1,4 @@
-use super::{Context, Operator, Place, Term, Variable};
+use super::{Context, Operator, Place, Signature, Term, Variable};
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 use std::iter;
@@ -55,7 +55,7 @@ impl RuleContext {
     ///
     /// let r = RuleContext::new(left, vec![b, c]).unwrap();
     ///
-    /// assert_eq!(r.pretty(), "A(B, C, [!]) = B [!] | C");
+    /// assert_eq!(r.pretty(&sig), "A(B, C, [!]) = B [!] | C");
     ///
     /// let left = parse_context(&mut sig, "A(B C [!])").expect("parse of A(B C [!])");
     /// let b = parse_context(&mut sig, "B [!] x_").expect("parse of B [!] x_");
@@ -98,11 +98,11 @@ impl RuleContext {
     /// let rule = parse_rulecontext(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = [!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))")
     ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = [!] CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
     ///
-    /// assert_eq!(rule.display(), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5)) = .([!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL))))");
+    /// assert_eq!(rule.display(&sig), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5)) = .([!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL))))");
     /// ```
-    pub fn display(&self) -> String {
-        let lhs_str = self.lhs.display();
-        let rhs_str = self.rhs.iter().map(Context::display).join(" | ");
+    pub fn display(&self, sig: &Signature) -> String {
+        let lhs_str = self.lhs.display(sig);
+        let rhs_str = self.rhs.iter().map(|c| c.display(sig)).join(" | ");
         format!("{} = {}", lhs_str, rhs_str)
     }
     /// A human-readable serialization of the `RuleContext`.
@@ -116,11 +116,11 @@ impl RuleContext {
     /// let rule = parse_rulecontext(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = [!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))")
     ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = [!] CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
     ///
-    /// assert_eq!(rule.pretty(), "A B(x_) [2, 1, 0] 105 = [!] [A, B(x_), 2]");
+    /// assert_eq!(rule.pretty(&sig), "A B(x_) [2, 1, 0] 105 = [!] [A, B(x_), 2]");
     /// ```
-    pub fn pretty(&self) -> String {
-        let lhs_str = self.lhs.pretty();
-        let rhs_str = self.rhs.iter().map(Context::pretty).join(" | ");
+    pub fn pretty(&self, sig: &Signature) -> String {
+        let lhs_str = self.lhs.pretty(sig);
+        let rhs_str = self.rhs.iter().map(|c| c.pretty(sig)).join(" | ");
         format!("{} = {}", lhs_str, rhs_str)
     }
     /// The total number of subcontexts across all [`Context`]s in the `RuleContext`.
@@ -145,7 +145,7 @@ impl RuleContext {
     ///
     /// let subcontexts: Vec<String> = r.subcontexts()
     ///     .iter()
-    ///     .map(|(c, p)| format!("({}, {:?})", c.display(), p))
+    ///     .map(|(c, p)| format!("({}, {:?})", c.display(&sig), p))
     ///     .collect();
     ///
     /// assert_eq!(
@@ -215,12 +215,12 @@ impl RuleContext {
     /// let mut sig = Signature::default();
     ///
     /// let r = parse_rulecontext(&mut sig, "A(x_ [!]) = C(x_)").expect("parse of A(x_ [!]) = C(x_)");
-    /// let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
+    /// let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
     ///
     /// assert_eq!(r_variables, vec!["x_"]);
     ///
     /// let r = parse_rulecontext(&mut sig, "B(y_ z_) = C [!]").expect("parse of B(y_ z_) = C [!]");
-    /// let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
+    /// let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
     ///
     /// assert_eq!(r_variables, vec!["y_", "z_"]);
     /// ```
@@ -238,12 +238,12 @@ impl RuleContext {
     /// let mut sig = Signature::default();
     ///
     /// let r = parse_rulecontext(&mut sig, "A(D E) = C([!])").expect("parse of A(D E) = C([!])");
-    /// let r_ops: Vec<String> = r.operators().iter().map(|o| o.display()).collect();
+    /// let r_ops: Vec<String> = r.operators().iter().map(|o| o.display(&sig)).collect();
     ///
     /// assert_eq!(r_ops, vec!["D", "E", "A", "C"]);
     ///
     /// let r = parse_rulecontext(&mut sig, "B(F x_) = C [!]").expect("parse of B(F x_) = C [!]");
-    /// let r_ops: Vec<String> = r.operators().iter().map(|o| o.display()).collect();
+    /// let r_ops: Vec<String> = r.operators().iter().map(|o| o.display(&sig)).collect();
     ///
     /// assert_eq!(r_ops, vec!["F", "B", "C", "."]);
     /// ```
@@ -264,11 +264,11 @@ impl RuleContext {
     ///
     /// let r = parse_rulecontext(&mut sig, "A(x_ [!]) = B | C(x_ [!])").expect("parse of A(x_ [!]) = B | C(x_ [!])");
     ///
-    /// assert_eq!(r.at(&[0]).unwrap().display(), "A(x_ [!])");
-    /// assert_eq!(r.at(&[0,1]).unwrap().display(), "[!]");
-    /// assert_eq!(r.at(&[0,0]).unwrap().display(), "x_");
-    /// assert_eq!(r.at(&[1]).unwrap().display(), "B");
-    /// assert_eq!(r.at(&[2]).unwrap().display(), "C(x_ [!])");
+    /// assert_eq!(r.at(&[0]).unwrap().display(&sig), "A(x_ [!])");
+    /// assert_eq!(r.at(&[0,1]).unwrap().display(&sig), "[!]");
+    /// assert_eq!(r.at(&[0,0]).unwrap().display(&sig), "x_");
+    /// assert_eq!(r.at(&[1]).unwrap().display(&sig), "B");
+    /// assert_eq!(r.at(&[2]).unwrap().display(&sig), "C(x_ [!])");
     /// ```
     pub fn at(&self, p: &[usize]) -> Option<&Context> {
         if p[0] == 0 {
@@ -293,7 +293,7 @@ impl RuleContext {
     /// let new_r = r.replace(&[1], new_context);
     ///
     /// assert_ne!(r, new_r.clone().unwrap());
-    /// assert_eq!(new_r.unwrap().pretty(), "A(x_) = E [!] | C(x_) | [!]");
+    /// assert_eq!(new_r.unwrap().pretty(&sig), "A(x_) = E [!] | C(x_) | [!]");
     /// ```
     pub fn replace(&self, place: &[usize], subcontext: Context) -> Option<RuleContext> {
         if place[0] == 0 {
@@ -336,7 +336,7 @@ impl RuleContext {
     /// let r = parse_rulecontext(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B | C(x_)");
     /// let rule = r.to_rule().expect("converting RuleContext to Rule");
     ///
-    /// assert_eq!(rule.pretty(), "A(x_) = B | C(x_)");
+    /// assert_eq!(rule.pretty(&sig), "A(x_) = B | C(x_)");
     /// ```
     pub fn to_rule(&self) -> Result<Rule, ()> {
         let lhs = self.lhs.to_term()?;
@@ -406,11 +406,11 @@ impl Rule {
     /// let rule = parse_rule(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))")
     ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
     ///
-    /// assert_eq!(rule.display(), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5)) = CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))");
+    /// assert_eq!(rule.display(&sig), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5)) = CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))");
     /// ```
-    pub fn display(&self) -> String {
-        let lhs_str = self.lhs.display();
-        let rhs_str = self.rhs.iter().map(Term::display).join(" | ");
+    pub fn display(&self, sig: &Signature) -> String {
+        let lhs_str = self.lhs.display(sig);
+        let rhs_str = self.rhs.iter().map(|t| t.display(sig)).join(" | ");
         format!("{} = {}", lhs_str, rhs_str)
     }
     /// A human-readable serialization of the `Rule`.
@@ -424,11 +424,11 @@ impl Rule {
     /// let rule = parse_rule(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))")
     ///     .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
     ///
-    /// assert_eq!(rule.pretty(), "A B(x_) [2, 1, 0] 105 = [A, B(x_), 2]");
+    /// assert_eq!(rule.pretty(&sig), "A B(x_) [2, 1, 0] 105 = [A, B(x_), 2]");
     /// ```
-    pub fn pretty(&self) -> String {
-        let lhs_str = self.lhs.pretty();
-        let rhs_str = self.rhs.iter().map(Term::pretty).join(" | ");
+    pub fn pretty(&self, sig: &Signature) -> String {
+        let lhs_str = self.lhs.pretty(sig);
+        let rhs_str = self.rhs.iter().map(|t| t.pretty(sig)).join(" | ");
         format!("{} = {}", lhs_str, rhs_str)
     }
     /// The total number of subterms across all [`Term`]s in the `Rule`.
@@ -599,11 +599,11 @@ impl Rule {
     /// let c = parse_term(&mut sig, "C").expect("parse of C");
     /// let mut r = parse_rule(&mut sig, "A = B").expect("parse of A = B");
     ///
-    /// assert_eq!(r.display(), "A = B");
+    /// assert_eq!(r.display(&sig), "A = B");
     ///
     /// r.add(c);
     ///
-    /// assert_eq!(r.display(), "A = B | C");
+    /// assert_eq!(r.display(&sig), "A = B | C");
     /// ```
     pub fn add(&mut self, t: Term) {
         let self_vars = self.lhs.variables();
@@ -623,7 +623,7 @@ impl Rule {
     /// let r2 = parse_rule(&mut sig, "A(y_) = C(y_)").expect("parse A(y_) = C(y_)");
     /// r.merge(&r2);
     ///
-    /// assert_eq!(r.display(), "A(x_) = B | C(x_)");
+    /// assert_eq!(r.display(&sig), "A(x_) = B | C(x_)");
     /// ```
     pub fn merge(&mut self, r: &Rule) {
         if let Some(s) = Term::alpha(vec![(&r.lhs, &self.lhs)]) {
@@ -647,7 +647,7 @@ impl Rule {
     /// let mut r2 = parse_rule(&mut sig, "A(y_) = B(y_)").expect("parse of A(y_) = B(y_)");
     /// r.discard(&r2);
     ///
-    /// assert_eq!(r.display(), "A(x_) = C");
+    /// assert_eq!(r.display(&sig), "A(x_) = C");
     /// ```
     pub fn discard(&mut self, r: &Rule) -> Option<Rule> {
         if let Some(sub) = Term::alpha(vec![(&r.lhs, &self.lhs)]) {
@@ -709,12 +709,12 @@ impl Rule {
     /// let mut sig = Signature::default();
     ///
     /// let r = parse_rule(&mut sig, "A(x_) = C(x_)").expect("parse of A(x_) = C(x_)");
-    /// let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
+    /// let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
     ///
     /// assert_eq!(r_variables, vec!["x_"]);
     ///
     /// let r = parse_rule(&mut sig, "B(y_ z_) = C").expect("parse of B(y_ z_) = C");
-    /// let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
+    /// let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
     ///
     /// assert_eq!(r_variables, vec!["y_", "z_"]);
     /// ```
@@ -732,12 +732,12 @@ impl Rule {
     /// let mut sig = Signature::default();
     ///
     /// let r = parse_rule(&mut sig, "A(D E) = C").expect("parse of A(D E) = C");
-    /// let r_ops: Vec<String> = r.operators().iter().map(|o| o.display()).collect();
+    /// let r_ops: Vec<String> = r.operators().iter().map(|o| o.display(&sig)).collect();
     ///
     /// assert_eq!(r_ops, vec!["D", "E", "A", "C"]);
     ///
     /// let r = parse_rule(&mut sig, "B(F x_) = C").expect("parse of B(F x_) = C");
-    /// let r_ops: Vec<String> = r.operators().iter().map(|o| o.display()).collect();
+    /// let r_ops: Vec<String> = r.operators().iter().map(|o| o.display(&sig)).collect();
     ///
     /// assert_eq!(r_ops, vec!["F", "B", "C"]);
     /// ```
@@ -763,7 +763,7 @@ impl Rule {
     ///
     /// let subterms: Vec<String> = r.subterms()
     ///     .iter()
-    ///     .map(|(t, p)| format!("{}, {:?}", t.display(), p))
+    ///     .map(|(t, p)| format!("{}, {:?}", t.display(&sig), p))
     ///     .collect();
     ///
     /// assert_eq!(
@@ -808,10 +808,10 @@ impl Rule {
     ///
     /// let r = parse_rule(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B | C(x_)");
     ///
-    /// assert_eq!(r.at(&[0]).unwrap().display(), "A(x_)");
-    /// assert_eq!(r.at(&[0,0]).unwrap().display(), "x_");
-    /// assert_eq!(r.at(&[1]).unwrap().display(), "B");
-    /// assert_eq!(r.at(&[2]).unwrap().display(), "C(x_)");
+    /// assert_eq!(r.at(&[0]).unwrap().display(&sig), "A(x_)");
+    /// assert_eq!(r.at(&[0,0]).unwrap().display(&sig), "x_");
+    /// assert_eq!(r.at(&[1]).unwrap().display(&sig), "B");
+    /// assert_eq!(r.at(&[2]).unwrap().display(&sig), "C(x_)");
     /// ```
     pub fn at(&self, p: &[usize]) -> Option<&Term> {
         if p[0] == 0 {
@@ -839,7 +839,7 @@ impl Rule {
     ///
     /// assert_ne!(r, new_rule.clone().unwrap());
     ///
-    /// assert_eq!(new_rule.unwrap().display(), "A(x_) = E | C(x_)");
+    /// assert_eq!(new_rule.unwrap().display(&sig), "A(x_) = E | C(x_)");
     /// ```
     pub fn replace(&self, place: &[usize], subterm: Term) -> Option<Rule> {
         if place[0] == 0 {
@@ -980,7 +980,7 @@ impl Rule {
     ///
     /// let r2 = r.substitute(&substitution);
     ///
-    /// assert_eq!(r2.display(), "A(C y_) = A(C) | B(y_)");
+    /// assert_eq!(r2.display(&sig), "A(C y_) = A(C) | B(y_)");
     /// ```
     pub fn substitute(&self, sub: &HashMap<&Variable, &Term>) -> Rule {
         Rule::new(
@@ -1008,7 +1008,7 @@ mod tests {
 
         let r = RuleContext::new(left, vec![b, c]).unwrap();
 
-        assert_eq!(r.pretty(), "A(B, C, [!]) = B [!] | C");
+        assert_eq!(r.pretty(&sig), "A(B, C, [!]) = B [!] | C");
 
         let left = parse_context(&mut sig, "A(B C [!])").expect("parse of A(B C [!])");
         let b = parse_context(&mut sig, "B [!] x_").expect("parse of B [!] x_");
@@ -1029,7 +1029,7 @@ mod tests {
         let rule = parse_rulecontext(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = [!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))")
             .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = [!] CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
 
-        assert_eq!(rule.display(), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5)) = .([!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL))))");
+        assert_eq!(rule.display(&sig), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5)) = .([!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL))))");
     }
 
     #[test]
@@ -1039,7 +1039,10 @@ mod tests {
         let rule = parse_rulecontext(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = [!] CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))")
             .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = [!] CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
 
-        assert_eq!(rule.pretty(), "A B(x_) [2, 1, 0] 105 = [!] [A, B(x_), 2]");
+        assert_eq!(
+            rule.pretty(&sig),
+            "A B(x_) [2, 1, 0] 105 = [!] [A, B(x_), 2]"
+        );
     }
 
     #[test]
@@ -1052,7 +1055,7 @@ mod tests {
         let subcontexts: Vec<String> = r
             .subcontexts()
             .iter()
-            .map(|(c, p)| format!("({}, {:?})", c.display(), p))
+            .map(|(c, p)| format!("({}, {:?})", c.display(&sig), p))
             .collect();
 
         assert_eq!(
@@ -1088,12 +1091,12 @@ mod tests {
 
         let r =
             parse_rulecontext(&mut sig, "A(x_ [!]) = C(x_)").expect("parse of A(x_ [!]) = C(x_)");
-        let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
+        let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
 
         assert_eq!(r_variables, vec!["x_"]);
 
         let r = parse_rulecontext(&mut sig, "B(y_ z_) = C [!]").expect("parse of B(y_ z_) = C [!]");
-        let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
+        let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
 
         assert_eq!(r_variables, vec!["y_", "z_"]);
     }
@@ -1103,12 +1106,12 @@ mod tests {
         let mut sig = Signature::default();
 
         let r = parse_rulecontext(&mut sig, "A(D E) = C([!])").expect("parse of A(D E) = C([!])");
-        let r_ops: Vec<String> = r.operators().iter().map(|o| o.display()).collect();
+        let r_ops: Vec<String> = r.operators().iter().map(|o| o.display(&sig)).collect();
 
         assert_eq!(r_ops, vec!["D", "E", "A", "C"]);
 
         let r = parse_rulecontext(&mut sig, "B(F x_) = C [!]").expect("parse of B(F x_) = C [!]");
-        let r_ops: Vec<String> = r.operators().iter().map(|o| o.display()).collect();
+        let r_ops: Vec<String> = r.operators().iter().map(|o| o.display(&sig)).collect();
 
         assert_eq!(r_ops, vec!["F", "B", "C", "."]);
     }
@@ -1120,11 +1123,11 @@ mod tests {
         let r = parse_rulecontext(&mut sig, "A(x_ [!]) = B | C(x_ [!])")
             .expect("parse of A(x_ [!]) = B | C(x_ [!])");
 
-        assert_eq!(r.at(&[0]).unwrap().display(), "A(x_ [!])");
-        assert_eq!(r.at(&[0, 1]).unwrap().display(), "[!]");
-        assert_eq!(r.at(&[0, 0]).unwrap().display(), "x_");
-        assert_eq!(r.at(&[1]).unwrap().display(), "B");
-        assert_eq!(r.at(&[2]).unwrap().display(), "C(x_ [!])");
+        assert_eq!(r.at(&[0]).unwrap().display(&sig), "A(x_ [!])");
+        assert_eq!(r.at(&[0, 1]).unwrap().display(&sig), "[!]");
+        assert_eq!(r.at(&[0, 0]).unwrap().display(&sig), "x_");
+        assert_eq!(r.at(&[1]).unwrap().display(&sig), "B");
+        assert_eq!(r.at(&[2]).unwrap().display(&sig), "C(x_ [!])");
     }
 
     #[test]
@@ -1137,7 +1140,7 @@ mod tests {
         let new_r = r.replace(&[1], new_context);
 
         assert_ne!(r, new_r.clone().unwrap());
-        assert_eq!(new_r.unwrap().pretty(), "A(x_) = E [!] | C(x_) | [!]");
+        assert_eq!(new_r.unwrap().pretty(&sig), "A(x_) = E [!] | C(x_) | [!]");
     }
 
     #[test]
@@ -1153,7 +1156,7 @@ mod tests {
             parse_rulecontext(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B | C(x_)");
         let rule = r.to_rule().expect("converting RuleContext to Rule");
 
-        assert_eq!(rule.pretty(), "A(x_) = B | C(x_)");
+        assert_eq!(rule.pretty(&sig), "A(x_) = B | C(x_)");
     }
 
     #[test]
@@ -1163,7 +1166,7 @@ mod tests {
         let rule = parse_rule(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))")
             .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
 
-        assert_eq!(rule.display(), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5)) = CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))");
+        assert_eq!(rule.display(&sig), ".(.(.(A B(x_)) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL)))) DECC(DECC(DIGIT(1) 0) 5)) = CONS(A CONS(B(x_) CONS(SUCC(SUCC(ZERO)) NIL)))");
     }
 
     #[test]
@@ -1173,7 +1176,7 @@ mod tests {
         let rule = parse_rule(&mut sig, "A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))")
             .expect("parse of A B(x_) CONS(SUCC(SUCC(ZERO)) CONS(SUCC(ZERO) CONS(ZERO NIL))) DECC(DECC(DIGIT(1) 0) 5) = CONS(A CONS(B(x_) CONS( SUCC(SUCC(ZERO)) NIL)))");
 
-        assert_eq!(rule.pretty(), "A B(x_) [2, 1, 0] 105 = [A, B(x_), 2]");
+        assert_eq!(rule.pretty(&sig), "A B(x_) [2, 1, 0] 105 = [A, B(x_), 2]");
     }
 
     #[test]
@@ -1271,11 +1274,11 @@ mod tests {
         let c = parse_term(&mut sig, "C").expect("parse of C");
         let mut r = parse_rule(&mut sig, "A = B").expect("parse of A = B");
 
-        assert_eq!(r.display(), "A = B");
+        assert_eq!(r.display(&sig), "A = B");
 
         r.add(c);
 
-        assert_eq!(r.display(), "A = B | C");
+        assert_eq!(r.display(&sig), "A = B | C");
     }
 
     #[test]
@@ -1286,7 +1289,7 @@ mod tests {
         let r2 = parse_rule(&mut sig, "A = C").expect("parse A = C");
         r.merge(&r2);
 
-        assert_eq!(r.display(), "A = B | C");
+        assert_eq!(r.display(&sig), "A = B | C");
     }
 
     #[test]
@@ -1297,7 +1300,7 @@ mod tests {
         let r2 = parse_rule(&mut sig, "A(y_) = B(y_)").expect("parse of A(y_) = B(y_)");
         r.discard(&r2);
 
-        assert_eq!(r.display(), "A(x_) = C");
+        assert_eq!(r.display(&sig), "A(x_) = C");
     }
 
     #[test]
@@ -1324,12 +1327,12 @@ mod tests {
         let mut sig = Signature::default();
 
         let r = parse_rule(&mut sig, "A(x_) = C(x_)").expect("parse of A(x_) = C(x_)");
-        let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
+        let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
 
         assert_eq!(r_variables, vec!["x_"]);
 
         let r = parse_rule(&mut sig, "B(y_ z_) = C").expect("parse of B(y_ z_) = C");
-        let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
+        let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
 
         assert_eq!(r_variables, vec!["y_", "z_"]);
     }
@@ -1339,12 +1342,12 @@ mod tests {
         let mut sig = Signature::default();
 
         let r = parse_rule(&mut sig, "A(D E) = C").expect("parse of A(D E) = C");
-        let r_ops: Vec<String> = r.operators().iter().map(|o| o.display()).collect();
+        let r_ops: Vec<String> = r.operators().iter().map(|o| o.display(&sig)).collect();
 
         assert_eq!(r_ops, vec!["D", "E", "A", "C"]);
 
         let r = parse_rule(&mut sig, "B(F x_) = C").expect("parse of B(F x_) = C");
-        let r_ops: Vec<String> = r.operators().iter().map(|o| o.display()).collect();
+        let r_ops: Vec<String> = r.operators().iter().map(|o| o.display(&sig)).collect();
 
         assert_eq!(r_ops, vec!["F", "B", "C"]);
     }
@@ -1359,7 +1362,7 @@ mod tests {
         let subterms: Vec<String> = r
             .subterms()
             .iter()
-            .map(|(t, p)| format!("{}, {:?}", t.display(), p))
+            .map(|(t, p)| format!("{}, {:?}", t.display(&sig), p))
             .collect();
 
         assert_eq!(
@@ -1382,10 +1385,10 @@ mod tests {
 
         let r = parse_rule(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B | C(x_)");
 
-        assert_eq!(r.at(&[0]).unwrap().display(), "A(x_)");
-        assert_eq!(r.at(&[0, 0]).unwrap().display(), "x_");
-        assert_eq!(r.at(&[1]).unwrap().display(), "B");
-        assert_eq!(r.at(&[2]).unwrap().display(), "C(x_)");
+        assert_eq!(r.at(&[0]).unwrap().display(&sig), "A(x_)");
+        assert_eq!(r.at(&[0, 0]).unwrap().display(&sig), "x_");
+        assert_eq!(r.at(&[1]).unwrap().display(&sig), "B");
+        assert_eq!(r.at(&[2]).unwrap().display(&sig), "C(x_)");
     }
 
     #[test]
@@ -1398,7 +1401,7 @@ mod tests {
 
         assert_ne!(r, new_rule.clone().unwrap());
 
-        assert_eq!(new_rule.unwrap().display(), "A(x_) = E | C(x_)");
+        assert_eq!(new_rule.unwrap().display(&sig), "A(x_) = E | C(x_)");
     }
 
     #[test]
@@ -1498,6 +1501,6 @@ mod tests {
 
         let r2 = r.substitute(&substitution);
 
-        assert_eq!(r2.display(), "A(C y_) = A(C) | B(y_)");
+        assert_eq!(r2.display(&sig), "A(C y_) = A(C) | B(y_)");
     }
 }

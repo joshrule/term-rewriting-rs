@@ -194,7 +194,10 @@ fn rewrite_test() {
     let l_term = &terms[0];
     let r_term = terms[1].clone();
 
-    assert_eq!(trs.rewrite(&l_term, Strategy::Normal), Some(vec![r_term]));
+    assert_eq!(
+        trs.rewrite(&l_term, Strategy::Normal, &sig),
+        Some(vec![r_term])
+    );
 }
 
 #[test]
@@ -204,10 +207,10 @@ fn display_variable() {
     let v1 = sig.new_var(None);
     let v2 = sig.new_var(Some("blah".to_string()));
 
-    assert_eq!(v1.display(), "var0_".to_string());
-    assert_eq!(v1.name(), None);
-    assert_eq!(v2.display(), "blah_".to_string());
-    assert_eq!(v2.name(), Some("blah".to_string()));
+    assert_eq!(v1.display(&sig), "var0_".to_string());
+    assert_eq!(v1.name(&sig), None);
+    assert_eq!(v2.display(&sig), "blah_".to_string());
+    assert_eq!(v2.name(&sig), Some("blah".to_string()));
 }
 
 #[test]
@@ -216,9 +219,9 @@ fn operator_methods() {
 
     let o = sig.new_op(0, None);
 
-    assert_eq!(o.display(), "op0");
+    assert_eq!(o.display(&sig), "op0");
     assert_eq!(o.arity(), 0);
-    assert_eq!(o.name(), None);
+    assert_eq!(o.name(&sig), None);
 }
 
 #[test]
@@ -245,10 +248,10 @@ fn atom_methods() {
     assert_ne!(a2, a3);
     assert_ne!(a1, a2);
     // test display
-    assert_eq!(a0.display(), "op0");
-    assert_eq!(a1.display(), "A");
-    assert_eq!(a2.display(), "var0_");
-    assert_eq!(a3.display(), "X_");
+    assert_eq!(a0.display(&sig), "op0");
+    assert_eq!(a1.display(&sig), "A");
+    assert_eq!(a2.display(&sig), "var0_");
+    assert_eq!(a3.display(&sig), "X_");
 }
 
 #[test]
@@ -314,7 +317,7 @@ fn parse_display_roundtrip_term() {
     let mut sig = Signature::default();
     let s = "foo(bar(x_) y_ baz)";
     let term = parse_term(&mut sig, s).unwrap_or_else(|_| panic!("parse of {}", s));
-    let ns = term.display();
+    let ns = term.display(&sig);
     assert_eq!(s, ns);
 }
 
@@ -323,7 +326,7 @@ fn parse_display_roundtrip_rule() {
     let mut sig = Signature::default();
     let s = "foo(bar(x_) y_ baz) = bar(y_) | buzz";
     let rule = parse_rule(&mut sig, s).unwrap_or_else(|_| panic!("parse of {}", s));
-    let ns = rule.display();
+    let ns = rule.display(&sig);
     assert_eq!(s, ns);
 }
 
@@ -332,7 +335,7 @@ fn parse_display_roundtrip_trs() {
     let mut sig = Signature::default();
     let s = "foo(bar(x_) y_ baz) = bar(y_) | buzz;\nbar(baz) = foo(bar(baz) bar(baz) baz);";
     let trs = parse_trs(&mut sig, s).unwrap_or_else(|_| panic!("parse of {}", s));
-    let ns = trs.display();
+    let ns = trs.display(&sig);
     assert_eq!(s, ns);
 }
 
@@ -344,8 +347,8 @@ fn pretty_term_application() {
         (0, Some("K".to_string())),
     ]);
     let t = parse_term(&mut sig, "S K S K").expect("parse of S K S K");
-    assert_eq!(t.display(), ".(.(.(S K) S) K)");
-    assert_eq!(t.pretty(), "S K S K");
+    assert_eq!(t.display(&sig), ".(.(.(S K) S) K)");
+    assert_eq!(t.pretty(&sig), "S K S K");
 }
 
 #[test]
@@ -357,12 +360,12 @@ fn pretty_term_list() {
     ]);
     let t = parse_term(&mut sig, "CONS(A CONS(A CONS(A NIL)))")
         .expect("parse of CONS(A CONS(A CONS(A NIL)))");
-    assert_eq!(t.display(), "CONS(A CONS(A CONS(A NIL)))");
-    assert_eq!(t.pretty(), "[A, A, A]");
+    assert_eq!(t.display(&sig), "CONS(A CONS(A CONS(A NIL)))");
+    assert_eq!(t.pretty(&sig), "[A, A, A]");
 
     let t = parse_term(&mut sig, "CONS(A A)").expect("parse of term");
-    assert_eq!(t.display(), "CONS(A A)");
-    assert_eq!(t.pretty(), "CONS(A, A)");
+    assert_eq!(t.display(&sig), "CONS(A A)");
+    assert_eq!(t.pretty(&sig), "CONS(A, A)");
 }
 
 #[test]
@@ -387,24 +390,24 @@ fn pretty_term_number() {
     // test normal unary
     let t = parse_term(&mut sig, "FOO(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO))")
         .expect("parse of FOO(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO))");
-    assert_eq!(t.display(), "FOO(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO))");
-    assert_eq!(t.pretty(), "FOO(3, 1)");
+    assert_eq!(t.display(&sig), "FOO(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO))");
+    assert_eq!(t.pretty(&sig), "FOO(3, 1)");
 
     // test broken unary
     let t = parse_term(&mut sig, "SUCC(SUCC(ONE))").expect("parse of term");
-    assert_eq!(t.display(), "SUCC(SUCC(ONE))");
-    assert_eq!(t.pretty(), "SUCC(SUCC(ONE))");
+    assert_eq!(t.display(&sig), "SUCC(SUCC(ONE))");
+    assert_eq!(t.pretty(&sig), "SUCC(SUCC(ONE))");
 
     // test normal decimal
     let t = parse_term(&mut sig, "FOO(DIGIT(ZERO) DECC(DECC(DECC(DECC(DECC(DECC(DECC(DECC(DIGIT(NINE) EIGHT) SEVEN) SIX) FIVE) FOUR) THREE) TWO) ONE))")
         .expect("parse of term");
-    assert_eq!(t.display(), "FOO(DIGIT(ZERO) DECC(DECC(DECC(DECC(DECC(DECC(DECC(DECC(DIGIT(NINE) EIGHT) SEVEN) SIX) FIVE) FOUR) THREE) TWO) ONE))");
-    assert_eq!(t.pretty(), "FOO(0, 987654321)");
+    assert_eq!(t.display(&sig), "FOO(DIGIT(ZERO) DECC(DECC(DECC(DECC(DECC(DECC(DECC(DECC(DIGIT(NINE) EIGHT) SEVEN) SIX) FIVE) FOUR) THREE) TWO) ONE))");
+    assert_eq!(t.pretty(&sig), "FOO(0, 987654321)");
 
     // test broken decimal
     let t = parse_term(&mut sig, "DIGIT(FOO(ONE NINE))").expect("parse of term");
-    assert_eq!(t.display(), "DIGIT(FOO(ONE NINE))");
-    assert_eq!(t.pretty(), "DIGIT(FOO(ONE, NINE))");
+    assert_eq!(t.display(&sig), "DIGIT(FOO(ONE NINE))");
+    assert_eq!(t.pretty(&sig), "DIGIT(FOO(ONE, NINE))");
 }
 
 #[test]
@@ -416,8 +419,8 @@ fn pretty_term_nonspecial() {
     ]);
     let t = parse_term(&mut sig, "BAZ(BAZ(BAR(BAR(FOO)) FOO) FOO)")
         .expect("parse of BAZ(BAZ(BAR(BAR(FOO)) FOO) FOO)");
-    assert_eq!(t.display(), "BAZ(BAZ(BAR(BAR(FOO)) FOO) FOO)");
-    assert_eq!(t.pretty(), "BAZ(BAZ(BAR(BAR(FOO)), FOO), FOO)");
+    assert_eq!(t.display(&sig), "BAZ(BAZ(BAR(BAR(FOO)) FOO) FOO)");
+    assert_eq!(t.pretty(&sig), "BAZ(BAZ(BAR(BAR(FOO)), FOO), FOO)");
 }
 
 #[test]
@@ -440,7 +443,7 @@ fn pretty_trs() {
         BAZ(FOO BAR(x_)) = BAZ(x_ FOO) | SUCC(x_);";
     let (trs, _) = parse(&mut sig, s).expect("parse of pretty_trs");
     assert_eq!(
-        trs.display(),
+        trs.display(&sig),
         "\
 .(.(.(S x_) y_) z_) = .(.(x_ z_) .(y_ z_));
 .(.(K x_) y_) = x_;
@@ -448,7 +451,7 @@ CONS(FOO CONS(FOO NIL)) = SUCC(SUCC(ZERO));
 BAZ(FOO BAR(x_)) = BAZ(x_ FOO) | SUCC(x_);"
     );
     assert_eq!(
-        trs.pretty(),
+        trs.pretty(&sig),
         "\
 S x_ y_ z_ = x_ z_ (y_ z_);
 K x_ y_ = x_;

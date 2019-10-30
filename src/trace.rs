@@ -17,13 +17,13 @@
 //!     .trim();
 //! let (trs, mut terms) = parse(&mut sig, inp).unwrap();
 //! let mut term = terms.pop().unwrap();
-//! let mut trace = Trace::new(&trs, &term, 0.5, None, None, Strategy::Normal);
+//! let mut trace = Trace::new(&trs, &sig, &term, 0.5, None, None, Strategy::Normal);
 //!
 //! let expected = vec!["PLUS(3, 1)", "PLUS(2, 2)", "PLUS(1, 3)", "PLUS(0, 4)", "4"];
 //! let got = trace
 //!     .by_ref()
 //!     .take(5)
-//!     .map(|n| n.term().pretty())
+//!     .map(|n| n.term().pretty(&sig))
 //!     .collect::<Vec<_>>();
 //! assert_eq!(got, expected);
 //! assert!(trace.next().is_none());
@@ -39,7 +39,7 @@ use std::f64;
 use std::fmt;
 use std::sync::{Arc, RwLock, Weak};
 
-use super::{Strategy, Term, TRS};
+use super::{Signature, Strategy, Term, TRS};
 
 /// A `Trace` provides first-class control over [`Term`] rewriting.
 ///
@@ -52,6 +52,7 @@ use super::{Strategy, Term, TRS};
 /// [`Iterator` implementation]: #impl-Iterator
 pub struct Trace<'a> {
     trs: &'a TRS,
+    sig: &'a Signature,
     root: TraceNode,
     unobserved: BinaryHeap<TraceNode>,
     p_observe: f64,
@@ -64,6 +65,7 @@ impl<'a> Trace<'a> {
     /// in the trace multiplies the node's probability score by `p_observe`.
     pub fn new(
         trs: &'a TRS,
+        sig: &'a Signature,
         term: &Term,
         p_observe: f64,
         max_term_size: Option<usize>,
@@ -75,6 +77,7 @@ impl<'a> Trace<'a> {
         unobserved.push(root.clone());
         Trace {
             trs,
+            sig,
             root,
             unobserved,
             p_observe,
@@ -145,12 +148,10 @@ impl<'a> Trace<'a> {
         }
     }
     /// A lower bound on the probability that `self` rewrites to `term`.
-    pub fn rewrites_to(
-        &mut self,
-        max_steps: usize,
-        term: &Term,
-        weighter: Box<dyn Fn(&Term, &Term) -> f64>,
-    ) -> f64 {
+    pub fn rewrites_to<T>(&mut self, max_steps: usize, term: &Term, weighter: T) -> f64
+    where
+        T: Fn(&Term, &Term) -> f64,
+    {
         self.rewrite(max_steps);
         let lps = self.root.accumulate(|n| {
             let n_r = &n.0.read().expect("poisoned TraceNode");
@@ -176,7 +177,7 @@ impl<'a> Iterator for Trace<'a> {
                 match (self.max_term_size, self.max_depth) {
                     (Some(n), _) if node_w.term.size() > n => node_w.state = TraceState::TooBig,
                     (_, Some(n)) if node_w.depth >= n => node_w.state = TraceState::TooDeep,
-                    _ => match self.trs.rewrite(&node_w.term, self.strategy) {
+                    _ => match self.trs.rewrite(&node_w.term, self.strategy, self.sig) {
                         None => node_w.state = TraceState::Normal,
                         Some(ref rewrites) if rewrites.is_empty() => {
                             node_w.state = TraceState::Normal
