@@ -473,10 +473,9 @@ impl Context {
     ///
     /// [alpha equivalence]: https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
     pub fn alpha<'a>(
-        t1: &'a Context,
-        t2: &'a Context,
+        cs: Vec<(&'a Context, &'a Context)>,
     ) -> Option<HashMap<&'a Variable, &'a Context>> {
-        Context::pmatch(vec![(t2, t1)]).and_then(|_| Context::pmatch(vec![(t1, t2)]))
+        Context::unify_internal(cs, Unification::Alpha)
     }
     /// Given a vector of constraints, return a substitution which satisfies the
     /// constraints. If the constraints are not satisfiable, return `None`.
