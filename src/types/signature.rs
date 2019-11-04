@@ -180,7 +180,7 @@ impl Signature {
     /// assert_ne!(a, s2);
     /// assert_ne!(s, s2);
     /// ```
-    pub fn new_op(&mut self, arity: u32, name: Option<String>) -> Operator {
+    pub fn new_op(&self, arity: u32, name: Option<String>) -> Operator {
         let id = self
             .sig
             .write()
@@ -203,7 +203,7 @@ impl Signature {
     ///
     /// assert_ne!(z, z2);
     /// ```
-    pub fn new_var(&mut self, name: Option<String>) -> Variable {
+    pub fn new_var(&self, name: Option<String>) -> Variable {
         let id = self.sig.write().expect("poisoned signature").new_var(name);
         Variable { id }
     }
@@ -755,7 +755,7 @@ mod tests {
     #[test]
     #[ignore]
     fn new_op_test() {
-        let mut sig = Signature::default();
+        let sig = Signature::default();
 
         let a = sig.new_op(1, Some(".".to_string()));
         let s = sig.new_op(2, Some("S".to_string()));
@@ -769,7 +769,7 @@ mod tests {
     #[test]
     #[ignore]
     fn new_var() {
-        let mut sig = Signature::default();
+        let sig = Signature::default();
 
         let z = sig.new_var(Some("z".to_string()));
         let z2 = sig.new_var(Some("z".to_string()));

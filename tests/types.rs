@@ -202,7 +202,7 @@ fn rewrite_test() {
 
 #[test]
 fn display_variable() {
-    let mut sig = Signature::default();
+    let sig = Signature::default();
 
     let v1 = sig.new_var(None);
     let v2 = sig.new_var(Some("blah".to_string()));
@@ -215,7 +215,7 @@ fn display_variable() {
 
 #[test]
 fn operator_methods() {
-    let mut sig = Signature::default();
+    let sig = Signature::default();
 
     let o = sig.new_op(0, None);
 
@@ -226,7 +226,7 @@ fn operator_methods() {
 
 #[test]
 fn atom_methods() {
-    let mut sig = Signature::default();
+    let sig = Signature::default();
 
     let o0 = sig.new_op(0, None);
     let o1 = sig.new_op(1, Some("A".to_string()));
@@ -256,7 +256,7 @@ fn atom_methods() {
 
 #[test]
 fn rule_new_valid() {
-    let mut sig = Signature::default();
+    let sig = Signature::default();
     let lhs: Term = Term::Application {
         op: sig.new_op(0, None),
         args: vec![],
@@ -272,7 +272,7 @@ fn rule_new_valid() {
 
 #[test]
 fn rule_new_valid_lhs_var() {
-    let mut sig = Signature::default();
+    let sig = Signature::default();
 
     let lhs = Term::Application {
         op: sig.new_op(0, None),
@@ -288,7 +288,7 @@ fn rule_new_valid_lhs_var() {
 
 #[test]
 fn rule_new_invalid_lhs_var() {
-    let mut sig = Signature::default();
+    let sig = Signature::default();
 
     let lhs = Term::Variable(sig.new_var(None));
     let rhs = vec![Term::Application {
@@ -301,7 +301,7 @@ fn rule_new_invalid_lhs_var() {
 
 #[test]
 fn rule_new_invalid_rhs_var() {
-    let mut sig = Signature::default();
+    let sig = Signature::default();
 
     let lhs = Term::Application {
         op: sig.new_op(0, None),
