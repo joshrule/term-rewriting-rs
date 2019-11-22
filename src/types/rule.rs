@@ -843,18 +843,17 @@ impl Rule {
     /// ```
     pub fn replace(&self, place: &[usize], subterm: Term) -> Option<Rule> {
         if place[0] == 0 {
-            if let Some(lhs) = self.lhs.replace(&place[1..].to_vec(), subterm) {
-                Rule::new(lhs, self.rhs.clone())
-            } else {
-                None
-            }
-        } else if let Some(an_rhs) = self.rhs[place[0] - 1].replace(&place[1..].to_vec(), subterm) {
-            let mut rhs = self.rhs.clone();
-            rhs.remove(place[0] - 1);
-            rhs.insert(place[0] - 1, an_rhs);
-            Rule::new(self.lhs.clone(), rhs)
+            self.lhs
+                .replace(&place[1..], subterm)
+                .and_then(|lhs| Rule::new(lhs, self.rhs.clone()))
         } else {
-            None
+            self.rhs[place[0] - 1]
+                .replace(&place[1..], subterm)
+                .and_then(|an_rhs| {
+                    let mut rhs = self.rhs.clone();
+                    rhs[place[0] - 1] = an_rhs;
+                    Rule::new(self.lhs.clone(), rhs)
+                })
         }
     }
     /// [`Pattern Match`] one `Rule` against another.

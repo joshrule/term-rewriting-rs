@@ -1156,7 +1156,7 @@ impl Term {
     /// ```
     #[cfg_attr(feature = "cargo-clippy", allow(clippy::ptr_arg))]
     pub fn at(&self, place: &[usize]) -> Option<&Term> {
-        self.at_helper(&*place)
+        self.at_helper(place)
     }
     fn at_helper(&self, place: &[usize]) -> Option<&Term> {
         if place.is_empty() {
@@ -1165,7 +1165,7 @@ impl Term {
             match *self {
                 Term::Variable(_) => None,
                 Term::Application { ref args, .. } => {
-                    if place[0] <= args.len() {
+                    if place[0] < args.len() {
                         args[place[0]].at_helper(&place[1..].to_vec())
                     } else {
                         None
@@ -1196,23 +1196,16 @@ impl Term {
     /// ```
     #[cfg_attr(feature = "cargo-clippy", allow(clippy::ptr_arg))]
     pub fn replace(&self, place: &[usize], subterm: Term) -> Option<Term> {
-        self.replace_helper(&*place, subterm)
-    }
-    fn replace_helper(&self, place: &[usize], subterm: Term) -> Option<Term> {
         if place.is_empty() {
             Some(subterm)
         } else {
             match *self {
                 Term::Application { op, ref args } if place[0] <= args.len() => {
-                    if let Some(term) = args[place[0]].replace_helper(&place[1..].to_vec(), subterm)
-                    {
+                    args[place[0]].replace(&place[1..], subterm).map(|term| {
                         let mut new_args = args.clone();
-                        new_args.remove(place[0]);
-                        new_args.insert(place[0], term);
-                        Some(Term::Application { op, args: new_args })
-                    } else {
-                        None
-                    }
+                        new_args[place[0]] = term;
+                        Term::Application { op, args: new_args }
+                    })
                 }
                 _ => None,
             }

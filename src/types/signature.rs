@@ -214,6 +214,9 @@ impl Signature {
         let id = self.sig.write().expect("poisoned signature").new_var(name);
         Variable { id }
     }
+    pub fn contract(&mut self, ids: &[usize]) -> usize {
+        self.sig.write().expect("poisoned signature").contract(ids)
+    }
     /// Merge two `Signature`s. All [`Term`]s, [`Context`]s, [`Rule`]s, and [`TRS`]s associated
     /// with the `other` `Signature` should be `reified` using methods provided
     /// by the returned [`SignatureChange`].
@@ -380,6 +383,16 @@ impl Sig {
     pub fn new_var(&mut self, name: Option<String>) -> usize {
         self.variables.push(name);
         self.variables.len() - 1
+    }
+    /// Shrink the universe of symbols.
+    pub fn contract(&mut self, ids: &[usize]) -> usize {
+        match ids.iter().max() {
+            Some(n) => {
+                self.operators.truncate(n + 1);
+                *n
+            }
+            _ => self.operators.len() - 1,
+        }
     }
     pub fn merge(
         &mut self,
@@ -727,7 +740,7 @@ mod tests {
             (0, Some("K".to_string())),
         ]);
 
-        let ops: Vec<String> = sig.operators().iter().map(|op| op.display(&sig)).collect();;
+        let ops: Vec<String> = sig.operators().iter().map(|op| op.display(&sig)).collect();
 
         assert_eq!(ops, vec![".", "S", "K"]);
     }
