@@ -21,4 +21,5 @@ enum Unification {
     Match,
     Alpha,
     Unify,
+    Generalize,
 }

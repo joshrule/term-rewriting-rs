@@ -466,6 +466,12 @@ impl Context {
             }
         }
     }
+    /// `true` if `self` is a more general instance of some `Term`.
+    pub fn generalize<'a>(
+        cs: Vec<(&'a Context, &'a Context)>,
+    ) -> Option<HashMap<&'a Variable, &'a Context>> {
+        Context::unify_internal(cs, Unification::Generalize)
+    }
     /// Compute the [alpha equivalence] for two `Context`s.
     ///
     /// [alpha equivalence]: https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
@@ -598,10 +604,13 @@ impl Context {
             if s != t {
                 match (s, t) {
                     (Context::Hole, Context::Hole) => (),
+                    (Context::Hole, _) if utype == Unification::Generalize => (),
                     (Context::Variable(ref var), Context::Variable(_)) => {
                         subs.insert(var, t);
                     }
-                    (Context::Variable(ref var), t) if utype != Unification::Alpha => {
+                    (Context::Variable(ref var), t)
+                        if utype != Unification::Alpha && utype != Unification::Generalize =>
+                    {
                         if !(*t).variables().contains(&&var) {
                             subs.insert(var, t);
                         } else {
