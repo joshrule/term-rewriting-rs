@@ -82,6 +82,13 @@ impl Signature {
             sig: Arc::new(RwLock::new(Sig::new(operator_spec))),
         }
     }
+    pub fn deep_copy(&self) -> Signature {
+        Signature {
+            sig: Arc::new(RwLock::new(
+                self.sig.read().expect("poisoned signature").clone(),
+            )),
+        }
+    }
     /// Returns every [`Operator`] known to the `Signature`, in the order they were created.
     ///
     /// [`Operator`]: struct.Operator.html

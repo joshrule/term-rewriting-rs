@@ -775,9 +775,10 @@ impl TRS {
         d_max: usize,
         sig: &Signature,
     ) -> Option<f64> {
-        let x_string = TRS::convert_term_to_string(x, sig)?;
-        let y_string = TRS::convert_term_to_string(y, sig)?;
-        let p = PString::new(x_string, y_string, dist, sig).compute(t_max, d_max);
+        let sig = sig.deep_copy();
+        let x_string = TRS::convert_term_to_string(x, &sig)?;
+        let y_string = TRS::convert_term_to_string(y, &sig)?;
+        let p = PString::new(x_string, y_string, dist, &sig).compute(t_max, d_max);
         Some(p.ln())
     }
     /// madness: `p_list` treats two list `Term`s as strings and computes a
@@ -790,8 +791,9 @@ impl TRS {
         d_max: usize,
         sig: &Signature,
     ) -> f64 {
-        let x_string = TRS::convert_list_to_string(x, sig);
-        let y_string = TRS::convert_list_to_string(y, sig);
+        let sig = sig.deep_copy();
+        let x_string = TRS::convert_list_to_string(x, &sig);
+        let y_string = TRS::convert_list_to_string(y, &sig);
         match (x_string, y_string) {
             (Some(x_string), Some(y_string)) => {
                 let p = PString::new(x_string, y_string, dist, &sig).compute(t_max, d_max);
@@ -1474,7 +1476,6 @@ impl<'a> PString<'a> {
                 PStringIncorrect::Bounded { low, high, weight } => {
                     let n_x = x.display(self.sig).parse::<usize>(); // 75
                     let n_y = y.display(self.sig).parse::<usize>(); // 81
-                                                                    // println!("n_x: {:?}, n_y: {:?}", n_x, n_y);
                     match (n_x, n_y) {
                         (Ok(n_x), Ok(n_y)) => {
                             let range = high + 1 - low; // 100
