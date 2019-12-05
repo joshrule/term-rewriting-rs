@@ -856,6 +856,18 @@ impl Rule {
                 })
         }
     }
+    pub fn replace_all(&self, places: &[Place], subterm: Term) -> Option<Rule> {
+        let mut lhs = self.lhs.clone();
+        let mut rhs = self.rhs.clone();
+        for place in places {
+            if place[0] == 0 {
+                lhs = lhs.replace(&place[1..], subterm.clone())?;
+            } else {
+                rhs[place[0] - 1] = rhs[place[0] - 1].replace(&place[1..], subterm.clone())?;
+            }
+        }
+        Rule::new(lhs, rhs)
+    }
     /// [`Pattern Match`] one `Rule` against another.
     ///
     /// [`Pattern Match`]: https://en.wikipedia.org/wiki/Pattern_matching
