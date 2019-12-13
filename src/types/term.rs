@@ -1130,7 +1130,10 @@ impl Term {
     /// assert_eq!(t.size(), 2);
     /// ```
     pub fn size(&self) -> usize {
-        self.subterms().len()
+        match *self {
+            Term::Variable(_) => 1,
+            Term::Application { ref args, .. } => args.iter().map(Term::size).sum::<usize>() + 1,
+        }
     }
     /// Get the `subterm` at the given [`Place`] if possible.  Otherwise, return `None`.
     ///
