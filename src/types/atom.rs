@@ -68,7 +68,7 @@ impl Variable {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Operator {
     pub(crate) id: usize,
-    pub(crate) arity: u32,
+    pub(crate) arity: u8,
 }
 impl Operator {
     /// Returns an `Operator`'s id.
@@ -96,7 +96,7 @@ impl Operator {
     ///
     /// assert_eq!(op.arity(), 2);
     /// ```
-    pub fn arity(self) -> u32 {
+    pub fn arity(self) -> u8 {
         self.arity
     }
     /// Returns an `Operator`'s name.

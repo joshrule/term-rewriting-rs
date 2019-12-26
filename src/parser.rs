@@ -178,7 +178,7 @@ impl<'a> Parser<'a> {
     /// otherwise `None`.
     ///
     /// [`Operator`]: struct.Operator.html
-    pub fn has_op(&self, name: &str, arity: u32) -> Option<Operator> {
+    pub fn has_op(&self, name: &str, arity: u8) -> Option<Operator> {
         self.sig
             .sig
             .read()
@@ -195,7 +195,7 @@ impl<'a> Parser<'a> {
     /// creating it if necessary.
     ///
     /// [`Operator`]: struct.Operator.html
-    pub fn get_op(&mut self, name: &str, arity: u32) -> Operator {
+    pub fn get_op(&mut self, name: &str, arity: u8) -> Operator {
         match self.has_op(name, arity) {
             Some(op) => op,
             None => self.sig.new_op(arity, Some(name.to_string())),
@@ -234,7 +234,7 @@ impl<'a> Parser<'a> {
                               (args))) >>
                       args: expr_opt!(Some(args.unwrap_or_default())) >>
                       (Term::Application {
-                          op: self.get_op(name.0, args.len() as u32),
+                          op: self.get_op(name.0, args.len() as u8),
                           args
                       })
             )
@@ -305,7 +305,7 @@ impl<'a> Parser<'a> {
                               (args))) >>
                       args: expr_opt!(Some(args.unwrap_or_default())) >>
                       (Context::Application {
-                          op: self.get_op(name.0, args.len() as u32),
+                          op: self.get_op(name.0, args.len() as u8),
                           args,
                       })
             )

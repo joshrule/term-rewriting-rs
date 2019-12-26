@@ -787,7 +787,7 @@ impl Term {
     }
     /// A short-cut for creating `Application`s.
     pub fn apply(op: Operator, args: Vec<Term>) -> Option<Term> {
-        if op.arity() == (args.len() as u32) {
+        if op.arity() == (args.len() as u8) {
             Some(Term::Application { op, args })
         } else {
             None
@@ -803,7 +803,7 @@ impl Term {
         &self,
         sig: &Signature,
         name: &str,
-        arity: u32,
+        arity: u8,
     ) -> Option<(&Operator, &[Term])> {
         match self {
             Term::Variable(_) => None,

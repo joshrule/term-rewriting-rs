@@ -77,7 +77,7 @@ impl Signature {
     ///
     /// assert_eq!(sig, sig2);
     ///```
-    pub fn new(operator_spec: Vec<(u32, Option<String>)>) -> Signature {
+    pub fn new(operator_spec: Vec<(u8, Option<String>)>) -> Signature {
         Signature {
             sig: Arc::new(RwLock::new(Sig::new(operator_spec))),
         }
@@ -187,7 +187,7 @@ impl Signature {
     /// assert_ne!(a, s2);
     /// assert_ne!(s, s2);
     /// ```
-    pub fn new_op(&self, arity: u32, name: Option<String>) -> Operator {
+    pub fn new_op(&self, arity: u8, name: Option<String>) -> Operator {
         let id = self
             .sig
             .write()
@@ -358,13 +358,13 @@ impl Hash for Signature {
 pub(crate) struct Sig {
     /// Stores the (arity, name) for every [`Operator`].
     /// [`Operator`]: struct.Operator.html
-    pub(crate) operators: Vec<(u32, Option<String>)>,
+    pub(crate) operators: Vec<(u8, Option<String>)>,
     /// Stores the name for every [`Variable`].
     /// [`Variable`]: struct.Variable.html
     pub(crate) variables: Vec<Option<String>>,
 }
 impl Sig {
-    pub fn new(operator_spec: Vec<(u32, Option<String>)>) -> Sig {
+    pub fn new(operator_spec: Vec<(u8, Option<String>)>) -> Sig {
         Sig {
             operators: operator_spec,
             variables: vec![],
@@ -376,7 +376,7 @@ impl Sig {
     pub fn variables(&self) -> Vec<usize> {
         (0..self.variables.len()).collect()
     }
-    pub fn new_op(&mut self, arity: u32, name: Option<String>) -> usize {
+    pub fn new_op(&mut self, arity: u8, name: Option<String>) -> usize {
         self.operators.push((arity, name));
         self.operators.len() - 1
     }
