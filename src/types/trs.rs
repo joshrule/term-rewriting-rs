@@ -58,10 +58,12 @@ impl TRS {
     /// );
     /// ```
     pub fn new(rules: Vec<Rule>) -> TRS {
-        TRS {
-            rules,
+        let mut trs = TRS {
+            rules: vec![],
             is_deterministic: false,
-        }
+        };
+        trs.pushes(rules).ok();
+        trs
     }
     /// Make the `TRS` [`deterministic`] and restrict it to be so until further notice.
     ///
