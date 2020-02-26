@@ -421,6 +421,13 @@ impl Context {
             }
         }
     }
+    pub fn fill(&self, fillers: &[Context]) -> Option<Context> {
+        let mut context = self.clone();
+        for (i, hole) in self.holes().iter().enumerate().take(fillers.len()) {
+            context = context.replace(hole, fillers[i].clone())?;
+        }
+        Some(context)
+    }
     /// Translate the `Context` into a [`Term`], if possible.
     ///
     /// [`Term`]: enum.Term.html
