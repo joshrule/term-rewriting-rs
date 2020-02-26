@@ -199,6 +199,12 @@ impl Atom {
             Atom::Operator(o) => o.display(sig),
         }
     }
+    pub fn constant(self) -> bool {
+        match self {
+            Atom::Variable(_) => true,
+            Atom::Operator(o) => o.arity() == 0,
+        }
+    }
 }
 impl From<Variable> for Atom {
     fn from(var: Variable) -> Atom {
