@@ -344,7 +344,13 @@ impl Context {
     /// assert_eq!(context.size(), 2);
     /// ```
     pub fn size(&self) -> usize {
-        self.subcontexts().len()
+        match *self {
+            Context::Hole => 1,
+            Context::Variable(_) => 1,
+            Context::Application { ref args, .. } => {
+                args.iter().map(Context::size).sum::<usize>() + 1
+            }
+        }
     }
     /// Get the `subcontext` at the given [`Place`], or `None` if the [`Place`] does not exist.
     ///
