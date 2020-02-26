@@ -1335,20 +1335,20 @@ impl Term {
     /// let t2 = parse_term(&mut sig, "A B x_ w_").expect("parse of A B x_ w_");
     /// let t3 = parse_term(&mut sig, "S K y_").expect("parse of S K y_");
     ///
-    /// assert!(Term::shape_equivalent(&t, &t2));
+    /// assert!(Term::same_shape(&t, &t2));
     ///
-    /// assert!(!Term::shape_equivalent(&t, &t3));
+    /// assert!(!Term::same_shape(&t, &t3));
     /// ```
-    pub fn shape_equivalent(t1: &Term, t2: &Term) -> bool {
-        let mut vmap = HashMap::new();
+    pub fn same_shape(t1: &Term, t2: &Term) -> bool {
         let mut omap = HashMap::new();
-        Term::se_helper(t1, t2, &mut vmap, &mut omap)
+        let mut vmap = HashMap::new();
+        Term::same_shape_given(t1, t2, &mut omap, &mut vmap)
     }
-    fn se_helper(
+    pub fn same_shape_given(
         t1: &Term,
         t2: &Term,
-        vmap: &mut HashMap<Variable, Variable>,
         omap: &mut HashMap<Operator, Operator>,
+        vmap: &mut HashMap<Variable, Variable>,
     ) -> bool {
         match (t1, t2) {
             (&Term::Variable(v1), &Term::Variable(v2)) => {
@@ -1368,7 +1368,7 @@ impl Term {
                     && args1
                         .iter()
                         .zip(args2)
-                        .all(|(a1, a2)| Term::se_helper(a1, a2, vmap, omap))
+                        .all(|(a1, a2)| Term::same_shape_given(a1, a2, omap, vmap))
             }
             _ => false,
         }
@@ -1948,9 +1948,9 @@ mod tests {
         let t2 = parse_term(&mut sig, "A B x_ w_").expect("parse of A B x_ w_");
         let t3 = parse_term(&mut sig, "S K y_").expect("parse of S K y_");
 
-        assert!(Term::shape_equivalent(&t, &t2));
+        assert!(Term::same_shape(&t, &t2));
 
-        assert!(!Term::shape_equivalent(&t, &t3));
+        assert!(!Term::same_shape(&t, &t3));
     }
 
     #[test]

@@ -505,6 +505,26 @@ impl TRS {
                 .zip(&trs2.rules[..])
                 .all(|(r1, r2)| Rule::alpha(r1, r2).is_some())
     }
+    /// Do two TRSs share the same shape?
+    pub fn same_shape(t1: &TRS, t2: &TRS) -> bool {
+        let mut omap = HashMap::new();
+        let mut vmap = HashMap::new();
+        TRS::same_shape_given(t1, t2, &mut omap, &mut vmap)
+    }
+    /// Do two rules share the same shape given some initial constraints?
+    pub fn same_shape_given(
+        t1: &TRS,
+        t2: &TRS,
+        ops: &mut HashMap<Operator, Operator>,
+        vars: &mut HashMap<Variable, Variable>,
+    ) -> bool {
+        t1.len() == t2.len()
+            && t1
+                .rules
+                .iter()
+                .zip(&t2.rules)
+                .all(|(r1, r2)| Rule::same_shape_given(r1, r2, ops, vars))
+    }
     // Return rewrites modifying the entire term, if possible, else None.
     fn rewrite_head(&self, term: &Term) -> Option<Vec<Term>> {
         let mut rewrites = vec![];

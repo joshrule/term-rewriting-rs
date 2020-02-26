@@ -968,6 +968,31 @@ impl Rule {
         let cs = iter::once((&r1.lhs, &r2.lhs)).chain(r1.rhs.iter().zip(r2.rhs.iter()));
         Term::alpha(cs.collect())
     }
+    /// Do two rules share the same shape?
+    pub fn same_shape(r1: &Rule, r2: &Rule) -> bool {
+        let mut omap = HashMap::new();
+        let mut vmap = HashMap::new();
+        Rule::same_shape_given(r1, r2, &mut omap, &mut vmap)
+    }
+    /// Do two rules share the same shape given some initial constraints?
+    pub fn same_shape_given(
+        r1: &Rule,
+        r2: &Rule,
+        ops: &mut HashMap<Operator, Operator>,
+        vars: &mut HashMap<Variable, Variable>,
+    ) -> bool {
+        if r1.rhs.len() == r2.rhs.len() {
+            Term::same_shape_given(&r1.lhs, &r2.lhs, ops, vars)
+                && r1
+                    .rhs
+                    .iter()
+                    .zip(&r2.rhs)
+                    .all(|(r1_rhs, r2_rhs)| Term::same_shape_given(r1_rhs, r2_rhs, ops, vars))
+        } else {
+            false
+        }
+    }
+
     /// Substitute through a `Rule`.
     ///
     /// # Examples
