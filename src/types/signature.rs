@@ -534,8 +534,8 @@ pub enum MergeStrategy {
 /// assert_eq!(term.pretty(&sig1), "A B");
 /// ```
 pub struct SignatureChange {
-    op_map: HashMap<usize, usize>,
-    delta_var: usize,
+    pub op_map: HashMap<usize, usize>,
+    pub delta_var: usize,
 }
 impl SignatureChange {
     /// Reifies [`Term`] for use with another [`Signature`].
