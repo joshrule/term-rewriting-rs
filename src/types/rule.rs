@@ -297,26 +297,22 @@ impl RuleContext {
     /// ```
     pub fn replace(&self, place: &[usize], subcontext: Context) -> Option<RuleContext> {
         if place[0] == 0 {
-            if let Some(lhs) = self.lhs.replace(&place[1..].to_vec(), subcontext) {
-                Some(RuleContext {
-                    lhs,
-                    rhs: self.rhs.clone(),
+            self.lhs
+                .replace(&place[1..].to_vec(), subcontext)
+                .map(|lhs| {
+                    let rhs = self.rhs.clone();
+                    RuleContext { lhs, rhs }
                 })
-            } else {
-                None
-            }
-        } else if let Some(an_rhs) =
-            self.rhs[place[0] - 1].replace(&place[1..].to_vec(), subcontext)
-        {
-            let mut rhs = self.rhs.clone();
-            rhs.remove(place[0] - 1);
-            rhs.insert(place[0] - 1, an_rhs);
-            Some(RuleContext {
-                lhs: self.lhs.clone(),
-                rhs,
-            })
         } else {
-            None
+            self.rhs[place[0] - 1]
+                .replace(&place[1..].to_vec(), subcontext)
+                .map(|an_rhs| {
+                    let lhs = self.lhs.clone();
+                    let mut rhs = self.rhs.clone();
+                    rhs.remove(place[0] - 1);
+                    rhs.insert(place[0] - 1, an_rhs);
+                    RuleContext { lhs, rhs }
+                })
         }
     }
     /// Convert a `RuleContext` to a [`Rule`] if possible.

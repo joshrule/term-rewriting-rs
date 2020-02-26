@@ -400,32 +400,17 @@ impl Context {
     /// assert_eq!(new_context.unwrap().pretty(&sig), "B(C [!])");
     /// ```
     pub fn replace(&self, place: &[usize], subcontext: Context) -> Option<Context> {
-        self.replace_helper(&*place, subcontext)
-    }
-    pub fn fill(&self, fillers: &[Context]) -> Option<Context> {
-        let mut context = self.clone();
-        for (i, hole) in self.holes().iter().enumerate().take(fillers.len()) {
-            context = context.replace(hole, fillers[i].clone())?;
-        }
-        Some(context)
-    }
-    fn replace_helper(&self, place: &[usize], subcontext: Context) -> Option<Context> {
         if place.is_empty() {
             Some(subcontext)
         } else {
             match *self {
-                Context::Application { op, ref args } if place[0] <= args.len() => {
-                    if let Some(context) =
-                        args[place[0]].replace_helper(&place[1..].to_vec(), subcontext)
-                    {
+                Context::Application { op, ref args } if place[0] <= args.len() => args[place[0]]
+                    .replace(&place[1..], subcontext)
+                    .map(|context| {
                         let mut new_args = args.clone();
-                        new_args.remove(place[0]);
-                        new_args.insert(place[0], context);
-                        Some(Context::Application { op, args: new_args })
-                    } else {
-                        None
-                    }
-                }
+                        new_args[place[0]] = context;
+                        Context::Application { op, args: new_args }
+                    }),
                 _ => None,
             }
         }
