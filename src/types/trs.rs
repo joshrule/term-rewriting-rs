@@ -1414,11 +1414,17 @@ impl ::std::error::Error for TRSError {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+/// Note: p_deletion + p_correct_sub + sum(all values of p_incorrect_sub) must equal 1.0.
 pub struct PStringDist {
+    /// The probability of a single insertion, used to compute the probability of `t` insertions as `(1-beta)(beta^t)`.
     pub beta: f64,
+    /// The probability of any given symbol being the particular symbol inserted.
     pub p_insertion: f64,
+    /// The probability of deleting a character.
     pub p_deletion: f64,
+    /// The probability of substituting correctly.
     pub p_correct_sub: f64,
+    /// A distribution over incorrect substitutions.
     pub p_incorrect_sub: PStringIncorrect,
 }
 #[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
@@ -1456,14 +1462,13 @@ impl<'a> PString<'a> {
         }
     }
     pub fn compute(&mut self, t_max: usize, d_max: usize) -> f64 {
-        let t_start = if self.n > self.m { self.n - self.m } else { 0 };
-        let t_end = if self.m > d_max + self.n {
-            0
-        } else {
-            t_max.min(d_max + self.n - self.m)
-        };
+        // How few insertions can you do? n-m
+        let t_start = self.n.saturating_sub(self.m);
+        // How many insertions can you do? d_max-(m-n)
+        let t_end = t_max.min((d_max + self.n).saturating_sub(self.m));
         (t_start..=t_end)
             .filter_map(|t| {
+                // Insertions can't be deleted, so t must be smaller than n
                 if t > self.n || self.n > self.m + t {
                     None
                 } else {
@@ -1474,6 +1479,7 @@ impl<'a> PString<'a> {
             })
             .sum()
     }
+    /// The probability of t insertions = (1-beta)*(beta^t)
     fn rho_t(&self, t: usize) -> f64 {
         (1.0 - self.dist.beta) * self.dist.beta.powi(t as i32)
     }
@@ -1485,7 +1491,7 @@ impl<'a> PString<'a> {
             let min_mt = t.min(self.m);
             let max_mt = t.max(self.m);
             let numerator: f64 = (1..=min_mt).product::<usize>() as f64;
-            let denominator: f64 = (max_mt..=(self.m + t)).product::<usize>() as f64;
+            let denominator: f64 = (max_mt + 1..=(self.m + t)).product::<usize>() as f64;
             numerator / denominator
         }
     }
