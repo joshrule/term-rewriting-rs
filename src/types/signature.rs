@@ -195,6 +195,12 @@ impl Signature {
             .new_op(arity, name);
         Operator { id, arity }
     }
+    pub fn has_op(&self, arity: u8, name: Option<String>) -> Option<Operator> {
+        self.sig
+            .read()
+            .expect("poisoned signature")
+            .has_op(arity, name)
+    }
     /// Create a new [`Variable`] distinct from all existing [`Variable`]s.
     ///
     /// [`Variable`]: struct.Variable.html
@@ -213,6 +219,12 @@ impl Signature {
     pub fn new_var(&self, name: Option<String>) -> Variable {
         let id = self.sig.write().expect("poisoned signature").new_var(name);
         Variable { id }
+    }
+    pub fn clear_variables(&mut self) {
+        self.sig
+            .write()
+            .expect("poisoned signature")
+            .clear_variables()
     }
     pub fn contract(&mut self, ids: &[usize]) -> usize {
         self.sig.write().expect("poisoned signature").contract(ids)
@@ -376,9 +388,18 @@ impl Sig {
     pub fn variables(&self) -> Vec<usize> {
         (0..self.variables.len()).collect()
     }
+    pub fn clear_variables(&mut self) {
+        self.variables.clear();
+    }
     pub fn new_op(&mut self, arity: u8, name: Option<String>) -> usize {
         self.operators.push((arity, name));
         self.operators.len() - 1
+    }
+    pub fn has_op(&self, arity: u8, name: Option<String>) -> Option<Operator> {
+        self.operators
+            .iter()
+            .position(|(o_arity, o_name)| *o_arity == arity && *o_name == name)
+            .map(|id| Operator { id, arity })
     }
     pub fn new_var(&mut self, name: Option<String>) -> usize {
         self.variables.push(name);
