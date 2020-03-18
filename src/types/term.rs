@@ -241,6 +241,26 @@ impl Context {
             })
             .collect()
     }
+    /// The leftmost [`Place`] in the `Context` that is a `Hole`.
+    ///
+    /// [`Place`]: type.Place.html
+    /// [`Hole`]: enum.Context.html#variant.Hole
+    pub fn leftmost_hole(&self) -> Option<Place> {
+        match *self {
+            Context::Hole => Some(vec![]),
+            Context::Variable(_) => None,
+            Context::Application { ref args, .. } => {
+                for (i, arg) in args.iter().enumerate() {
+                    if let Some(mut place) = arg.leftmost_hole() {
+                        let mut full_place = vec![i];
+                        full_place.append(&mut place);
+                        return Some(full_place);
+                    }
+                }
+                None
+            }
+        }
+    }
     /// The head of the `Context`.
     ///
     /// # Examples
@@ -448,14 +468,21 @@ impl Context {
     ///
     /// assert_eq!(term.display(&sig), "A(B C)");
     /// ```
-    pub fn to_term(&self) -> Result<Term, ()> {
+    pub fn to_term(&self) -> Result<Term, Place> {
         match *self {
-            Context::Hole => Err(()),
+            Context::Hole => Err(vec![]),
             Context::Variable(v) => Ok(Term::Variable(v)),
             Context::Application { op, ref args } => {
                 let mut mapped_args = vec![];
-                for arg in args {
-                    mapped_args.push(arg.to_term()?);
+                for (i, arg) in args.iter().enumerate() {
+                    match arg.to_term() {
+                        Ok(arg_term) => mapped_args.push(arg_term),
+                        Err(mut arg_place) => {
+                            let mut place = vec![i];
+                            place.append(&mut arg_place);
+                            return Err(place);
+                        }
+                    }
                 }
                 Ok(Term::Application {
                     op,
