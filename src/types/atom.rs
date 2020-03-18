@@ -201,6 +201,18 @@ impl Atom {
             Atom::Operator(o) => o.arity() == 0,
         }
     }
+    pub fn is_operator(self) -> bool {
+        match self {
+            Atom::Variable(_) => false,
+            Atom::Operator(_) => true,
+        }
+    }
+    pub fn is_variable(self) -> bool {
+        match self {
+            Atom::Variable(_) => true,
+            Atom::Operator(_) => false,
+        }
+    }
 }
 impl From<Variable> for Atom {
     fn from(var: Variable) -> Atom {
