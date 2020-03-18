@@ -8,7 +8,7 @@ use super::Signature;
 /// [`Signature::new_var`]: struct.Signature.html#method.new_var
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Variable {
-    pub(crate) id: usize,
+    pub id: usize,
 }
 impl Variable {
     /// Returns a `Variable`'s id.
