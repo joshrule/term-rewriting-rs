@@ -129,6 +129,51 @@ impl RuleContext {
     pub fn size(&self) -> usize {
         self.lhs.size() + self.rhs.iter().map(Context::size).sum::<usize>()
     }
+    /// `true` if `self == [!] = [!]`, else `false`.
+    pub fn is_empty(&self) -> bool {
+        self.lhs == Context::Hole && self.rhs.len() == 1 && self.rhs[0] == Context::Hole
+    }
+    /// The leftmost [`Place`] in the `RuleContext` that is a [`Hole`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_rulecontext};
+    /// let mut sig = Signature::default();
+    ///
+    /// let rule = parse_rulecontext(&mut sig, "[!] = [!]").expect("parsed rule");
+    /// assert_eq!(rule.leftmost_hole(), Some(vec![0]));
+    ///
+    /// let rule = parse_rulecontext(&mut sig, "A = [!]").expect("parsed rule");
+    /// assert_eq!(rule.leftmost_hole(), Some(vec![1]));
+    ///
+    /// let rule = parse_rulecontext(&mut sig, "(B [!]) A = [!]").expect("parsed rule");
+    /// assert_eq!(rule.leftmost_hole(), Some(vec![0, 0, 1]));
+    ///
+    /// let rule = parse_rulecontext(&mut sig, "(B A) A = B [!]").expect("parsed rule");
+    /// assert_eq!(rule.leftmost_hole(), Some(vec![1, 1]));
+    /// ```
+    ///
+    /// [`Place`]: type.Place.html
+    /// [`Hole`]: enum.Context.html#variant.Hole
+    pub fn leftmost_hole(&self) -> Option<Place> {
+        self.lhs
+            .leftmost_hole()
+            .map(|mut place| {
+                let mut full_place = vec![0];
+                full_place.append(&mut place);
+                full_place
+            })
+            .or_else(|| {
+                self.rhs.iter().enumerate().find_map(|(i, rhs)| {
+                    rhs.leftmost_hole().map(|mut place| {
+                        let mut full_place = vec![i + 1];
+                        full_place.append(&mut place);
+                        full_place
+                    })
+                })
+            })
+    }
     /// Get all the [`subcontexts`] and [`Place`]s in a `RuleContext`.
     ///
     /// [`subcontexts`]: struct.Context.html
@@ -334,14 +379,22 @@ impl RuleContext {
     ///
     /// assert_eq!(rule.pretty(&sig), "A(x_) = B | C(x_)");
     /// ```
-    pub fn to_rule(&self) -> Result<Rule, ()> {
-        let lhs = self.lhs.to_term()?;
-        let rhs = self
-            .rhs
-            .iter()
-            .map(Context::to_term)
-            .collect::<Result<_, _>>()?;
-        Rule::new(lhs, rhs).ok_or(())
+    pub fn to_rule(&self) -> Result<Rule, Place> {
+        let lhs = self.lhs.to_term().map_err(|mut lhs_place| {
+            let mut place = vec![0];
+            place.append(&mut lhs_place);
+            place
+        })?;
+        let mut rhss = Vec::with_capacity(self.rhs.len());
+        for (i, rhs) in self.rhs.iter().enumerate() {
+            let new_rhs = rhs.to_term().map_err(|mut rhs_place| {
+                let mut place = vec![i];
+                place.append(&mut rhs_place);
+                place
+            })?;
+            rhss.push(new_rhs);
+        }
+        Rule::new(lhs, rhss).ok_or(vec![])
     }
 }
 impl From<Rule> for RuleContext {
@@ -349,6 +402,14 @@ impl From<Rule> for RuleContext {
         let new_lhs = Context::from(r.lhs);
         let new_rhs = r.rhs.into_iter().map(Context::from).collect();
         RuleContext::new(new_lhs, new_rhs).unwrap()
+    }
+}
+impl Default for RuleContext {
+    fn default() -> Self {
+        RuleContext {
+            lhs: Context::Hole,
+            rhs: vec![Context::Hole],
+        }
     }
 }
 
