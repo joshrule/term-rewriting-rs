@@ -360,6 +360,18 @@ impl RuleContext {
                 })
         }
     }
+    pub fn replace_all(&self, places: &[Place], subcontext: Context) -> Option<RuleContext> {
+        let mut lhs = self.lhs.clone();
+        let mut rhs = self.rhs.clone();
+        for place in places {
+            if place[0] == 0 {
+                lhs = lhs.replace(&place[1..], subcontext.clone())?;
+            } else {
+                rhs[place[0] - 1] = rhs[place[0] - 1].replace(&place[1..], subcontext.clone())?;
+            }
+        }
+        RuleContext::new(lhs, rhs)
+    }
     /// Convert a `RuleContext` to a [`Rule`] if possible.
     ///
     /// [`Rule`]: struct.Rule.html
