@@ -46,16 +46,12 @@ impl Variable {
     /// ```
     /// # use term_rewriting::Signature;
     /// let mut sig = Signature::default();
-    /// let var = sig.new_var(Some("z".to_string()));
+    /// let var = sig.new_var(None);
     ///
-    /// assert_eq!(var.display(&sig), "z_");
+    /// assert_eq!(var.display(), "v0_");
     /// ```
-    pub fn display(self, sig: &Signature) -> String {
-        if let Some(ref name) = sig.sig.read().expect("poisoned signature").variables[self.id] {
-            format!("{}_", name)
-        } else {
-            format!("var{}_", self.id)
-        }
+    pub fn display(self) -> String {
+        format!("v{}_", self.id)
     }
 }
 
@@ -195,7 +191,7 @@ impl Atom {
     /// ```
     pub fn display(self, sig: &Signature) -> String {
         match self {
-            Atom::Variable(v) => v.display(sig),
+            Atom::Variable(v) => v.display(),
             Atom::Operator(o) => o.display(sig),
         }
     }

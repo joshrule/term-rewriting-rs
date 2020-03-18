@@ -104,7 +104,7 @@ impl Context {
     pub fn display(&self, sig: &Signature) -> String {
         match self {
             Context::Hole => "[!]".to_string(),
-            Context::Variable(v) => v.display(sig),
+            Context::Variable(v) => v.display(),
             Context::Application { op, args } => {
                 let op_str = op.display(sig);
                 if args.is_empty() {
@@ -755,7 +755,7 @@ impl Term {
     /// ```
     pub fn display(&self, sig: &Signature) -> String {
         match self {
-            Term::Variable(ref v) => v.display(sig),
+            Term::Variable(ref v) => v.display(),
             Term::Application { ref op, ref args } => {
                 let op_str = op.display(sig);
                 if args.is_empty() {
@@ -1594,11 +1594,7 @@ mod tests {
 
         let context = parse_context(&mut sig, "A([!]) B y_ z_").expect("parse of A([!]) B y_ z_");
 
-        let var_names: Vec<String> = context
-            .variables()
-            .iter()
-            .map(|v| v.display(&sig))
-            .collect();
+        let var_names: Vec<String> = context.variables().iter().map(|v| v.display()).collect();
 
         assert_eq!(var_names, vec!["y_".to_string(), "z_".to_string()]);
     }
