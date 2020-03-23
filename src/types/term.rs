@@ -3,6 +3,31 @@ use super::{Atom, Operator, Place, Signature, Unification, Variable};
 use itertools::Itertools;
 use std::{collections::HashMap, convert::TryFrom, iter};
 
+pub struct Subterms<'a> {
+    stack: Vec<&'a Term>,
+}
+
+impl<'a> Subterms<'a> {
+    fn new(term: &'a Term) -> Self {
+        Subterms { stack: vec![term] }
+    }
+}
+
+impl<'a> Iterator for Subterms<'a> {
+    type Item = &'a Term;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(term) = self.stack.pop() {
+            if let Term::Application { ref args, .. } = term {
+                for arg in args {
+                    self.stack.push(arg)
+                }
+            }
+            Some(term)
+        } else {
+            None
+        }
+    }
+}
 
 /// A first-order `Context`: a [`Term`] that may have [`Hole`]s; a sort of [`Term`] template.
 ///
@@ -880,15 +905,15 @@ impl Term {
     /// assert_eq!(var_names, vec!["y_", "z_"]);
     /// ```
     pub fn variables(&self) -> Vec<Variable> {
-        match *self {
-            Term::Variable(v) => vec![v],
-            Term::Application { ref args, .. } => {
-                let mut vars = args.iter().flat_map(Term::variables).collect_vec();
-                vars.sort();
-                vars.dedup();
-                vars
-            }
-        }
+        let mut vars = Subterms::new(self)
+            .filter_map(|t| match t {
+                Term::Variable(v) => Some(*v),
+                _ => None,
+            })
+            .collect_vec();
+        vars.sort();
+        vars.dedup();
+        vars
     }
     /// Every [`Operator`] used in the `Term`.
     ///
