@@ -455,7 +455,7 @@ impl Context {
             Some(subcontext)
         } else {
             match *self {
-                Context::Application { op, ref args } if place[0] <= args.len() => args[place[0]]
+                Context::Application { op, ref args } if place[0] < args.len() => args[place[0]]
                     .replace(&place[1..], subcontext)
                     .map(|context| {
                         let mut new_args = args.clone();
@@ -1259,7 +1259,7 @@ impl Term {
             Some(subterm)
         } else {
             match *self {
-                Term::Application { op, ref args } if place[0] <= args.len() => {
+                Term::Application { op, ref args } if place[0] < args.len() => {
                     args[place[0]].replace(&place[1..], subterm).map(|term| {
                         let mut new_args = args.clone();
                         new_args[place[0]] = term;
