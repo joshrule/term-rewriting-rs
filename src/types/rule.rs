@@ -1,7 +1,10 @@
 use super::{Context, Operator, Place, Signature, Term, Variable};
 use itertools::Itertools;
-use std::collections::{HashMap, HashSet};
-use std::iter;
+use std::{
+    collections::{HashMap, HashSet},
+    convert::TryFrom,
+    iter,
+};
 
 /// A [`Rule`] with [`Hole`]s; a sort of [`Rule`] template.
 ///
@@ -372,27 +375,6 @@ impl RuleContext {
         }
         RuleContext::new(lhs, rhs)
     }
-    /// Convert a `RuleContext` to a [`Rule`] if possible.
-    ///
-    /// [`Rule`]: struct.Rule.html
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use term_rewriting::{Signature, parse_rulecontext};
-    /// let mut sig = Signature::default();
-    ///
-    /// let r = parse_rulecontext(&mut sig, "A(x_ [!]) = B | C(x_ [!])").expect("parse of A(x_ [!]) = B | C(x_ [!])");
-    ///
-    /// assert!(r.to_rule().is_err());
-    ///
-    /// let r = parse_rulecontext(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B | C(x_)");
-    /// let rule = r.to_rule().expect("converting RuleContext to Rule");
-    ///
-    /// assert_eq!(rule.pretty(&sig), "A(x_) = B | C(x_)");
-    /// ```
-    pub fn to_rule(&self) -> Result<Rule, Place> {
-        let lhs = self.lhs.to_term().map_err(|mut lhs_place| {
     pub fn canonicalize(&mut self, map: &mut HashMap<usize, usize>) {
         self.lhs.canonicalize(map);
         self.rhs.iter_mut().for_each(|r| r.canonicalize(map));
@@ -402,20 +384,11 @@ impl RuleContext {
         self.rhs.iter_mut().for_each(|r| r.offset(n));
     }
 }
-            let mut place = vec![0];
-            place.append(&mut lhs_place);
-            place
-        })?;
-        let mut rhss = Vec::with_capacity(self.rhs.len());
-        for (i, rhs) in self.rhs.iter().enumerate() {
-            let new_rhs = rhs.to_term().map_err(|mut rhs_place| {
-                let mut place = vec![i];
-                place.append(&mut rhs_place);
-                place
-            })?;
-            rhss.push(new_rhs);
-        }
-        Rule::new(lhs, rhss).ok_or(vec![])
+impl From<&Rule> for RuleContext {
+    fn from(r: &Rule) -> RuleContext {
+        let new_lhs = Context::from(&r.lhs);
+        let new_rhs = r.rhs.iter().map(Context::from).collect();
+        RuleContext::new(new_lhs, new_rhs).unwrap()
     }
 }
 impl From<Rule> for RuleContext {
@@ -423,6 +396,26 @@ impl From<Rule> for RuleContext {
         let new_lhs = Context::from(r.lhs);
         let new_rhs = r.rhs.into_iter().map(Context::from).collect();
         RuleContext::new(new_lhs, new_rhs).unwrap()
+    }
+}
+impl TryFrom<&RuleContext> for Rule {
+    type Error = Place;
+    fn try_from(context: &RuleContext) -> Result<Self, Self::Error> {
+        let lhs = Term::try_from(&context.lhs).map_err(|mut lhs_place| {
+            let mut place = vec![0];
+            place.append(&mut lhs_place);
+            place
+        })?;
+        let mut rhss = Vec::with_capacity(context.rhs.len());
+        for (i, rhs) in context.rhs.iter().enumerate() {
+            let new_rhs = Term::try_from(rhs).map_err(|mut rhs_place| {
+                let mut place = vec![i + 1];
+                place.append(&mut rhs_place);
+                place
+            })?;
+            rhss.push(new_rhs);
+        }
+        Rule::new(lhs, rhss).ok_or_else(Vec::new)
     }
 }
 impl Default for RuleContext {
@@ -1118,7 +1111,7 @@ mod tests {
     use super::super::super::parser::*;
     use super::super::{Signature, Term};
     use super::*;
-    use std::collections::HashMap;
+    use std::{collections::HashMap, convert::TryFrom};
 
     #[test]
     fn rulecontext_new_test() {
@@ -1266,17 +1259,17 @@ mod tests {
     }
 
     #[test]
-    fn to_rule_test() {
+    fn try_from_test() {
         let mut sig = Signature::default();
 
         let r = parse_rulecontext(&mut sig, "A(x_ [!]) = B | C(x_ [!])")
             .expect("parse of A(x_ [!]) = B | C(x_ [!])");
 
-        assert!(r.to_rule().is_err());
+        assert!(Rule::try_from(&r).is_err());
 
         let r =
             parse_rulecontext(&mut sig, "A(x_) = B | C(x_)").expect("parse of A(x_) = B | C(x_)");
-        let rule = r.to_rule().expect("converting RuleContext to Rule");
+        let rule = Rule::try_from(&r).expect("converting RuleContext to Rule");
 
         assert_eq!(rule.pretty(&sig), "A(x_) = B | C(x_)");
     }

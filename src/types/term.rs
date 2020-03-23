@@ -1,8 +1,8 @@
 use super::super::pretty::Pretty;
 use super::{Atom, Operator, Place, Signature, Unification, Variable};
 use itertools::Itertools;
-use std::collections::HashMap;
-use std::iter;
+use std::{collections::HashMap, convert::TryFrom, iter};
+
 
 /// A first-order `Context`: a [`Term`] that may have [`Hole`]s; a sort of [`Term`] template.
 ///
@@ -448,49 +448,6 @@ impl Context {
         }
         Some(context)
     }
-    /// Translate the `Context` into a [`Term`], if possible.
-    ///
-    /// [`Term`]: enum.Term.html
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use term_rewriting::{Signature, parse_context};
-    /// let mut sig = Signature::default();
-    ///
-    /// let context = parse_context(&mut sig, "A(B [!])").expect("parse of A(B [!])");
-    ///
-    /// assert!(context.to_term().is_err());
-    ///
-    /// let context = parse_context(&mut sig, "A(B C)").expect("parse of A(B C)");
-    ///
-    /// let term = context.to_term().expect("converting context to term");
-    ///
-    /// assert_eq!(term.display(&sig), "A(B C)");
-    /// ```
-    pub fn to_term(&self) -> Result<Term, Place> {
-        match *self {
-            Context::Hole => Err(vec![]),
-            Context::Variable(v) => Ok(Term::Variable(v)),
-            Context::Application { op, ref args } => {
-                let mut mapped_args = vec![];
-                for (i, arg) in args.iter().enumerate() {
-                    match arg.to_term() {
-                        Ok(arg_term) => mapped_args.push(arg_term),
-                        Err(mut arg_place) => {
-                            let mut place = vec![i];
-                            place.append(&mut arg_place);
-                            return Err(place);
-                        }
-                    }
-                }
-                Ok(Term::Application {
-                    op,
-                    args: mapped_args,
-                })
-            }
-        }
-    }
     /// `true` if `self` is a more general instance of some `Term`.
     pub fn generalize<'a>(
         cs: Vec<(&'a Context, &'a Context)>,
@@ -690,6 +647,33 @@ impl Context {
             }
         }
         Some(subs)
+    }
+}
+impl TryFrom<&Context> for Term {
+    type Error = Place;
+    fn try_from(context: &Context) -> Result<Self, Self::Error> {
+        match *context {
+            Context::Hole => Err(vec![]),
+            Context::Variable(v) => Ok(Term::Variable(v)),
+            Context::Application { op, ref args } => {
+                let mut mapped_args = Vec::with_capacity(args.len());
+                for (i, arg) in args.iter().enumerate() {
+                    match Term::try_from(arg) {
+                        Ok(arg_term) => mapped_args.push(arg_term),
+                        Err(mut place) => {
+                            place.reverse();
+                            place.push(i);
+                            place.reverse();
+                            return Err(place);
+                        }
+                    }
+                }
+                Ok(Term::Application {
+                    op,
+                    args: mapped_args,
+                })
+            }
+        }
     }
 }
 impl From<&Term> for Context {
