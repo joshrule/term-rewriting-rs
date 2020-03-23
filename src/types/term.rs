@@ -497,6 +497,28 @@ impl Context {
     ) -> Option<HashMap<&'a Variable, &'a Context>> {
         Context::unify_internal(cs, Unification::Generalize)
     }
+    pub fn canonicalize(&mut self, map: &mut HashMap<usize, usize>) {
+        match self {
+            Context::Hole => (),
+            Context::Variable(v) => {
+                let new_id = map.len();
+                let id = map.entry(v.id).or_insert_with(|| new_id);
+                v.id = *id;
+            }
+            Context::Application { ref mut args, .. } => {
+                args.iter_mut().for_each(|arg| arg.canonicalize(map))
+            }
+        }
+    }
+    pub fn offset(&mut self, n: usize) {
+        match self {
+            Context::Hole => (),
+            Context::Variable(v) => v.id += n,
+            Context::Application { ref mut args, .. } => {
+                args.iter_mut().for_each(|arg| arg.offset(n))
+            }
+        }
+    }
     /// Compute the [alpha equivalence] for two `Context`s.
     ///
     /// [alpha equivalence]: https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
@@ -1327,6 +1349,43 @@ impl Term {
                 op,
                 args: args.iter().map(|t| t.substitute(sub)).collect(),
             },
+        }
+    }
+    /// Only use this if you know what you're doing. Otherwise, you might wreak
+    /// havoc on your `Signature`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_rule, Term};
+    /// # use std::collections::HashMap;
+    /// let mut sig = Signature::default();
+    /// let rule = parse_rule(&mut sig, "(x_ y_) z_ = (z_ y_) x_").expect("parsed rule");
+    /// let mut t1 = rule.lhs.clone();
+    /// let mut t2 = rule.rhs[0].clone();
+    ///
+    /// assert_ne!(t1, t2);
+    ///
+    /// t1.canonicalize(&mut HashMap::new());
+    /// t2.canonicalize(&mut HashMap::new());
+    ///
+    /// assert_eq!(t1, t2);
+    pub fn canonicalize(&mut self, map: &mut HashMap<usize, usize>) {
+        match self {
+            Term::Variable(v) => {
+                let new_id = map.len();
+                let id = map.entry(v.id).or_insert_with(|| new_id);
+                v.id = *id;
+            }
+            Term::Application { ref mut args, .. } => {
+                args.iter_mut().for_each(|arg| arg.canonicalize(map))
+            }
+        }
+    }
+    pub fn offset(&mut self, n: usize) {
+        match self {
+            Term::Variable(v) => v.id += n,
+            Term::Application { ref mut args, .. } => args.iter_mut().for_each(|arg| arg.offset(n)),
         }
     }
     /// Compute the [alpha equivalence] for two `Term`s.

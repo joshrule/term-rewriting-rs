@@ -378,6 +378,11 @@ impl TRS {
             .unique()
             .collect()
     }
+    pub fn canonicalize(&mut self, map: &mut HashMap<usize, usize>) {
+        self.rules
+            .iter_mut()
+            .for_each(|rule| rule.canonicalize(map));
+    }
     /// Do two TRSs [`unify`]?
     ///
     /// [`unify`]: https://en.wikipedia.org/wiki/Unification_(computer_science)

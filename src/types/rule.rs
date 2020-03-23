@@ -393,6 +393,15 @@ impl RuleContext {
     /// ```
     pub fn to_rule(&self) -> Result<Rule, Place> {
         let lhs = self.lhs.to_term().map_err(|mut lhs_place| {
+    pub fn canonicalize(&mut self, map: &mut HashMap<usize, usize>) {
+        self.lhs.canonicalize(map);
+        self.rhs.iter_mut().for_each(|r| r.canonicalize(map));
+    }
+    pub fn offset(&mut self, n: usize) {
+        self.lhs.offset(n);
+        self.rhs.iter_mut().for_each(|r| r.offset(n));
+    }
+}
             let mut place = vec![0];
             place.append(&mut lhs_place);
             place
@@ -936,6 +945,14 @@ impl Rule {
             }
         }
         Rule::new(lhs, rhs)
+    }
+    pub fn canonicalize(&mut self, map: &mut HashMap<usize, usize>) {
+        self.lhs.canonicalize(map);
+        self.rhs.iter_mut().for_each(|r| r.canonicalize(map));
+    }
+    pub fn offset(&mut self, n: usize) {
+        self.lhs.offset(n);
+        self.rhs.iter_mut().for_each(|r| r.offset(n));
     }
     /// [`Pattern Match`] one `Rule` against another.
     ///
