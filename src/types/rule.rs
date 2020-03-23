@@ -79,7 +79,7 @@ impl RuleContext {
         }
     }
     /// Could `lhs` and `rhs` form a valid `RuleContext`?
-    fn is_valid(lhs: &Context, rhs: &[Context]) -> bool {
+    pub fn is_valid(lhs: &Context, rhs: &[Context]) -> bool {
         // the lhs must be an application
         if let Context::Variable(_) = *lhs {
             false
