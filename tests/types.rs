@@ -207,9 +207,9 @@ fn display_variable() {
     let v1 = sig.new_var(None);
     let v2 = sig.new_var(Some("blah".to_string()));
 
-    assert_eq!(v1.display(&sig), "var0_".to_string());
+    assert_eq!(v1.display(), "var0_".to_string());
     assert_eq!(v1.name(&sig), None);
-    assert_eq!(v2.display(&sig), "blah_".to_string());
+    assert_eq!(v2.display(), "blah_".to_string());
     assert_eq!(v2.name(&sig), Some("blah".to_string()));
 }
 

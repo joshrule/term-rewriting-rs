@@ -135,7 +135,7 @@ impl Signature {
     ///
     /// parse_term(&mut sig, "A(x_ y_)").expect("parse of A(x_ y_)");
     ///
-    /// let vars: Vec<String> = sig.variables().iter().map(|v| v.display(&sig)).collect();
+    /// let vars: Vec<String> = sig.variables().iter().map(|v| v.display()).collect();
     ///
     /// assert_eq!(vars, vec!["x_", "y_"]);
     ///```
@@ -777,7 +777,7 @@ mod tests {
 
         parse_term(&mut sig, "A(x_ y_)").expect("parse of A(x_ y_)");
 
-        let vars: Vec<String> = sig.variables().iter().map(|v| v.display(&sig)).collect();
+        let vars: Vec<String> = sig.variables().iter().map(|v| v.display()).collect();
 
         assert_eq!(vars, vec!["x_", "y_"]);
     }

@@ -869,7 +869,7 @@ impl Term {
     /// let mut sig = Signature::default();
     ///
     /// let t = parse_term(&mut sig, "A B y_ z_").expect("parse of A B y_ z_");
-    /// let var_names: Vec<String> = t.variables().iter().map(|v| v.display(&sig)).collect();
+    /// let var_names: Vec<String> = t.variables().iter().map(|v| v.display()).collect();
     ///
     /// assert_eq!(var_names, vec!["y_", "z_"]);
     /// ```
@@ -895,7 +895,7 @@ impl Term {
     /// let mut sig = Signature::default();
     ///
     /// let t = parse_term(&mut sig, "A B y_ z_").expect("parse of A B y_ z_");
-    /// let op_names: Vec<String> = t.operators().iter().map(|v| v.display(&sig)).collect();
+    /// let op_names: Vec<String> = t.operators().iter().map(|v| v.display()).collect();
     ///
     /// assert_eq!(op_names, vec!["A", "B", "."]);
     /// ```
@@ -1635,7 +1635,7 @@ mod tests {
         let op_names: Vec<String> = context
             .operators()
             .iter()
-            .map(|v| v.display(&sig))
+            .map(|op| op.display(&sig))
             .collect();
 
         assert_eq!(
@@ -1755,21 +1755,6 @@ mod tests {
     }
 
     #[test]
-    fn to_term_test() {
-        let mut sig = Signature::default();
-
-        let context = parse_context(&mut sig, "A(B [!])").expect("parse of A(B [!])");
-
-        assert!(context.to_term().is_err());
-
-        let context = parse_context(&mut sig, "A(B C)").expect("parse of A(B C)");
-
-        let term = context.to_term().expect("converting context to term");
-
-        assert_eq!(term.display(&sig), "A(B C)");
-    }
-
-    #[test]
     fn term_display_test() {
         let mut sig = Signature::default();
 
@@ -1808,7 +1793,7 @@ mod tests {
         let mut sig = Signature::default();
 
         let t = parse_term(&mut sig, "A B y_ z_").expect("parse of A B y_ z_");
-        let var_names: Vec<String> = t.variables().iter().map(|v| v.display(&sig)).collect();
+        let var_names: Vec<String> = t.variables().iter().map(|v| v.display()).collect();
 
         assert_eq!(var_names, vec!["y_", "z_"]);
     }
@@ -1818,7 +1803,7 @@ mod tests {
         let mut sig = Signature::default();
 
         let t = parse_term(&mut sig, "A B y_ z_").expect("parse of A B y_ z_");
-        let op_names: Vec<String> = t.operators().iter().map(|v| v.display(&sig)).collect();
+        let op_names: Vec<String> = t.operators().iter().map(|op| op.display(&sig)).collect();
 
         assert_eq!(op_names, vec!["A", "B", "."]);
     }
@@ -1958,10 +1943,10 @@ mod tests {
             vars[3].clone(),
         );
 
-        assert_eq!(y.display(&sig), "y_".to_string());
-        assert_eq!(z.display(&sig), "z_".to_string());
-        assert_eq!(a.display(&sig), "a_".to_string());
-        assert_eq!(b.display(&sig), "b_".to_string());
+        assert_eq!(y.display(), "y_".to_string());
+        assert_eq!(z.display(), "z_".to_string());
+        assert_eq!(a.display(), "a_".to_string());
+        assert_eq!(b.display(), "b_".to_string());
 
         {
             let ta = Term::Variable(a);

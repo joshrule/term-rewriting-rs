@@ -260,12 +260,12 @@ impl RuleContext {
     /// let mut sig = Signature::default();
     ///
     /// let r = parse_rulecontext(&mut sig, "A(x_ [!]) = C(x_)").expect("parse of A(x_ [!]) = C(x_)");
-    /// let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
+    /// let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
     ///
     /// assert_eq!(r_variables, vec!["x_"]);
     ///
     /// let r = parse_rulecontext(&mut sig, "B(y_ z_) = C [!]").expect("parse of B(y_ z_) = C [!]");
-    /// let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
+    /// let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
     ///
     /// assert_eq!(r_variables, vec!["y_", "z_"]);
     /// ```
@@ -1196,12 +1196,12 @@ mod tests {
 
         let r =
             parse_rulecontext(&mut sig, "A(x_ [!]) = C(x_)").expect("parse of A(x_ [!]) = C(x_)");
-        let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
+        let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
 
         assert_eq!(r_variables, vec!["x_"]);
 
         let r = parse_rulecontext(&mut sig, "B(y_ z_) = C [!]").expect("parse of B(y_ z_) = C [!]");
-        let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
+        let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
 
         assert_eq!(r_variables, vec!["y_", "z_"]);
     }
@@ -1432,12 +1432,12 @@ mod tests {
         let mut sig = Signature::default();
 
         let r = parse_rule(&mut sig, "A(x_) = C(x_)").expect("parse of A(x_) = C(x_)");
-        let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
+        let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
 
         assert_eq!(r_variables, vec!["x_"]);
 
         let r = parse_rule(&mut sig, "B(y_ z_) = C").expect("parse of B(y_ z_) = C");
-        let r_variables: Vec<String> = r.variables().iter().map(|v| v.display(&sig)).collect();
+        let r_variables: Vec<String> = r.variables().iter().map(|v| v.display()).collect();
 
         assert_eq!(r_variables, vec!["y_", "z_"]);
     }
