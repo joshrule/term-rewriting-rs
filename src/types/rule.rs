@@ -944,6 +944,100 @@ impl Rule {
         self.lhs.offset(n);
         self.rhs.iter_mut().for_each(|r| r.offset(n));
     }
+    /// Compute the least general generalization of two `Rule`s.
+    ///
+    /// # Example
+    /// ```
+    /// # use term_rewriting::{Signature, parse_rule, Rule};
+    /// let mut sig = Signature::default();
+    ///
+    /// let r1 = parse_rule(&mut sig, "C(CONS(2 NIL)) = 2 ").expect("parsed rule");
+    /// let r2 = parse_rule(&mut sig, "C(CONS(3 NIL)) = 3 ").expect("parsed rule");
+    /// let r3 = Rule::least_general_generalization(&r1, &r2).expect("generalization");
+    ///
+    /// assert_eq!(r3.display(&sig), "C(CONS(v0_ NIL)) = v0_");
+    ///
+    /// let r1 = parse_rule(&mut sig, "C(CONS(2 NIL)) = 3 ").expect("parsed rule");
+    /// let r2 = parse_rule(&mut sig, "C(CONS(3 NIL)) = 2 ").expect("parsed rule");
+    /// let none = Rule::least_general_generalization(&r1, &r2);
+    ///
+    /// assert!(none.is_none());
+    /// ```
+    pub fn least_general_generalization(r1: &Rule, r2: &Rule) -> Option<Rule> {
+        // Make a variable generator
+        let mut id = 0;
+        // Match on the structure of the term
+        let mut stack = vec![(&r1.lhs, &r2.lhs)];
+        let mut map = HashMap::new();
+        while let Some(terms) = stack.pop() {
+            match terms {
+                (
+                    &Term::Application {
+                        op: ref op1,
+                        args: ref args1,
+                    },
+                    &Term::Application {
+                        op: ref op2,
+                        args: ref args2,
+                    },
+                ) if op1 == op2 => {
+                    for pair in args1.iter().zip(args2) {
+                        stack.push(pair);
+                    }
+                }
+                other => {
+                    if map.get(&other).is_none() {
+                        map.insert(other, id);
+                        id += 1;
+                    }
+                }
+            }
+        }
+        let new_rhs = r1
+            .rhs
+            .iter()
+            .zip(&r2.rhs)
+            .map(|rhss| Rule::lgg_helper(rhss, &map))
+            .collect::<Option<Vec<Term>>>();
+        if let Some(new_rhs) = new_rhs {
+            if let Some(new_lhs) = Rule::lgg_helper((&r1.lhs, &r2.lhs), &map) {
+                return Rule::new(new_lhs, new_rhs);
+            }
+        }
+        None
+    }
+    fn lgg_helper(terms: (&Term, &Term), map: &HashMap<(&Term, &Term), usize>) -> Option<Term> {
+        if let Some(&id) = map.get(&terms) {
+            Some(Term::Variable(Variable { id }))
+        } else {
+            match terms {
+                (
+                    &Term::Application {
+                        op: ref op1,
+                        args: ref args1,
+                    },
+                    &Term::Application {
+                        op: ref op2,
+                        args: ref args2,
+                    },
+                ) if op1 == op2 => {
+                    let mut mapped_args = Vec::with_capacity(args1.len());
+                    for pair in args1.iter().zip(args2) {
+                        if let Some(subterm) = Rule::lgg_helper(pair, map) {
+                            mapped_args.push(subterm)
+                        } else {
+                            return None;
+                        }
+                    }
+                    Some(Term::Application {
+                        op: *op1,
+                        args: mapped_args,
+                    })
+                }
+                _ => None,
+            }
+        }
+    }
     /// [`Pattern Match`] one `Rule` against another.
     ///
     /// [`Pattern Match`]: https://en.wikipedia.org/wiki/Pattern_matching
