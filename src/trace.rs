@@ -159,11 +159,7 @@ impl<'a> Trace<'a> {
             let weight = weighter(term, &n_r.term);
             Some(n_r.log_p + weight)
         });
-        if lps.is_empty() {
-            f64::NEG_INFINITY
-        } else {
-            logsumexp(&lps)
-        }
+        logsumexp(&lps)
     }
 }
 impl<'a> Iterator for Trace<'a> {
@@ -465,7 +461,7 @@ impl Iterator for TraceNodeIter {
 }
 
 fn logsumexp(lps: &[f64]) -> f64 {
-    let largest = lps.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let largest = lps.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     if largest == f64::NEG_INFINITY {
         f64::NEG_INFINITY
     } else {
