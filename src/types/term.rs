@@ -1459,9 +1459,7 @@ impl Term {
         vmap: &mut HashMap<Variable, Variable>,
     ) -> bool {
         match (t1, t2) {
-            (&Term::Variable(v1), &Term::Variable(v2)) => {
-                v2 == *vmap.entry(v1).or_insert_with(|| v2)
-            }
+            (&Term::Variable(v1), &Term::Variable(v2)) => v2 == *vmap.entry(v1).or_insert(v2),
             (
                 &Term::Application {
                     op: op1,
@@ -1472,7 +1470,8 @@ impl Term {
                     args: ref args2,
                 },
             ) => {
-                op2 == *omap.entry(op1).or_insert_with(|| op2)
+                op1.arity == op2.arity
+                    && op2 == *omap.entry(op1).or_insert(op2)
                     && args1
                         .iter()
                         .zip(args2)

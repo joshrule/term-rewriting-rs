@@ -1155,16 +1155,13 @@ impl Rule {
         ops: &mut HashMap<Operator, Operator>,
         vars: &mut HashMap<Variable, Variable>,
     ) -> bool {
-        if r1.rhs.len() == r2.rhs.len() {
-            Term::same_shape_given(&r1.lhs, &r2.lhs, ops, vars)
-                && r1
-                    .rhs
-                    .iter()
-                    .zip(&r2.rhs)
-                    .all(|(r1_rhs, r2_rhs)| Term::same_shape_given(r1_rhs, r2_rhs, ops, vars))
-        } else {
-            false
-        }
+        r1.rhs.len() == r2.rhs.len()
+            && Term::same_shape_given(&r1.lhs, &r2.lhs, ops, vars)
+            && r1
+                .rhs
+                .iter()
+                .zip(&r2.rhs)
+                .all(|(r1_rhs, r2_rhs)| Term::same_shape_given(r1_rhs, r2_rhs, ops, vars))
     }
 
     /// Substitute through a `Rule`.
