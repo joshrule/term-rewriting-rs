@@ -1,31 +1,31 @@
 use super::super::pretty::Pretty;
 use super::{Atom, Operator, Place, Signature, Unification, Variable};
 use itertools::Itertools;
+use smallvec::SmallVec;
 use std::{collections::HashMap, convert::TryFrom, iter};
 
 pub struct Subterms<'a> {
-    stack: Vec<&'a Term>,
+    stack: SmallVec<[&'a Term; 32]>,
 }
 
 impl<'a> Subterms<'a> {
     fn new(term: &'a Term) -> Self {
-        Subterms { stack: vec![term] }
+        let mut stack = SmallVec::with_capacity(term.preorder_size());
+        stack.push(term);
+        Subterms { stack }
     }
 }
 
 impl<'a> Iterator for Subterms<'a> {
     type Item = &'a Term;
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(term) = self.stack.pop() {
-            if let Term::Application { ref args, .. } = term {
-                for arg in args {
-                    self.stack.push(arg)
-                }
+        let term = self.stack.pop()?;
+        if let Term::Application { ref args, .. } = term {
+            for arg in args {
+                self.stack.push(arg)
             }
-            Some(term)
-        } else {
-            None
         }
+        Some(term)
     }
 }
 
@@ -1191,6 +1191,17 @@ impl Term {
             Term::Application { ref args, .. } => args.iter().map(Term::size).sum::<usize>() + 1,
         }
     }
+    fn preorder_size(&self) -> usize {
+        match *self {
+            Term::Variable(_) => 1,
+            Term::Application { ref op, ref args } => args
+                .iter()
+                .enumerate()
+                .map(|(i, a)| a.preorder_size() + (op.arity as usize - i - 1))
+                .max()
+                .unwrap_or(1),
+        }
+    }
     /// Get the `subterm` at the given [`Place`] if possible.  Otherwise, return `None`.
     ///
     /// [`Place`]: type.Place.html
@@ -1315,7 +1326,7 @@ impl Term {
         for o in t1s {
             if let Some((idx, _)) = t2s
                 .iter()
-                .find_position(|t| Term::alpha(vec![(o, t)]).is_some())
+                .find_position(|t| Term::alpha(&[(o, t)]).is_some())
             {
                 count += 2.0 * (o.size() as f64);
                 t2s.swap_remove(idx);
@@ -1426,7 +1437,7 @@ impl Term {
     ///
     /// assert_eq!(Term::alpha(vec![(&t, &t3)]), None);
     /// ```
-    pub fn alpha<'a>(cs: Vec<(&'a Term, &'a Term)>) -> Option<HashMap<&'a Variable, &'a Term>> {
+    pub fn alpha<'a>(cs: &[(&'a Term, &'a Term)]) -> Option<HashMap<&'a Variable, &'a Term>> {
         Term::unify_internal(cs, Unification::Alpha)
     }
     /// Returns whether two `Term`s are shape equivalent.
@@ -1514,7 +1525,7 @@ impl Term {
     ///
     /// assert_eq!(Term::pmatch(vec![(&t2, &t3)]), None);
     /// ```
-    pub fn pmatch<'a>(cs: Vec<(&'a Term, &'a Term)>) -> Option<HashMap<&'a Variable, &'a Term>> {
+    pub fn pmatch<'a>(cs: &[(&'a Term, &'a Term)]) -> Option<HashMap<&'a Variable, &'a Term>> {
         Term::unify_internal(cs, Unification::Match)
     }
     /// Given a vector of contraints, return a substitution which satisfies the constrants.
@@ -1575,31 +1586,37 @@ impl Term {
     ///
     /// assert_eq!(Term::unify(vec![(&t1, &t2)]), None);
     /// ```
-    pub fn unify<'a>(cs: Vec<(&'a Term, &'a Term)>) -> Option<HashMap<&'a Variable, &'a Term>> {
+    pub fn unify<'a>(cs: &[(&'a Term, &'a Term)]) -> Option<HashMap<&'a Variable, &'a Term>> {
         Term::unify_internal(cs, Unification::Unify)
     }
     /// the internal implementation of unify and match.
     fn unify_internal<'a>(
-        mut cs: Vec<(&'a Term, &'a Term)>,
+        initial_cs: &[(&'a Term, &'a Term)],
         utype: Unification,
     ) -> Option<HashMap<&'a Variable, &'a Term>> {
-        let mut subs: HashMap<&Variable, &Term> = HashMap::new();
-        while !cs.is_empty() {
-            let (mut s, mut t) = cs.pop().unwrap();
-
+        let c_len = initial_cs.len();
+        let max_len = initial_cs
+            .iter()
+            .enumerate()
+            .map(|(i, (s, _))| c_len - i + s.preorder_size())
+            .max()
+            .unwrap_or(0);
+        let mut cs: SmallVec<[(&Term, &Term); 32]> = SmallVec::with_capacity(max_len);
+        cs.extend_from_slice(initial_cs);
+        let vars: usize = cs.iter().map(|(s, t)| s.size() + t.size()).sum();
+        let mut subs: HashMap<&Variable, &Term> = HashMap::with_capacity(vars);
+        while let Some((mut s, mut t)) = cs.pop() {
             while let Term::Variable(ref v) = *s {
-                if subs.contains_key(v) {
-                    s = &subs[v];
-                } else {
-                    break;
+                match subs.get(v) {
+                    Some(v) => s = *v,
+                    None => break,
                 }
             }
 
             while let Term::Variable(ref v) = *t {
-                if subs.contains_key(v) {
-                    t = &subs[v];
-                } else {
-                    break;
+                match subs.get(v) {
+                    Some(v) => t = *v,
+                    None => break,
                 }
             }
 
@@ -1610,14 +1627,14 @@ impl Term {
                         subs.insert(var, t);
                     }
                     (Term::Variable(ref var), t) if utype != Unification::Alpha => {
-                        if !(*t).variables().contains(&&var) {
+                        if !Subterms::new(t).any(|st| st == s) {
                             subs.insert(var, t);
                         } else {
                             return None;
                         }
                     }
                     (s, Term::Variable(ref var)) if utype == Unification::Unify => {
-                        if !(*s).variables().contains(&&var) {
+                        if !Subterms::new(s).any(|st| st == t) {
                             subs.insert(var, s);
                         } else {
                             return None;
@@ -1633,7 +1650,7 @@ impl Term {
                             args: ref a2,
                         },
                     ) if h1 == h2 => {
-                        cs.append(&mut a1.iter().zip(a2.iter()).collect());
+                        cs.extend(a1.iter().zip(a2.iter()));
                     }
                     _ => return None,
                 }
@@ -2022,10 +2039,10 @@ mod tests {
             expected_alpha.insert(&y, &ta);
             expected_alpha.insert(&z, &tb);
 
-            assert_eq!(Term::alpha(vec![(&t, &t2)]), Some(expected_alpha));
+            assert_eq!(Term::alpha(&[(&t, &t2)]), Some(expected_alpha));
         }
 
-        assert_eq!(Term::alpha(vec![(&t, &t3)]), None);
+        assert_eq!(Term::alpha(&[(&t, &t3)]), None);
     }
 
     #[test]
@@ -2053,7 +2070,7 @@ mod tests {
 
         let t4 = parse_term(&mut sig, "A(x_)").expect("parse of A(x_)");
 
-        assert_eq!(Term::pmatch(vec![(&t, &t2)]), None);
+        assert_eq!(Term::pmatch(&[(&t, &t2)]), None);
 
         // maps variable x in term t2 to variable y in term t3
         {
@@ -2062,47 +2079,9 @@ mod tests {
             let mut expected_sub = HashMap::new();
             expected_sub.insert(subbee, &subbed);
 
-            assert_eq!(Term::pmatch(vec![(&t2, &t3)]), Some(expected_sub));
+            assert_eq!(Term::pmatch(&[(&t2, &t3)]), Some(expected_sub));
         }
 
-        assert_eq!(Term::pmatch(vec![(&t3, &t4)]), None);
-    }
-
-    #[test]
-    fn unify_test() {
-        let mut sig = Signature::default();
-
-        let t = parse_term(&mut sig, "C(A)").expect("parse of C(A)");
-
-        let t2 = parse_term(&mut sig, "C(x_)").expect("parse of C(x_)");
-
-        let t3 = parse_term(&mut sig, "C(y_)").expect("parse of C(y_)");
-
-        let t4 = parse_term(&mut sig, "B(x_)").expect("parse of B(x_)");
-
-        {
-            // maps variable x in term t2 to constant A in term t
-            let subbee = &t2.variables()[0];
-            let subbed = Term::Application {
-                op: t.operators()[0].clone(),
-                args: vec![],
-            };
-            let mut expected_sub = HashMap::new();
-            expected_sub.insert(subbee, &subbed);
-
-            assert_eq!(Term::unify(vec![(&t, &t2)]), Some(expected_sub));
-        }
-
-        {
-            // maps variable x in term t2 to variable y in term t3
-            let subbee = &t2.variables()[0];
-            let subbed = Term::Variable(t3.variables()[0].clone());
-            let mut expected_sub = HashMap::new();
-            expected_sub.insert(subbee, &subbed);
-
-            assert_eq!(Term::unify(vec![(&t2, &t3)]), Some(expected_sub));
-        }
-
-        assert_eq!(Term::unify(vec![(&t3, &t4)]), None);
+        assert_eq!(Term::pmatch(&[(&t3, &t4)]), None);
     }
 }

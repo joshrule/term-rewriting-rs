@@ -137,7 +137,7 @@ impl Operator {
 /// [`TRS`]: struct.TRS.html
 /// [`Variable`]: struct.Variable.html
 /// [`Operator`]: struct.Operator.html
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Atom {
     /// The [`Variable`] variant of an `Atom`.
     ///

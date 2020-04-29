@@ -532,22 +532,18 @@ impl TRS {
     }
     // Return rewrites modifying the entire term, if possible, else None.
     fn rewrite_head(&self, term: &Term) -> Option<Vec<Term>> {
-        let mut rewrites = vec![];
         for rule in &self.rules {
-            if let Some(ref sub) = Term::pmatch(vec![(&rule.lhs, &term)]) {
+            if let Some(ref sub) = Term::pmatch(&[(&rule.lhs, &term)]) {
                 let mut items = rule.rhs.iter().map(|x| x.substitute(sub)).collect_vec();
-                if self.is_deterministic && !items.is_empty() {
-                    return Some(vec![items.remove(0)]);
-                } else {
-                    rewrites.append(&mut items);
+                if !items.is_empty() {
+                    if self.is_deterministic {
+                        items.truncate(1);
+                    }
+                    return Some(items);
                 }
             }
         }
-        if rewrites.is_empty() {
-            None
-        } else {
-            Some(rewrites)
-        }
+        None
     }
     // Return rewrites modifying subterms, if possible, else None.
     fn rewrite_args(&self, term: &Term, strategy: Strategy, sig: &Signature) -> Option<Vec<Term>> {
@@ -904,7 +900,7 @@ impl TRS {
     /// ```
     pub fn get(&self, lhs: &Term) -> Option<(usize, Rule)> {
         for (idx, rule) in self.rules.iter().enumerate() {
-            if Term::alpha(vec![(lhs, &rule.lhs)]).is_some() {
+            if Term::alpha(&[(lhs, &rule.lhs)]).is_some() {
                 return Some((idx, rule.clone()));
             }
         }

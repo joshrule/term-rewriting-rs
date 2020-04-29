@@ -173,6 +173,7 @@ extern crate nom;
 extern crate rand;
 extern crate serde;
 extern crate serde_derive;
+extern crate smallvec;
 
 mod parser;
 mod pretty;

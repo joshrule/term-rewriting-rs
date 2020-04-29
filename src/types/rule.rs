@@ -694,7 +694,7 @@ impl Rule {
     /// assert_eq!(r.display(&sig), "A(x_) = B | C(x_)");
     /// ```
     pub fn merge(&mut self, r: &Rule) {
-        if let Some(s) = Term::alpha(vec![(&r.lhs, &self.lhs)]) {
+        if let Some(s) = Term::alpha(&[(&r.lhs, &self.lhs)]) {
             for rhs in r.rhs.clone() {
                 let new_rhs = rhs.substitute(&s);
                 if !self.rhs.contains(&new_rhs) {
@@ -718,7 +718,7 @@ impl Rule {
     /// assert_eq!(r.display(&sig), "A(x_) = C");
     /// ```
     pub fn discard(&mut self, r: &Rule) -> Option<Rule> {
-        if let Some(sub) = Term::alpha(vec![(&r.lhs, &self.lhs)]) {
+        if let Some(sub) = Term::alpha(&[(&r.lhs, &self.lhs)]) {
             let terms = r
                 .rhs
                 .iter()
@@ -753,7 +753,7 @@ impl Rule {
     /// assert_eq!(r.contains(&r2).unwrap(), sub);
     /// ```
     pub fn contains<'a>(&'a self, r: &'a Rule) -> Option<HashMap<&'a Variable, &'a Term>> {
-        if let Some(sub) = Term::alpha(vec![(&r.lhs, &self.lhs)]) {
+        if let Some(sub) = Term::alpha(&[(&r.lhs, &self.lhs)]) {
             if r.rhs
                 .iter()
                 .all(|rhs| self.rhs.contains(&rhs.substitute(&sub)))
@@ -1068,7 +1068,7 @@ impl Rule {
     /// ```
     pub fn pmatch<'a>(r1: &'a Rule, r2: &'a Rule) -> Option<HashMap<&'a Variable, &'a Term>> {
         let cs = iter::once((&r1.lhs, &r2.lhs)).chain(r1.rhs.iter().zip(r2.rhs.iter()));
-        Term::pmatch(cs.collect())
+        Term::pmatch(&cs.collect_vec())
     }
     /// [`Unify`] two [`Rule`]s.
     ///
@@ -1107,8 +1107,10 @@ impl Rule {
     /// assert_eq!(Rule::unify(&r, &r5), Some(expected_map));
     /// ```
     pub fn unify<'a>(r1: &'a Rule, r2: &'a Rule) -> Option<HashMap<&'a Variable, &'a Term>> {
-        let cs = iter::once((&r1.lhs, &r2.lhs)).chain(r1.rhs.iter().zip(r2.rhs.iter()));
-        Term::unify(cs.collect())
+        let cs = iter::once((&r1.lhs, &r2.lhs))
+            .chain(r1.rhs.iter().zip(r2.rhs.iter()))
+            .collect_vec();
+        Term::unify(&cs)
     }
     /// Compute the [`Alpha Equivalence`] between two `Rule`s.
     ///
@@ -1140,7 +1142,7 @@ impl Rule {
     /// ```
     pub fn alpha<'a>(r1: &'a Rule, r2: &'a Rule) -> Option<HashMap<&'a Variable, &'a Term>> {
         let cs = iter::once((&r1.lhs, &r2.lhs)).chain(r1.rhs.iter().zip(r2.rhs.iter()));
-        Term::alpha(cs.collect())
+        Term::alpha(&cs.collect_vec())
     }
     /// Do two rules share the same shape?
     pub fn same_shape(r1: &Rule, r2: &Rule) -> bool {
