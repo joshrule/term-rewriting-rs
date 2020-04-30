@@ -13,8 +13,8 @@ categories = ["science", "data-structures", "algorithms", "parser-implementation
 edition= "2018"
 
 [dependencies]
-nom = "=4.1.1"
 itertools = "0.8"
+nom = "=4.1.1"
 rand = "0.7"
 serde = "1.0"
 serde_derive = "1.0"

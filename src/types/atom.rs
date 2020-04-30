@@ -7,53 +7,7 @@ use super::Signature;
 /// [`Signature`]: struct.Signature.html
 /// [`Signature::new_var`]: struct.Signature.html#method.new_var
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Variable {
-    pub id: usize,
-}
-impl Variable {
-    /// Returns a `Variable`'s id.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use term_rewriting::Signature;
-    /// let mut sig = Signature::default();
-    /// let var = sig.new_var(Some("z".to_string()));
-    ///
-    /// assert_eq!(var.id(), 0);
-    /// ```
-    pub fn id(self) -> usize {
-        self.id
-    }
-    /// Returns a `Variable`'s name.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use term_rewriting::Signature;
-    /// let mut sig = Signature::default();
-    /// let var = sig.new_var(Some("z".to_string()));
-    ///
-    /// assert_eq!(var.name(&sig), Some("z".to_string()));
-    /// ```
-    pub fn name(self, sig: &Signature) -> Option<String> {
-        sig.sig.read().expect("poisoned signature").variables[self.id].clone()
-    }
-    /// Serialize a `Variable`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use term_rewriting::Signature;
-    /// let mut sig = Signature::default();
-    /// let var = sig.new_var(None);
-    ///
-    /// assert_eq!(var.display(), "v0_");
-    /// ```
-    pub fn display(self) -> String {
-        format!("v{}_", self.id)
-    }
-}
+pub struct Variable(pub(crate) usize);
 
 /// A symbol with fixed arity. Only carries meaning alongside a [`Signature`].
 ///
@@ -62,75 +16,7 @@ impl Variable {
 /// [`Signature`]: struct.Signature.html
 /// [`Signature::new_op`]: struct.Signature.html#method.new_op
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Operator {
-    pub(crate) id: usize,
-    pub(crate) arity: u8,
-}
-impl Operator {
-    /// Returns an `Operator`'s id.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use term_rewriting::Signature;
-    /// let mut sig = Signature::default();
-    /// let op = sig.new_op(2, Some("z".to_string()));
-    ///
-    /// assert_eq!(op.id(), 0);
-    /// ```
-    pub fn id(self) -> usize {
-        self.id
-    }
-    /// Returns an `Operator`'s arity.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use term_rewriting::Signature;
-    /// let mut sig = Signature::default();
-    /// let op = sig.new_op(2, Some("Z".to_string()));
-    ///
-    /// assert_eq!(op.arity(), 2);
-    /// ```
-    pub fn arity(self) -> u8 {
-        self.arity
-    }
-    /// Returns an `Operator`'s name.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use term_rewriting::Signature;
-    /// let mut sig = Signature::default();
-    /// let op = sig.new_op(2, Some("Z".to_string()));
-    ///
-    /// assert_eq!(op.name(&sig), Some("Z".to_string()));
-    /// ```
-    pub fn name(self, sig: &Signature) -> Option<String> {
-        sig.sig.read().expect("poisoned signature").operators[self.id]
-            .1
-            .clone()
-    }
-    /// Serialize an `Operator`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use term_rewriting::Signature;
-    /// let mut sig = Signature::default();
-    /// let op = sig.new_op(2, Some("Z".to_string()));
-    ///
-    /// assert_eq!(op.display(&sig), "Z");
-    /// ```
-    pub fn display(self, sig: &Signature) -> String {
-        if let (_, Some(ref name)) = sig.sig.read().expect("poisoned signature").operators[self.id]
-        {
-            name.clone()
-        } else {
-            format!("op{}", self.id)
-        }
-    }
-}
+pub struct Operator(pub(crate) usize);
 
 /// `Atom`s are the parts of a [`TRS`] that are not constructed from smaller parts: [`Variable`]s and [`Operator`]s.
 ///
@@ -151,7 +37,7 @@ pub enum Atom {
     /// let x = sig.new_var(Some("x".to_string()));
     /// let atom = Atom::Variable(x);
     ///
-    /// assert_eq!(atom.display(&sig), "x_");
+    /// assert_eq!(atom.display(&sig), "v0_");
     /// ```
     Variable(Variable),
     /// The [`Operator`] variant of an `Atom`.
@@ -170,6 +56,120 @@ pub enum Atom {
     /// ```
     Operator(Operator),
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SituatedAtom<'a> {
+    pub sig: &'a Signature,
+    pub atom: Atom,
+}
+
+impl Variable {
+    /// Returns a `Variable`'s id.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::Signature;
+    /// let mut sig = Signature::default();
+    /// let var = sig.new_var(Some("z".to_string()));
+    ///
+    /// assert_eq!(var.id(), 0);
+    /// ```
+    pub fn id(self) -> usize {
+        self.0
+    }
+    /// Returns a `Variable`'s name.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::Signature;
+    /// let mut sig = Signature::default();
+    /// let var = sig.new_var(Some("z".to_string()));
+    ///
+    /// assert_eq!(var.name(&sig), Some("z"));
+    /// ```
+    pub fn name(self, sig: &Signature) -> Option<&str> {
+        sig.variables[self.0].as_deref()
+    }
+    /// Serialize a `Variable`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::Signature;
+    /// let mut sig = Signature::default();
+    /// let var = sig.new_var(None);
+    ///
+    /// assert_eq!(var.display(), "v0_");
+    /// ```
+    pub fn display(self) -> String {
+        format!("v{}_", self.0)
+    }
+}
+
+impl Operator {
+    /// Returns an `Operator`'s id.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::Signature;
+    /// let mut sig = Signature::default();
+    /// let op = sig.new_op(2, Some("z".to_string()));
+    ///
+    /// assert_eq!(op.id(), 0);
+    /// ```
+    pub fn id(self) -> usize {
+        self.0
+    }
+    /// Returns an `Operator`'s arity.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::Signature;
+    /// let mut sig = Signature::default();
+    /// let op = sig.new_op(2, Some("Z".to_string()));
+    ///
+    /// assert_eq!(op.arity(&sig), 2);
+    /// ```
+    pub fn arity(self, sig: &Signature) -> u8 {
+        sig.operators[self.0].0
+    }
+    /// Returns an `Operator`'s name.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::Signature;
+    /// let mut sig = Signature::default();
+    /// let op = sig.new_op(2, Some("Z".to_string()));
+    ///
+    /// assert_eq!(op.name(&sig), Some("Z"));
+    /// ```
+    pub fn name(self, sig: &Signature) -> Option<&str> {
+        sig.operators[self.0].1.as_deref()
+    }
+    /// Serialize an `Operator`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::Signature;
+    /// let mut sig = Signature::default();
+    /// let op = sig.new_op(2, Some("Z".to_string()));
+    ///
+    /// assert_eq!(op.display(&sig), "Z");
+    /// ```
+    pub fn display(self, sig: &Signature) -> String {
+        match sig.operators[self.0].1 {
+            None => format!("op{}", self.0),
+            Some(ref name) => name.clone(),
+        }
+    }
+}
+
 impl Atom {
     /// Serialize an `Atom`.
     ///
@@ -187,7 +187,7 @@ impl Atom {
     /// let x = sig.new_var(Some("x".to_string()));
     /// let atom = Atom::Variable(x);
     ///
-    /// assert_eq!(atom.display(&sig), "x_");
+    /// assert_eq!(atom.display(&sig), "v0_");
     /// ```
     pub fn display(self, sig: &Signature) -> String {
         match self {
@@ -195,10 +195,10 @@ impl Atom {
             Atom::Operator(o) => o.display(sig),
         }
     }
-    pub fn constant(self) -> bool {
+    pub fn constant(self, sig: &Signature) -> bool {
         match self {
             Atom::Variable(_) => true,
-            Atom::Operator(o) => o.arity() == 0,
+            Atom::Operator(o) => o.arity(sig) == 0,
         }
     }
     pub fn is_operator(self) -> bool {
@@ -222,5 +222,11 @@ impl From<Variable> for Atom {
 impl From<Operator> for Atom {
     fn from(op: Operator) -> Atom {
         Atom::Operator(op)
+    }
+}
+
+impl<'a> SituatedAtom<'a> {
+    pub fn new(atom: Atom, sig: &'a Signature) -> Self {
+        SituatedAtom { atom, sig }
     }
 }

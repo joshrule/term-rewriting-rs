@@ -12,22 +12,19 @@ use std::fmt;
 /// # use term_rewriting::{Signature, Rule, parse_rule, TRS, parse_trs};
 /// let mut sig = Signature::default();
 ///
-/// // Constructing a TRS manually
-/// let r0 = parse_rule(&mut sig, "A(x_) = A(B)").expect("parse of A(x_) = A(B)");
-/// let r1 = parse_rule(&mut sig, "B = C | D").expect("parse of B = C | D");
-/// let r2 = parse_rule(&mut sig, "E(F) = G").expect("parse of E(F) = G");
+/// // Construct a TRS manually.
+/// let r0 = parse_rule(&mut sig, "A(v0_) = A(B)").expect("parsed rule");
+/// let r1 = parse_rule(&mut sig, "B = C | D").expect("parsed rule");
+/// let r2 = parse_rule(&mut sig, "E(F) = G").expect("parsed rule");
 ///
 /// let t = TRS::new(vec![r0, r1, r2]);
 ///
-/// // Constructing a TRS using the parser
-/// let t = parse_trs(&mut sig, "A(x_) = A(B);\nB = C | D;\nE(F) = G;")
-///     .expect("parse of A(x_) = A(B); B = C | D; E(F) = G;");
-///
-/// // For better readability of the TRS
-/// let t = parse_trs(&mut sig,
-/// "A(x_) = A(B);
-/// B = C | D;
-/// E(F) = G;").expect("parse of A(x_) = A(B); B = C | D; E(F) = G;");
+/// // Or, parse an entire TRS.
+/// let t = parse_trs(
+///     &mut sig,
+///     "A(v0_) = A(B);
+///      B = C | D;
+///      E(F) = G;").expect("parsed TRS");
 /// ```
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct TRS {
@@ -43,19 +40,11 @@ impl TRS {
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Rule, parse_rule, TRS};
+    /// # use term_rewriting::{Signature, Rule, parse_trs, TRS};
     /// let mut sig = Signature::default();
+    /// let trs = parse_trs(&mut sig, "A = B; C(v0_) = v0_; D(v1_) = D(E);").expect("parsed TRS");
     ///
-    /// let r0 = parse_rule(&mut sig, "A = B").expect("parse of A = B");
-    /// let r1 = parse_rule(&mut sig, "C(x_) = x_").expect("parse of C(x_) = x_");
-    /// let r2 = parse_rule(&mut sig, "D(y_) = D(E)").expect("parse of D(y_) = D(E)");
-    /// let new_trs = TRS::new(vec![r0, r1, r2]);
-    ///
-    /// assert_eq!(new_trs.display(&sig),
-    /// "A = B;
-    /// C(x_) = x_;
-    /// D(y_) = D(E);"
-    /// );
+    /// assert_eq!(trs.display(&sig), "A = B;\nC(v0_) = v0_;\nD(v1_) = D(E);");
     /// ```
     pub fn new(rules: Vec<Rule>) -> TRS {
         let mut trs = TRS {
@@ -274,25 +263,20 @@ impl TRS {
     /// let mut sig = Signature::default();
     ///
     /// let t = parse_trs(&mut sig,
-    /// "A = B;
-    /// C = D | E;
-    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    ///     "A = B;
+    ///      C = D | E;
+    ///      F(v0_) = G;").expect("parsed TRS");
     ///
-    /// assert_eq!(t.display(&sig),
-    /// "A = B;
-    /// C = D | E;
-    /// F(x_) = G;");
+    /// assert_eq!(t.display(&sig), "A = B;\nC = D | E;\nF(v0_) = G;");
     ///
     /// let trs = parse_trs(&mut sig,
-    /// "A(x_ y_ z_) = A(x_ DECC(DECC(DIGIT(1) 0) 5) SUCC(SUCC(ZERO)));
+    /// "A(v1_ v2_ v3_) = A(v1_ DECC(DECC(DIGIT(1) 0) 5) SUCC(SUCC(ZERO)));
     /// CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
     /// B C D E = B C | D E;")
-    ///     .expect("parse of A(x_ y_ z_) = A(x_ DECC(DECC(DIGIT(1) 0) 5) SUCC(SUCC(ZERO)));
-    ///     CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
-    ///     B C D E = B C | D E;");
+    ///     .expect("parsed trs");
     ///
     /// assert_eq!(trs.display(&sig),
-    /// "A(x_ y_ z_) = A(x_ DECC(DECC(DIGIT(1) 0) 5) SUCC(SUCC(ZERO)));
+    /// "A(v1_ v2_ v3_) = A(v1_ DECC(DECC(DIGIT(1) 0) 5) SUCC(SUCC(ZERO)));
     /// CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
     /// .(.(.(B C) D) E) = .(B C) | .(D E);");
     /// ```
@@ -311,17 +295,12 @@ impl TRS {
     /// let mut sig = Signature::default();
     ///
     /// let trs = parse_trs(&mut sig,
-    /// "A(x_ y_ z_) = A(x_ DECC(DECC(DIGIT(1) 0) 5) SUCC(SUCC(ZERO)));
+    /// "A(v0_ v1_ v2_) = A(v0_ DECC(DECC(DIGIT(1) 0) 5) SUCC(SUCC(ZERO)));
     /// CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
     /// B C D E = B C | D E;")
-    ///     .expect("parse of A(x_ y_ z_) = A(x_ DECC(DECC(DIGIT(1) 0) 5) SUCC(SUCC(ZERO)));
-    ///     CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
-    ///     B C D E = B C | D E;");
+    ///     .expect("parsed TRS");
     ///
-    /// assert_eq!(trs.pretty(&sig),
-    /// "A(x_, y_, z_) = A(x_, 105, 2);
-    /// [B, C, D] = [C, D];
-    /// B C D E = B C | D E;");
+    /// assert_eq!(trs.pretty(&sig), "A(v0_, v1_, v2_) = A(v0_, 105, 2);\n[B, C, D] = [C, D];\nB C D E = B C | D E;");
     /// ```
     pub fn pretty(&self, sig: &Signature) -> String {
         self.rules
@@ -601,7 +580,7 @@ impl TRS {
         }
         Some(rewrites)
     }
-    pub fn convert_list_to_string(term: &Term, sig: &Signature) -> Option<Vec<Atom>> {
+    pub fn convert_list_to_string(term: &Term, sig: &mut Signature) -> Option<Vec<Atom>> {
         if term.as_guarded_application(sig, "NIL", 0).is_some() {
             Some(vec![])
         } else {
@@ -615,17 +594,17 @@ impl TRS {
     }
     fn digit_to_usize(term: &Term, sig: &Signature) -> Option<usize> {
         let (op, _) = term.as_application()?;
-        match (op.name(sig), op.arity()) {
-            (Some(ref s), 0) if s.as_str() == "0" => Some(0),
-            (Some(ref s), 0) if s.as_str() == "1" => Some(1),
-            (Some(ref s), 0) if s.as_str() == "2" => Some(2),
-            (Some(ref s), 0) if s.as_str() == "3" => Some(3),
-            (Some(ref s), 0) if s.as_str() == "4" => Some(4),
-            (Some(ref s), 0) if s.as_str() == "5" => Some(5),
-            (Some(ref s), 0) if s.as_str() == "6" => Some(6),
-            (Some(ref s), 0) if s.as_str() == "7" => Some(7),
-            (Some(ref s), 0) if s.as_str() == "8" => Some(8),
-            (Some(ref s), 0) if s.as_str() == "9" => Some(9),
+        match (op.name(sig), op.arity(sig)) {
+            (Some(s), 0) if s == "0" => Some(0),
+            (Some(s), 0) if s == "1" => Some(1),
+            (Some(s), 0) if s == "2" => Some(2),
+            (Some(s), 0) if s == "3" => Some(3),
+            (Some(s), 0) if s == "4" => Some(4),
+            (Some(s), 0) if s == "5" => Some(5),
+            (Some(s), 0) if s == "6" => Some(6),
+            (Some(s), 0) if s == "7" => Some(7),
+            (Some(s), 0) if s == "8" => Some(8),
+            (Some(s), 0) if s == "9" => Some(9),
             _ => None,
         }
     }
@@ -641,12 +620,12 @@ impl TRS {
             Some(sigs * 10 + digit)
         }
     }
-    fn num_to_atom(term: &Term, sig: &Signature) -> Option<Atom> {
+    fn num_to_atom(term: &Term, sig: &mut Signature) -> Option<Atom> {
         let n = TRS::num_to_usize(term, sig)?;
         if n < 100 {
             sig.operators()
                 .iter()
-                .find(|op| op.name(sig) == Some(n.to_string()) && op.arity() == 0)
+                .find(|op| op.name(sig) == Some(&n.to_string()) && op.arity(sig) == 0)
                 .map(|&op| Atom::from(op))
                 .or_else(|| Some(Atom::from(sig.new_op(0, Some(n.to_string())))))
         } else {
@@ -656,9 +635,9 @@ impl TRS {
     fn convert_term_to_string(term: &Term, sig: &Signature) -> Option<Vec<Atom>> {
         match *term {
             Term::Variable(v) => Some(vec![Atom::Variable(v)]),
-            Term::Application { op, ref args } => match (op.name(sig), op.arity()) {
+            Term::Application { op, ref args } => match (op.name(sig), op.arity(sig)) {
                 (_, 0) => Some(vec![Atom::Operator(op)]),
-                (Some(ref s), 2) if s.as_str() == "." => {
+                (Some(s), 2) if s == "." => {
                     let results = args
                         .iter()
                         .map(|a| TRS::convert_term_to_string(a, sig))
@@ -763,13 +742,13 @@ impl TRS {
                 Term::Variable(v),
                 sig.operators()
                     .into_iter()
-                    .find(|x| x.arity() == 2 && x.name(sig) == Some(".".to_string())),
+                    .find(|x| x.arity(sig) == 2 && x.name(sig) == Some(".")),
             ),
             Atom::Operator(op) => (
                 Term::Application { op, args: vec![] },
                 sig.operators()
                     .into_iter()
-                    .find(|x| x.arity() == 2 && x.name(sig) == Some(".".to_string())),
+                    .find(|x| x.arity(sig) == 2 && x.name(sig) == Some(".")),
             ),
         };
         if let Some(bin_op) = bin_op_op {
@@ -798,7 +777,7 @@ impl TRS {
         d_max: usize,
         sig: &Signature,
     ) -> Option<f64> {
-        let sig = sig.deep_copy();
+        let sig = sig.clone();
         let x_string = TRS::convert_term_to_string(x, &sig)?;
         let y_string = TRS::convert_term_to_string(y, &sig)?;
         let p = PString::new(x_string, y_string, dist, &sig).compute(t_max, d_max);
@@ -814,9 +793,9 @@ impl TRS {
         d_max: usize,
         sig: &Signature,
     ) -> f64 {
-        let sig = sig.deep_copy();
-        let x_string = TRS::convert_list_to_string(x, &sig);
-        let y_string = TRS::convert_list_to_string(y, &sig);
+        let mut sig = sig.clone();
+        let x_string = TRS::convert_list_to_string(x, &mut sig);
+        let y_string = TRS::convert_list_to_string(y, &mut sig);
         match (x_string, y_string) {
             (Some(x_string), Some(y_string)) => {
                 let p = PString::new(x_string, y_string, dist, &sig).compute(t_max, d_max);
@@ -944,16 +923,16 @@ impl TRS {
     /// let mut sig = Signature::default();
     ///
     /// let t = parse_trs(&mut sig,
-    /// "A(a_ b_) = B(b_ b_);
-    /// D(c_ e_) = D(E F);").expect("parse of A(a_ b_) = B(b_ b_); D(c_ e_) = D(E F);");
+    /// "A(v0_ v1_) = B(v0_ v0_);
+    /// D(v2_ v3_) = D(E F);").expect("parsed TRS");
     ///
-    /// let r = parse_rule(&mut sig, "A(x_ y_) = B(y_ y_)").expect("parse of A(x_ y_) = B(y_ y_)");
+    /// let r = parse_rule(&mut sig, "A(v4_ v5_) = B(v4_ v4_)").expect("parsed rule");
     ///
-    /// assert_eq!(t.get_clause(&r).unwrap().1.display(&sig), "A(a_ b_) = B(b_ b_)");
+    /// assert_eq!(t.get_clause(&r).unwrap().1.display(&sig), "A(v0_ v1_) = B(v0_ v0_)");
     ///
-    /// let r = parse_rule(&mut sig, "D(w_ q_) = D(E F)").expect("parse of D(w_ q_) = D(E F)");
+    /// let r = parse_rule(&mut sig, "D(E E) = D(E F)").expect("parsed rule");
     ///
-    /// assert_eq!(t.get_clause(&r).unwrap().1.display(&sig), "D(c_ e_) = D(E F)");
+    /// assert!(t.get_clause(&r).is_none());
     /// ```
     pub fn get_clause(&self, rule: &Rule) -> Option<(usize, Rule)> {
         for (i, r) in self.rules.iter().enumerate() {
@@ -977,16 +956,14 @@ impl TRS {
     /// let mut t = parse_trs(&mut sig,
     /// "A = B;
     /// C = D | E;
-    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    /// F(v0_) = G;").expect("parsed TRS");
     ///
     /// let a = parse_term(&mut sig, "A").expect("parse of A");
     /// let c = parse_term(&mut sig, "C").expect("parse of C");
     ///
-    /// assert_eq!(t.remove(&a).expect("removing A = B").display(&sig), "A = B");
-    ///
-    /// assert_eq!(t.remove(&c).expect("removing C = D").display(&sig), "C = D | E");
-    ///
-    /// assert_eq!(t.display(&sig), "F(x_) = G;");
+    /// assert_eq!(t.remove(&a).expect("removed A = B").display(&sig), "A = B");
+    /// assert_eq!(t.remove(&c).expect("removed C = D").display(&sig), "C = D | E");
+    /// assert_eq!(t.display(&sig), "F(v0_) = G;");
     /// ```
     pub fn remove(&mut self, lhs: &Term) -> Result<Rule, TRSError> {
         if let Some((idx, _)) = self.get(lhs) {
@@ -1009,13 +986,11 @@ impl TRS {
     /// let mut t = parse_trs(&mut sig,
     /// "A = B;
     /// C = D | E;
-    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    /// F(v0_) = G;").expect("parsed TRS");
     ///
     /// assert_eq!(t.remove_idx(0).expect("removing A = B").display(&sig), "A = B");
-    ///
     /// assert_eq!(t.remove_idx(0).expect("removing C = D").display(&sig), "C = D | E");
-    ///
-    /// assert_eq!(t.display(&sig), "F(x_) = G;");
+    /// assert_eq!(t.display(&sig), "F(v0_) = G;");
     /// ```
     pub fn remove_idx(&mut self, idx: usize) -> Result<Rule, TRSError> {
         if self.rules.len() > idx {
@@ -1038,16 +1013,12 @@ impl TRS {
     /// let mut t = parse_trs(&mut sig,
     /// "A = B;
     /// C = D | E;
-    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    /// F(v0_) = G;").expect("parsed TRS");
     ///
-    /// let r = parse_rule(&mut sig, "C = D").expect("parse of C = D");
+    /// let r = parse_rule(&mut sig, "C = D").expect("parsed rule");
     ///
     /// assert_eq!(t.remove_clauses(&r).expect("removing C = D").display(&sig), "C = D");
-    ///
-    /// assert_eq!(t.display(&sig),
-    /// "A = B;
-    /// C = E;
-    /// F(x_) = G;");
+    /// assert_eq!(t.display(&sig), "A = B;\nC = E;\nF(v0_) = G;");
     /// ```
     pub fn remove_clauses(&mut self, rule: &Rule) -> Result<Rule, TRSError> {
         self.rules
@@ -1073,27 +1044,13 @@ impl TRS {
     /// let mut t = parse_trs(&mut sig,
     /// "A = B;
     /// C = D | E;
-    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    /// F(v0_) = G;").expect("parsed TRS");
     ///
-    /// let r = parse_rule(&mut sig, "D = G").expect("parse of D = G");
+    /// let r = parse_rule(&mut sig, "D = G").expect("parsed rule");
     ///
-    /// t.insert(1, r).expect("inserting D = G at index 1");
+    /// t.insert(1, r).expect("inserting");
     ///
-    /// assert_eq!(t.display(&sig),
-    /// "A = B;
-    /// D = G;
-    /// C = D | E;
-    /// F(x_) = G;");
-    ///
-    /// let r = parse_rule(&mut sig, "D = A").expect("parse of D = A");
-    ///
-    /// t.insert(0, r).expect("inserting D = A with D = G");
-    ///
-    /// assert_eq!(t.display(&sig),
-    /// "A = B;
-    /// D = G | A;
-    /// C = D | E;
-    /// F(x_) = G;");
+    /// assert_eq!(t.display(&sig), "A = B;\nD = G;\nC = D | E;\nF(v0_) = G;");
     /// ```
     pub fn insert(&mut self, idx: usize, rule: Rule) -> Result<&mut TRS, TRSError> {
         if self.insert_clauses(&rule).is_err() {
@@ -1115,17 +1072,13 @@ impl TRS {
     /// let mut t = parse_trs(&mut sig,
     /// "A = B;
     /// C = D | E;
-    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    /// F(v0_) = G;").expect("parsed TRS");
     ///
-    /// let r = parse_rule(&mut sig, "D = G").expect("parse of D = G");
+    /// let r = parse_rule(&mut sig, "D = G").expect("parsed rule");
     ///
-    /// t.insert_idx(1, r).expect("inserting D = G at index 1");
+    /// t.insert_idx(1, r).expect("inserting");
     ///
-    /// assert_eq!(t.display(&sig),
-    /// "A = B;
-    /// D = G;
-    /// C = D | E;
-    /// F(x_) = G;");
+    /// assert_eq!(t.display(&sig), "A = B;\nD = G;\nC = D | E;\nF(v0_) = G;");
     /// ```
     pub fn insert_idx(&mut self, idx: usize, rule: Rule) -> Result<&mut TRS, TRSError> {
         if self.is_deterministic && rule.len() > 1 {
@@ -1148,24 +1101,15 @@ impl TRS {
     /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, Rule, parse_rule};
     /// let mut sig = Signature::default();
     ///
-    /// let mut t = parse_trs(&mut sig,
-    /// "A = B;
-    /// C = D | E;
-    /// F(x_) = H;").expect("parse of A = B; C = D | E; F(x_) = H;");
+    /// let mut t = parse_trs(&mut sig, "A = B; C = D | E; F(v0_) = H;").expect("parsed TRS");
     ///
-    /// let r0 = parse_rule(&mut sig, "G(y_) = y_").expect("parse of G(y_) = y_");
-    /// let r1 = parse_rule(&mut sig, "B = C").expect("parse of B = C");
-    /// let r2 = parse_rule(&mut sig, "E = F | B").expect("parse of E = F | B");
+    /// let r0 = parse_rule(&mut sig, "G(v1_) = v1_").expect("parsed r0");
+    /// let r1 = parse_rule(&mut sig, "B = C").expect("parsed r1");
+    /// let r2 = parse_rule(&mut sig, "E = F | B").expect("parsed r2");
     ///
-    /// t.inserts_idx(2, vec![r0, r1, r2]).expect("inserting 3 rules at index 2");
+    /// t.inserts_idx(2, vec![r0, r1, r2]).expect("inserting");
     ///
-    /// assert_eq!(t.display(&sig),
-    /// "A = B;
-    /// C = D | E;
-    /// G(y_) = y_;
-    /// B = C;
-    /// E = F | B;
-    /// F(x_) = H;");
+    /// assert_eq!(t.display(&sig), "A = B;\nC = D | E;\nG(v1_) = v1_;\nB = C;\nE = F | B;\nF(v0_) = H;");
     /// ```
     pub fn inserts_idx(&mut self, idx: usize, rules: Vec<Rule>) -> Result<&mut TRS, TRSError> {
         for rule in rules.into_iter().rev() {
@@ -1186,16 +1130,13 @@ impl TRS {
     /// let mut t = parse_trs(&mut sig,
     /// "A = B;
     /// C = D | E;
-    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    /// F(v0_) = G;").expect("parsed TRS");
     ///
-    /// let r = parse_rule(&mut sig, "A = H").expect("parse of A = H");
+    /// let r = parse_rule(&mut sig, "A = H").expect("parsed rule");
     ///
-    /// let t = t.insert_clauses(&r).expect("inserting A = H with A = B");
+    /// let t = t.insert_clauses(&r).expect("inserting");
     ///
-    /// assert_eq!(t.display(&sig),
-    /// "A = B | H;
-    /// C = D | E;
-    /// F(x_) = G;");
+    /// assert_eq!(t.display(&sig), "A = B | H;\nC = D | E;\nF(v0_) = G;");
     /// ```
     pub fn insert_clauses(&mut self, rule: &Rule) -> Result<&mut TRS, TRSError> {
         if self.is_deterministic {
@@ -1221,17 +1162,13 @@ impl TRS {
     /// let mut t = parse_trs(&mut sig,
     /// "A = B;
     /// C = D | E;
-    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    /// F(v0_) = G;").expect("parsed TRS");
     ///
-    /// let r = parse_rule(&mut sig, "G(y_) = y_").expect("parse of G(y_) = y_");
+    /// let r = parse_rule(&mut sig, "G(v1_) = v1_").expect("parsed rule");
     ///
-    /// t.push(r).expect("inserting G(y_) = y_ at index 0");
+    /// t.push(r).expect("inserting");
     ///
-    /// assert_eq!(t.display(&sig),
-    /// "G(y_) = y_;
-    /// A = B;
-    /// C = D | E;
-    /// F(x_) = G;");
+    /// assert_eq!(t.display(&sig), "G(v1_) = v1_;\nA = B;\nC = D | E;\nF(v0_) = G;");
     /// ```
     pub fn push(&mut self, rule: Rule) -> Result<&mut TRS, TRSError> {
         let lhs = rule.lhs.clone();
@@ -1253,21 +1190,21 @@ impl TRS {
     /// let mut t = parse_trs(&mut sig,
     /// "A = B;
     /// C = D | E;
-    /// F(x_) = H;").expect("parse of A = B; C = D | E; F(x_) = H;");
+    /// F(v0_) = H;").expect("parsed TRS");
     ///
-    /// let r0 = parse_rule(&mut sig, "G(y_) = y_").expect("parse of G(y_) = y_");
-    /// let r1 = parse_rule(&mut sig, "B = C").expect("parse of B = C");
-    /// let r2 = parse_rule(&mut sig, "E = F | B").expect("parse of E = F | B");
+    /// let r0 = parse_rule(&mut sig, "G(v1_) = v1_").expect("parsed r0");
+    /// let r1 = parse_rule(&mut sig, "B = C").expect("parsed r1");
+    /// let r2 = parse_rule(&mut sig, "E = F | B").expect("parsed r2");
     ///
-    /// t.pushes(vec![r0, r1, r2]).expect("inserting 3 rules at index 0");
+    /// t.pushes(vec![r0, r1, r2]).expect("inserting");
     ///
     /// assert_eq!(t.display(&sig),
-    /// "G(y_) = y_;
+    /// "G(v1_) = v1_;
     /// B = C;
     /// E = F | B;
     /// A = B;
     /// C = D | E;
-    /// F(x_) = H;");
+    /// F(v0_) = H;");
     /// ```
     pub fn pushes(&mut self, rules: Vec<Rule>) -> Result<&mut TRS, TRSError> {
         for rule in rules.into_iter().rev() {
@@ -1285,19 +1222,11 @@ impl TRS {
     /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, Rule, parse_rule};
     /// let mut sig = Signature::default();
     ///
-    /// let mut t = parse_trs(&mut sig,
-    /// "A = B;
-    /// C = D | E;
-    /// F(x_) = G;
-    /// H = I;").expect("parse of A = B; C = D | E; F(x_) = G; H = I;");
+    /// let mut t = parse_trs(&mut sig, "A = B; C = D | E; F(v0_) = G; H = I;").expect("parsed TRS");
     ///
     /// t.move_rule(0, 2).expect("moving rule from index 0 to index 2");
     ///
-    /// assert_eq!(t.display(&sig),
-    /// "C = D | E;
-    /// F(x_) = G;
-    /// A = B;
-    /// H = I;");
+    /// assert_eq!(t.display(&sig), "C = D | E;\nF(v0_) = G;\nA = B;\nH = I;");
     /// ```
     pub fn move_rule(&mut self, i: usize, j: usize) -> Result<&mut TRS, TRSError> {
         if i != j {
@@ -1323,17 +1252,16 @@ impl TRS {
     /// let mut t = parse_trs(&mut sig,
     /// "A = B;
     /// C = D | E;
-    /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
+    /// F(v0_) = G;").expect("parsed TRS");
     ///
     /// let r = parse_rule(&mut sig, "C = D").expect("parse of C = D");
     /// let r_new = parse_rule(&mut sig, "C = A").expect("parse of C = A");
-    ///
     /// t.replace(0, &r, r_new).expect("replaceing C = D with C = A");
     ///
     /// assert_eq!(t.display(&sig),
     /// "A = B;
     /// C = E | A;
-    /// F(x_) = G;");
+    /// F(v0_) = G;");
     /// ```
     pub fn replace(&mut self, idx: usize, rule1: &Rule, rule2: Rule) -> Result<&mut TRS, TRSError> {
         self.remove_clauses(rule1)?;
@@ -1557,691 +1485,5 @@ impl<'a> PString<'a> {
         };
         self.cache.insert(key, new_val);
         new_val
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::super::super::parser::*;
-    use super::super::Signature;
-    use super::*;
-
-    #[test]
-    fn new_test() {
-        let mut sig = Signature::default();
-
-        let r0 = parse_rule(&mut sig, "A = B").expect("parse of A = B");
-        let r1 = parse_rule(&mut sig, "C(x_) = x_").expect("parse of C(x_) = x_");
-        let r2 = parse_rule(&mut sig, "D(y_) = D(E)").expect("parse of D(y_) = D(E)");
-        let new_trs = TRS::new(vec![r0, r1, r2]);
-
-        assert_eq!(new_trs.display(&sig), "A = B;\nC(x_) = x_;\nD(y_) = D(E);");
-    }
-
-    #[test]
-    fn make_deterministic_test() {
-        let mut sig = Signature::default();
-        let mut t = parse_trs(
-            &mut sig,
-            "A = B | C;
-            D = E;",
-        )
-        .expect("parse of A = B | C; D = E");
-
-        let str_before = t.display(&sig);
-
-        assert!(t.make_deterministic());
-
-        assert_ne!(t.display(&sig), str_before);
-
-        let str_before = t.display(&sig);
-        let r = parse_rule(&mut sig, "C = B | D").expect("parse of C = B | D");
-
-        if t.insert_idx(1, r.clone()).is_err() {
-            assert!(true);
-        }
-
-        assert_eq!(str_before, t.display(&sig));
-
-        assert!((t.display(&sig) == "A = B;\nD = E;") || (t.display(&sig) == "A = C;\nD = E;"));
-    }
-
-    #[test]
-    fn make_nondeterministic_test() {
-        let mut sig = Signature::default();
-
-        let mut t = parse_trs(&mut sig, "A = B | C; D = E;").expect("parse of A = B | C; D = E");
-
-        t.make_deterministic();
-
-        let str_before = t.display(&sig);
-        let r = parse_rule(&mut sig, "C = B | D").expect("parse of C = B | D");
-        assert!(t.insert_idx(1, r.clone()).is_err());
-        assert_eq!(str_before, t.display(&sig));
-
-        assert!(t.make_nondeterministic());
-
-        t.insert_idx(1, r).expect("inserting C = B | D");
-
-        assert!(
-            (t.display(&sig) == "A = B;\nC = B | D;\nD = E;")
-                || (t.display(&sig) == "A = C;\nC = B | D;\nD = E;")
-        );
-    }
-
-    #[test]
-    fn is_deterministic_test() {
-        let mut sig = Signature::default();
-
-        let mut t = parse_trs(
-            &mut sig,
-            "A = B | C;
-            D = E;",
-        )
-        .expect("parse of A = B | C; D = E");
-
-        assert!(!t.is_deterministic());
-
-        t.make_deterministic();
-
-        assert!(t.is_deterministic());
-    }
-
-    #[test]
-    fn len_test() {
-        let mut sig = Signature::default();
-
-        let t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        assert_eq!(t.len(), 3);
-    }
-
-    #[test]
-    fn is_empty_test() {
-        let mut sig = Signature::default();
-
-        let t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        assert!(!t.is_empty());
-
-        let t = parse_trs(&mut sig, "").expect("parse of blank string");
-
-        assert!(t.is_empty());
-    }
-
-    #[test]
-    fn size_test() {
-        let mut sig = Signature::default();
-
-        let t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        assert_eq!(t.size(), 8);
-    }
-
-    #[test]
-    fn display_test() {
-        let mut sig = Signature::default();
-
-        let t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        assert_eq!(t.display(&sig), "A = B;\nC = D | E;\nF(x_) = G;");
-
-        let trs = parse_trs(&mut sig,
-        "A(x_ y_ z_) = A(x_ DECC(DECC(DIGIT(1) 0) 5) SUCC(SUCC(ZERO))); CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL)); B C D E = B C | D E;")
-            .expect("parse of A(x_ y_ z_) = A(x_ DECC(DECC(DIGIT(1) 0) 5) SUCC(SUCC(ZERO)));
-            CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
-            B C D E = B C | D E;");
-
-        assert_eq!(trs.display(&sig),
-        "A(x_ y_ z_) = A(x_ DECC(DECC(DIGIT(1) 0) 5) SUCC(SUCC(ZERO)));\nCONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));\n.(.(.(B C) D) E) = .(B C) | .(D E);");
-    }
-
-    #[test]
-    fn pretty_test() {
-        let mut sig = Signature::default();
-
-        let trs = parse_trs(
-            &mut sig,
-            "A(x_ y_ z_) = A(x_ DECC(DECC(DIGIT(1) 0) 5) SUCC(SUCC(ZERO)));
-        CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
-        B C D E = B C | D E;",
-        )
-        .expect(
-            "parse of A(x_ y_ z_) = A(x_ DECC(DECC(DIGIT(1) 0) 5) SUCC(SUCC(ZERO)));
-             CONS(B CONS(C CONS(D NIL))) = CONS(C CONS(D NIL));
-             B C D E = B C | D E;",
-        );
-
-        assert_eq!(
-            trs.pretty(&sig),
-            "A(x_, y_, z_) = A(x_, 105, 2);\n[B, C, D] = [C, D];\nB C D E = B C | D E;"
-        );
-    }
-
-    #[test]
-    fn clauses_test() {
-        let mut sig = Signature::default();
-
-        let t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F = G;",
-        )
-        .expect("parse of A = B; C = D | E; F = G;");
-
-        let r0 = parse_rule(&mut sig, "A = B").expect("parse of A = B");
-        let r1 = parse_rule(&mut sig, "C = D").expect("parse of C = D");
-        let r2 = parse_rule(&mut sig, "C = E").expect("parse of C = E");
-        let r3 = parse_rule(&mut sig, "F = G").expect("parse of F = G");
-
-        assert_eq!(t.clauses(), vec![r0, r1, r2, r3]);
-    }
-
-    #[test]
-    fn operators_test() {
-        let mut sig = Signature::default();
-
-        let t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        let ops: Vec<String> = t.operators().iter().map(|o| o.display(&sig)).collect();
-
-        assert_eq!(ops, vec!["A", "B", "C", "D", "E", "F", "G"]);
-    }
-
-    #[test]
-    fn unifies_test() {
-        let mut sig = Signature::default();
-
-        let t0 = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        let t1 = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(H) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(H) = G;");
-
-        assert!(TRS::unifies(t0.clone(), t1));
-
-        let t2 = parse_trs(
-            &mut sig,
-            "B = A;
-            C = D | E;
-            F(y_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(y_) = G;");
-
-        assert!(!TRS::unifies(t0, t2));
-    }
-
-    #[test]
-    fn pmatches() {
-        let mut sig = Signature::default();
-
-        let t0 = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        let t1 = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(H) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(H) = G;");
-
-        assert!(TRS::pmatches(t0.clone(), t1));
-
-        let t2 = parse_trs(
-            &mut sig,
-            "B = A;
-            C = D | E;
-            F(y_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(y_) = G;");
-
-        assert!(!TRS::pmatches(t0.clone(), t2));
-
-        let t3 = parse_trs(
-            &mut sig,
-            "A = B | C;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B | C; C = D | E; F(x_) = G");
-
-        assert!(TRS::pmatches(t0.clone(), t3));
-
-        let t4 = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D;
-            D = E;",
-        )
-        .expect("parse of A = B; C = D; D = E;");
-
-        assert!(!TRS::pmatches(t0, t4));
-    }
-
-    #[test]
-    fn alphas_test() {
-        let mut sig = Signature::default();
-
-        let t0 = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        let t1 = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(H) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(H) = G;");
-
-        assert!(!TRS::alphas(&t0, &t1));
-
-        let t2 = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(y_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(y_) = G;");
-
-        assert!(TRS::alphas(&t0, &t2));
-    }
-
-    #[test]
-    fn rewrite_test() {
-        let mut sig = Signature::default();
-
-        let t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        let term = parse_term(&mut sig, "J(F(C) K(C A))").expect("parse of J(F(C) K(C A))");
-
-        let rewritten_terms = &t.rewrite(&term, Strategy::Normal, &sig).unwrap();
-        assert_eq!(rewritten_terms.len(), 1);
-        assert_eq!(rewritten_terms[0].display(&sig), "J(G K(C A))");
-
-        let rewritten_terms = &t.rewrite(&term, Strategy::Eager, &sig).unwrap();
-        assert_eq!(rewritten_terms.len(), 2);
-        assert_eq!(rewritten_terms[0].display(&sig), "J(F(D) K(C A))");
-        assert_eq!(rewritten_terms[1].display(&sig), "J(F(E) K(C A))");
-
-        let rewritten_terms = &t.rewrite(&term, Strategy::All, &sig).unwrap();
-        assert_eq!(rewritten_terms.len(), 6);
-        assert_eq!(rewritten_terms[0].display(&sig), "J(G K(C A))");
-        assert_eq!(rewritten_terms[1].display(&sig), "J(F(D) K(C A))");
-        assert_eq!(rewritten_terms[2].display(&sig), "J(F(E) K(C A))");
-        assert_eq!(rewritten_terms[3].display(&sig), "J(F(C) K(D A))");
-        assert_eq!(rewritten_terms[4].display(&sig), "J(F(C) K(E A))");
-        assert_eq!(rewritten_terms[5].display(&sig), "J(F(C) K(C B))");
-    }
-
-    #[test]
-    fn get_test() {
-        let mut sig = Signature::default();
-
-        let t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        let a = parse_term(&mut sig, "A").expect("parse of A");
-
-        assert_eq!(t.get(&a).unwrap().1.display(&sig), "A = B");
-
-        let c = parse_term(&mut sig, "C").expect("parse of C");
-
-        assert_eq!(t.get(&c).unwrap().1.display(&sig), "C = D | E");
-    }
-
-    #[test]
-    fn get_idx_test() {
-        let mut sig = Signature::default();
-
-        let t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        assert_eq!(t.get_idx(0).unwrap().display(&sig), "A = B");
-
-        assert_eq!(t.get_idx(1).unwrap().display(&sig), "C = D | E");
-    }
-
-    #[test]
-    fn get_clause_test() {
-        let mut sig = Signature::default();
-
-        let t = parse_trs(
-            &mut sig,
-            "A(a_ b_) = B(b_ b_);
-            D(c_ e_) = D(E F);",
-        )
-        .expect("parse of A(a_ b_) = B(b_ b_); D(c_ e_) = D(E F);");
-
-        let r = parse_rule(&mut sig, "A(x_ y_) = B(y_ y_)").expect("parse of A(x_ y_) = B(y_ y_)");
-
-        assert_eq!(
-            t.get_clause(&r).unwrap().1.display(&sig),
-            "A(a_ b_) = B(b_ b_)"
-        );
-
-        let r = parse_rule(&mut sig, "D(w_ q_) = D(E F)").expect("parse of D(w_ q_) = D(E F)");
-
-        assert_eq!(
-            t.get_clause(&r).unwrap().1.display(&sig),
-            "D(c_ e_) = D(E F)"
-        );
-    }
-
-    #[test]
-    fn remove_test() {
-        let mut sig = Signature::default();
-
-        let mut t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        let a = parse_term(&mut sig, "A").expect("parse of A");
-        let c = parse_term(&mut sig, "C").expect("parse of C");
-
-        assert_eq!(t.remove(&a).expect("removing A = B").display(&sig), "A = B");
-
-        assert_eq!(
-            t.remove(&c).expect("removing C = D").display(&sig),
-            "C = D | E"
-        );
-
-        assert_eq!(t.display(&sig), "F(x_) = G;");
-    }
-
-    #[test]
-    fn remove_idx_test() {
-        let mut sig = Signature::default();
-
-        let mut t = parse_trs(
-            &mut sig,
-            "A = B;
-        C = D | E;
-        F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        assert_eq!(
-            t.remove_idx(0).expect("removing A = B").display(&sig),
-            "A = B"
-        );
-
-        assert_eq!(
-            t.remove_idx(0).expect("removing C = D").display(&sig),
-            "C = D | E"
-        );
-
-        assert_eq!(t.display(&sig), "F(x_) = G;");
-    }
-
-    #[test]
-    fn remove_clauses_test() {
-        let mut sig = Signature::default();
-
-        let mut t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        let r = parse_rule(&mut sig, "C = D").expect("parse of C = D");
-
-        assert_eq!(
-            t.remove_clauses(&r).expect("removing C = D").display(&sig),
-            "C = D"
-        );
-
-        assert_eq!(t.display(&sig), "A = B;\nC = E;\nF(x_) = G;");
-    }
-
-    #[test]
-    fn insert_test() {
-        let mut sig = Signature::default();
-
-        let mut t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        let r = parse_rule(&mut sig, "D = G").expect("parse of D = G");
-
-        t.insert(1, r).expect("inserting D = G at index 1");
-
-        assert_eq!(t.display(&sig), "A = B;\nD = G;\nC = D | E;\nF(x_) = G;");
-
-        let r = parse_rule(&mut sig, "D = A").expect("parse of D = A");
-
-        t.insert(0, r).expect("inserting D = A with D = G");
-
-        assert_eq!(
-            t.display(&sig),
-            "A = B;\nD = G | A;\nC = D | E;\nF(x_) = G;"
-        );
-    }
-
-    #[test]
-    fn insert_idx_test() {
-        let mut sig = Signature::default();
-
-        let mut t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        let r = parse_rule(&mut sig, "D = G").expect("parse of D = G");
-
-        t.insert_idx(1, r).expect("inserting D = G at index 1");
-
-        assert_eq!(t.display(&sig), "A = B;\nD = G;\nC = D | E;\nF(x_) = G;");
-    }
-
-    #[test]
-    fn inserts_idx_test() {
-        let mut sig = Signature::default();
-
-        let mut t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = H;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = H;");
-
-        let r0 = parse_rule(&mut sig, "G(y_) = y_").expect("parse of G(y_) = y_");
-        let r1 = parse_rule(&mut sig, "B = C").expect("parse of B = C");
-        let r2 = parse_rule(&mut sig, "E = F | B").expect("parse of E = F | B");
-
-        t.inserts_idx(2, vec![r0, r1, r2])
-            .expect("inserting 3 rules at index 2");
-
-        assert_eq!(
-            t.display(&sig),
-            "A = B;\nC = D | E;\nG(y_) = y_;\nB = C;\nE = F | B;\nF(x_) = H;"
-        );
-    }
-
-    #[test]
-    fn insert_clauses_test() {
-        let mut sig = Signature::default();
-
-        let mut t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        let r = parse_rule(&mut sig, "A = H").expect("parse of A = H");
-
-        let t = t.insert_clauses(&r).expect("inserting A = H with A = B");
-
-        assert_eq!(t.display(&sig), "A = B | H;\nC = D | E;\nF(x_) = G;");
-    }
-
-    #[test]
-    fn push_test() {
-        let mut sig = Signature::default();
-
-        let mut t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        let r = parse_rule(&mut sig, "G(y_) = y_").expect("parse of G(y_) = y_");
-
-        t.push(r).expect("inserting G(y_) = y_ at index 0");
-
-        assert_eq!(
-            t.display(&sig),
-            "G(y_) = y_;\nA = B;\nC = D | E;\nF(x_) = G;"
-        );
-    }
-
-    #[test]
-    fn pushes_test() {
-        let mut sig = Signature::default();
-
-        let mut t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = H;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = H;");
-
-        let r0 = parse_rule(&mut sig, "G(y_) = y_").expect("parse of G(y_) = y_");
-        let r1 = parse_rule(&mut sig, "B = C").expect("parse of B = C");
-        let r2 = parse_rule(&mut sig, "E = F | B").expect("parse of E = F | B");
-
-        t.pushes(vec![r0, r1, r2])
-            .expect("inserting 3 rules at index 0");
-
-        assert_eq!(
-            t.display(&sig),
-            "G(y_) = y_;\nB = C;\nE = F | B;\nA = B;\nC = D | E;\nF(x_) = H;"
-        );
-    }
-
-    #[test]
-    fn move_rule_test() {
-        let mut sig = Signature::default();
-
-        let mut t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;
-            H = I;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G; H = I;");
-
-        t.move_rule(0, 2)
-            .expect("moving rule from index 0 to index 2");
-
-        assert_eq!(t.display(&sig), "C = D | E;\nF(x_) = G;\nA = B;\nH = I;");
-    }
-
-    #[test]
-    fn replace_test() {
-        let mut sig = Signature::default();
-
-        let mut t = parse_trs(
-            &mut sig,
-            "A = B;
-            C = D | E;
-            F(x_) = G;",
-        )
-        .expect("parse of A = B; C = D | E; F(x_) = G;");
-
-        let r = parse_rule(&mut sig, "C = D").expect("parse of C = D");
-        let r_new = parse_rule(&mut sig, "C = A").expect("parse of C = A");
-
-        t.replace(0, &r, r_new)
-            .expect("replaceing C = D with C = A");
-
-        assert_eq!(t.display(&sig), "A = B;\nC = E | A;\nF(x_) = G;");
     }
 }

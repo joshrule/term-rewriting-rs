@@ -150,9 +150,9 @@ fn unify_test() {
     let mut hm1 = HashMap::new();
     hm1.insert(y, &t1_0);
     hm1.insert(z, &t1_1);
-    assert_eq!(Some(hm1), Term::unify(vec![(&t1, &t2)]));
-    assert_eq!(None, Term::unify(vec![(&t1, &t3)]));
-    assert_eq!(None, Term::unify(vec![(&t2, &t3)]));
+    assert_eq!(Some(hm1), Term::unify(&[(&t1, &t2)]));
+    assert_eq!(None, Term::unify(&[(&t1, &t3)]));
+    assert_eq!(None, Term::unify(&[(&t2, &t3)]));
     let t2 = Term::Application {
         op: a.clone(),
         args: vec![
@@ -177,7 +177,7 @@ fn unify_test() {
     };
     let mut hm2 = HashMap::new();
     hm2.insert(y2, &t2);
-    assert_eq!(Some(hm2), Term::unify(vec![(&t3, &t4)]));
+    assert_eq!(Some(hm2), Term::unify(&[(&t3, &t4)]));
 }
 
 #[test]
@@ -202,31 +202,31 @@ fn rewrite_test() {
 
 #[test]
 fn display_variable() {
-    let sig = Signature::default();
+    let mut sig = Signature::default();
 
     let v1 = sig.new_var(None);
     let v2 = sig.new_var(Some("blah".to_string()));
 
-    assert_eq!(v1.display(), "var0_".to_string());
+    assert_eq!(v1.display(), "v0_".to_string());
     assert_eq!(v1.name(&sig), None);
-    assert_eq!(v2.display(), "blah_".to_string());
-    assert_eq!(v2.name(&sig), Some("blah".to_string()));
+    assert_eq!(v2.display(), "v1_".to_string());
+    assert_eq!(v2.name(&sig), Some("blah"));
 }
 
 #[test]
 fn operator_methods() {
-    let sig = Signature::default();
+    let mut sig = Signature::default();
 
     let o = sig.new_op(0, None);
 
     assert_eq!(o.display(&sig), "op0");
-    assert_eq!(o.arity(), 0);
+    assert_eq!(o.arity(&sig), 0);
     assert_eq!(o.name(&sig), None);
 }
 
 #[test]
 fn atom_methods() {
-    let sig = Signature::default();
+    let mut sig = Signature::default();
 
     let o0 = sig.new_op(0, None);
     let o1 = sig.new_op(1, Some("A".to_string()));
@@ -250,13 +250,13 @@ fn atom_methods() {
     // test display
     assert_eq!(a0.display(&sig), "op0");
     assert_eq!(a1.display(&sig), "A");
-    assert_eq!(a2.display(&sig), "var0_");
-    assert_eq!(a3.display(&sig), "X_");
+    assert_eq!(a2.display(&sig), "v0_");
+    assert_eq!(a3.display(&sig), "v1_");
 }
 
 #[test]
 fn rule_new_valid() {
-    let sig = Signature::default();
+    let mut sig = Signature::default();
     let lhs: Term = Term::Application {
         op: sig.new_op(0, None),
         args: vec![],
@@ -272,7 +272,7 @@ fn rule_new_valid() {
 
 #[test]
 fn rule_new_valid_lhs_var() {
-    let sig = Signature::default();
+    let mut sig = Signature::default();
 
     let lhs = Term::Application {
         op: sig.new_op(0, None),
@@ -288,7 +288,7 @@ fn rule_new_valid_lhs_var() {
 
 #[test]
 fn rule_new_invalid_lhs_var() {
-    let sig = Signature::default();
+    let mut sig = Signature::default();
 
     let lhs = Term::Variable(sig.new_var(None));
     let rhs = vec![Term::Application {
@@ -301,7 +301,7 @@ fn rule_new_invalid_lhs_var() {
 
 #[test]
 fn rule_new_invalid_rhs_var() {
-    let sig = Signature::default();
+    let mut sig = Signature::default();
 
     let lhs = Term::Application {
         op: sig.new_op(0, None),
@@ -315,7 +315,7 @@ fn rule_new_invalid_rhs_var() {
 #[test]
 fn parse_display_roundtrip_term() {
     let mut sig = Signature::default();
-    let s = "foo(bar(x_) y_ baz)";
+    let s = "foo(bar(v0_) v1_ baz)";
     let term = parse_term(&mut sig, s).unwrap_or_else(|_| panic!("parse of {}", s));
     let ns = term.display(&sig);
     assert_eq!(s, ns);
@@ -324,7 +324,7 @@ fn parse_display_roundtrip_term() {
 #[test]
 fn parse_display_roundtrip_rule() {
     let mut sig = Signature::default();
-    let s = "foo(bar(x_) y_ baz) = bar(y_) | buzz";
+    let s = "foo(bar(v0_) v1_ baz) = bar(v1_) | buzz";
     let rule = parse_rule(&mut sig, s).unwrap_or_else(|_| panic!("parse of {}", s));
     let ns = rule.display(&sig);
     assert_eq!(s, ns);
@@ -333,7 +333,7 @@ fn parse_display_roundtrip_rule() {
 #[test]
 fn parse_display_roundtrip_trs() {
     let mut sig = Signature::default();
-    let s = "foo(bar(x_) y_ baz) = bar(y_) | buzz;\nbar(baz) = foo(bar(baz) bar(baz) baz);";
+    let s = "foo(bar(v0_) v1_ baz) = bar(v1_) | buzz;\nbar(baz) = foo(bar(baz) bar(baz) baz);";
     let trs = parse_trs(&mut sig, s).unwrap_or_else(|_| panic!("parse of {}", s));
     let ns = trs.display(&sig);
     assert_eq!(s, ns);
@@ -445,17 +445,17 @@ fn pretty_trs() {
     assert_eq!(
         trs.display(&sig),
         "\
-.(.(.(S x_) y_) z_) = .(.(x_ z_) .(y_ z_));
-.(.(K x_) y_) = x_;
+.(.(.(S v0_) v1_) v2_) = .(.(v0_ v2_) .(v1_ v2_));
+.(.(K v3_) v4_) = v3_;
 CONS(FOO CONS(FOO NIL)) = SUCC(SUCC(ZERO));
-BAZ(FOO BAR(x_)) = BAZ(x_ FOO) | SUCC(x_);"
+BAZ(FOO BAR(v5_)) = BAZ(v5_ FOO) | SUCC(v5_);"
     );
     assert_eq!(
         trs.pretty(&sig),
         "\
-S x_ y_ z_ = x_ z_ (y_ z_);
-K x_ y_ = x_;
+S v0_ v1_ v2_ = v0_ v2_ (v1_ v2_);
+K v3_ v4_ = v3_;
 [FOO, FOO] = 2;
-BAZ(FOO, BAR(x_)) = BAZ(x_, FOO) | SUCC(x_);"
+BAZ(FOO, BAR(v5_)) = BAZ(v5_, FOO) | SUCC(v5_);"
     );
 }
