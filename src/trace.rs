@@ -173,17 +173,16 @@ impl<'a> Iterator for Trace<'a> {
                 match (self.max_term_size, self.max_depth) {
                     (Some(n), _) if node_w.term.size() > n => node_w.state = TraceState::TooBig,
                     (_, Some(n)) if node_w.depth >= n => node_w.state = TraceState::TooDeep,
-                    _ => match self.trs.rewrite(&node_w.term, self.strategy, self.sig) {
-                        None => node_w.state = TraceState::Normal,
-                        Some(ref rewrites) if rewrites.is_empty() => {
+                    _ => {
+                        let rewrites = self.trs.rewrite(&node_w.term, self.strategy, self.sig);
+                        let (small_enough, too_big): (Vec<_>, Vec<_>) =
+                            rewrites.into_iter().partition(|t| {
+                                self.max_term_size.is_none()
+                                    || t.size() <= self.max_term_size.unwrap()
+                            });
+                        if small_enough.is_empty() && too_big.is_empty() {
                             node_w.state = TraceState::Normal
-                        }
-                        Some(rewrites) => {
-                            let (small_enough, too_big): (Vec<_>, Vec<_>) =
-                                rewrites.into_iter().partition(|t| {
-                                    self.max_term_size.is_none()
-                                        || t.size() <= self.max_term_size.unwrap()
-                                });
+                        } else {
                             node_w.state = TraceState::Rewritten;
                             if !small_enough.is_empty() {
                                 let term_selection_p = -(small_enough.len() as f64).ln();
@@ -212,7 +211,7 @@ impl<'a> Iterator for Trace<'a> {
                                 node_w.children.push(new_node);
                             }
                         }
-                    },
+                    }
                 }
             }
             Some(node)

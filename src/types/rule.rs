@@ -1,4 +1,4 @@
-use super::{Context, Operator, Place, Signature, Term, Variable};
+use super::{Context, Operator, Place, Signature, Substitution, Term, Variable};
 use itertools::Itertools;
 use std::{
     collections::{HashMap, HashSet},
@@ -725,8 +725,8 @@ impl Rule {
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Term, Rule, parse_rule};
-    /// # use std::collections::HashMap;
+    /// # use term_rewriting::{Signature, Term, Rule, Substitution, parse_rule};
+    /// # use smallvec::smallvec;
     /// let mut sig = Signature::default();
     ///
     /// let mut r = parse_rule(&mut sig, "A(x_) = B(x_) | C").expect("parse of A(x_) = B(x_) | C");
@@ -736,12 +736,11 @@ impl Rule {
     ///
     /// let x = Term::Variable(r.variables()[0].clone());
     /// let y = &r2.variables()[0];
-    /// let mut sub = HashMap::default();
-    /// sub.insert(y, &x);
+    /// let sub = Substitution(smallvec![(y, &x)]);
     ///
     /// assert_eq!(r.contains(&r2).unwrap(), sub);
     /// ```
-    pub fn contains<'a>(&'a self, r: &'a Rule) -> Option<HashMap<&'a Variable, &'a Term>> {
+    pub fn contains<'a>(&'a self, r: &'a Rule) -> Option<Substitution<'a>> {
         if let Some(sub) = Term::alpha(&[(&r.lhs, &self.lhs)]) {
             if r.rhs
                 .iter()
@@ -1028,8 +1027,8 @@ impl Rule {
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Rule, parse_rule, Term, parse_term};
-    /// # use std::collections::HashMap;
+    /// # use term_rewriting::{Signature, Rule, parse_rule, Term, Substitution, parse_term};
+    /// # use smallvec::smallvec;
     /// let mut sig = Signature::default();
     ///
     /// let r = parse_rule(&mut sig, "A(x_) = B").expect("parse of A(x_) = B");
@@ -1044,12 +1043,11 @@ impl Rule {
     ///
     /// let t_k = &r.variables()[0];
     /// let t_v = Term::Variable(r5.variables()[0].clone());
-    /// let mut expected_map = HashMap::default();
-    /// expected_map.insert(t_k, &t_v);
+    /// let expected_map = Substitution(smallvec![(t_k, &t_v)]);
     ///
     /// assert_eq!(Rule::pmatch(&r, &r5), Some(expected_map));
     /// ```
-    pub fn pmatch<'a>(r1: &'a Rule, r2: &'a Rule) -> Option<HashMap<&'a Variable, &'a Term>> {
+    pub fn pmatch<'a>(r1: &'a Rule, r2: &'a Rule) -> Option<Substitution<'a>> {
         let cs = iter::once((&r1.lhs, &r2.lhs)).chain(r1.rhs.iter().zip(r2.rhs.iter()));
         Term::pmatch(&cs.collect_vec())
     }
@@ -1060,36 +1058,32 @@ impl Rule {
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Rule, parse_rule, Term, parse_term};
-    /// # use std::collections::HashMap;
+    /// # use term_rewriting::{Signature, Rule, parse_rule, Term, Substitution, parse_term};
+    /// # use smallvec::smallvec;
     /// let mut sig = Signature::default();
     ///
-    /// let r = parse_rule(&mut sig, "A(x_) = B").expect("parse of A(x_) = B");
-    /// let r2 = parse_rule(&mut sig, "A(y_) = y_").expect("parse of A(y_) = y_");
-    /// let r3 = parse_rule(&mut sig, "A(z_) = C").expect("parse of A(z_) = C");
-    /// let r4 = parse_rule(&mut sig, "D(w_) = B").expect("parse of D(w_) = B");
-    /// let r5 = parse_rule(&mut sig, "A(t_) = B").expect("parse of A(t_) = B");
+    /// let r = parse_rule(&mut sig, "A(x_) = B").expect("parsed r");
+    /// let r2 = parse_rule(&mut sig, "A(y_) = y_").expect("parsed r2");
+    /// let r3 = parse_rule(&mut sig, "A(z_) = C").expect("parsed r3");
+    /// let r4 = parse_rule(&mut sig, "D(w_) = B").expect("parsed r4");
+    /// let r5 = parse_rule(&mut sig, "A(t_) = B").expect("parsed r5");
     ///
     /// let t_k0 = &r.variables()[0];
     /// let t_k1 = &r2.variables()[0];
     /// let b = parse_term(&mut sig, "B").expect("parse of B");
-    /// let mut expected_map = HashMap::default();
-    /// expected_map.insert(t_k0, &b);
-    /// expected_map.insert(t_k1, &b);
+    /// let expected_map = Substitution(smallvec![(t_k1, &b), (t_k0, &b)]);
     ///
     /// assert_eq!(Rule::unify(&r, &r2), Some(expected_map));
-    ///
     /// assert_eq!(Rule::unify(&r, &r3), None);
     /// assert_eq!(Rule::unify(&r, &r4), None);
     ///
     /// let t_k = &r.variables()[0];
     /// let t_v = Term::Variable(r5.variables()[0].clone());
-    /// let mut expected_map = HashMap::default();
-    /// expected_map.insert(t_k, &t_v);
+    /// let expected_map = Substitution(smallvec![(t_k, &t_v)]);
     ///
     /// assert_eq!(Rule::unify(&r, &r5), Some(expected_map));
     /// ```
-    pub fn unify<'a>(r1: &'a Rule, r2: &'a Rule) -> Option<HashMap<&'a Variable, &'a Term>> {
+    pub fn unify<'a>(r1: &'a Rule, r2: &'a Rule) -> Option<Substitution<'a>> {
         let cs = iter::once((&r1.lhs, &r2.lhs))
             .chain(r1.rhs.iter().zip(r2.rhs.iter()))
             .collect_vec();
@@ -1102,8 +1096,8 @@ impl Rule {
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Rule, parse_rule, Term, parse_term};
-    /// # use std::collections::HashMap;
+    /// # use term_rewriting::{Signature, Rule, parse_rule, Term, Substitution, parse_term};
+    /// # use smallvec::smallvec;
     /// let mut sig = Signature::default();
     ///
     /// let r = parse_rule(&mut sig, "A(x_) = B").expect("parse of A(x_) = B");
@@ -1118,12 +1112,11 @@ impl Rule {
     ///
     /// let t_k = &r.variables()[0];
     /// let t_v = Term::Variable(r5.variables()[0].clone());
-    /// let mut expected_map = HashMap::default();
-    /// expected_map.insert(t_k, &t_v);
+    /// let expected_map = Substitution(smallvec![(t_k, &t_v)]);
     ///
     /// assert_eq!(Rule::alpha(&r, &r5), Some(expected_map));
     /// ```
-    pub fn alpha<'a>(r1: &'a Rule, r2: &'a Rule) -> Option<HashMap<&'a Variable, &'a Term>> {
+    pub fn alpha<'a>(r1: &'a Rule, r2: &'a Rule) -> Option<Substitution<'a>> {
         let cs = iter::once((&r1.lhs, &r2.lhs)).chain(r1.rhs.iter().zip(r2.rhs.iter()));
         Term::alpha(&cs.collect_vec())
     }
@@ -1154,26 +1147,52 @@ impl Rule {
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Rule, parse_rule, Term, parse_term};
-    /// # use std::collections::HashMap;
+    /// # use term_rewriting::{Signature, Rule, parse_rule, Term, Substitution, parse_term};
+    /// # use smallvec::smallvec;
     /// let mut sig = Signature::default();
     /// let mut r = parse_rule(&mut sig, "A(v0_ v1_) = A(v0_) | B(v1_)").expect("parsed rule");
     /// let c = parse_term(&mut sig, "C").expect("parsed term");
     /// let vars = r.variables();
     /// let x = &vars[0];
     ///
-    /// let mut substitution = HashMap::default();
-    /// substitution.insert(x, &c);
-    ///
-    /// let r2 = r.substitute(&substitution);
+    /// let sub = Substitution(smallvec![(x, &c)]);
+    /// let r2 = r.substitute(&sub);
     ///
     /// assert_eq!(r2.display(&sig), "A(C v1_) = A(C) | B(v1_)");
     /// ```
-    pub fn substitute(&self, sub: &HashMap<&Variable, &Term>) -> Rule {
+    pub fn substitute(&self, sub: &Substitution) -> Rule {
         Rule::new(
             self.lhs.substitute(sub),
             self.rhs.iter().map(|rhs| rhs.substitute(sub)).collect(),
         )
         .unwrap()
+    }
+    pub fn rewrite<'a>(&'a self, term: &'a Term) -> Rewrites<'a> {
+        Rewrites::new(self, term)
+    }
+}
+
+pub struct Rewrites<'a> {
+    rhss: std::slice::Iter<'a, Term>,
+    sub: Option<Substitution<'a>>,
+}
+
+impl<'a> Rewrites<'a> {
+    pub fn new(rule: &'a Rule, term: &'a Term) -> Self {
+        let sub = Term::pmatch(&[(&rule.lhs, &term)]);
+        Rewrites {
+            rhss: rule.rhs.iter(),
+            sub,
+        }
+    }
+}
+
+impl<'a> Iterator for Rewrites<'a> {
+    type Item = Term;
+    fn next(&mut self) -> Option<Self::Item> {
+        match &self.sub {
+            None => None,
+            Some(sub) => self.rhss.next().map(|rhs| rhs.substitute(sub)),
+        }
     }
 }

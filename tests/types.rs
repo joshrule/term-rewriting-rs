@@ -1,7 +1,6 @@
 extern crate term_rewriting;
 
-use std::collections::HashMap;
-
+use smallvec::smallvec;
 use term_rewriting::*;
 
 #[test]
@@ -21,9 +20,7 @@ fn term_substitute_test() {
     let vars = sig.variables();
     let y = &vars[0];
     let z = &vars[1];
-    let mut sub = HashMap::new();
-    sub.insert(y, &s_term);
-    sub.insert(z, &k_term);
+    let sub = Substitution(smallvec![(y, &s_term), (z, &k_term)]);
 
     // build the term after substitution
     let term_after = parse_term(&mut sig, "S K S K").expect("parse of S K S K");
@@ -32,9 +29,12 @@ fn term_substitute_test() {
     assert_eq!(term_before.substitute(&sub), term_after);
     assert_ne!(term_before, term_before.substitute(&sub));
     assert_ne!(term_before, term_after);
-    assert_eq!(term_before.substitute(&HashMap::new()), term_before);
+    assert_eq!(
+        term_before.substitute(&Substitution(smallvec![])),
+        term_before
+    );
     assert_ne!(
-        term_before.substitute(&HashMap::new()),
+        term_before.substitute(&Substitution(smallvec![])),
         term_before.substitute(&sub)
     );
 }
@@ -147,10 +147,8 @@ fn unify_test() {
         op: k.clone(),
         args: vec![],
     };
-    let mut hm1 = HashMap::new();
-    hm1.insert(y, &t1_0);
-    hm1.insert(z, &t1_1);
-    assert_eq!(Some(hm1), Term::unify(&[(&t1, &t2)]));
+    let sub1 = Substitution(smallvec![(z, &t1_1), (y, &t1_0)]);
+    assert_eq!(Some(sub1), Term::unify(&[(&t1, &t2)]));
     assert_eq!(None, Term::unify(&[(&t1, &t3)]));
     assert_eq!(None, Term::unify(&[(&t2, &t3)]));
     let t2 = Term::Application {
@@ -175,9 +173,8 @@ fn unify_test() {
             },
         ],
     };
-    let mut hm2 = HashMap::new();
-    hm2.insert(y2, &t2);
-    assert_eq!(Some(hm2), Term::unify(&[(&t3, &t4)]));
+    let sub2 = Substitution(smallvec![(y2, &t2)]);
+    assert_eq!(Some(sub2), Term::unify(&[(&t3, &t4)]));
 }
 
 #[test]
@@ -195,8 +192,9 @@ fn rewrite_test() {
     let r_term = terms[1].clone();
 
     assert_eq!(
-        trs.rewrite(&l_term, Strategy::Normal, &sig),
-        Some(vec![r_term])
+        trs.rewrite(&l_term, Strategy::Normal, &sig)
+            .collect::<Vec<_>>(),
+        vec![r_term]
     );
 }
 

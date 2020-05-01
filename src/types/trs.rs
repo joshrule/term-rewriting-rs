@@ -1,6 +1,7 @@
-use super::{Atom, Operator, Rule, Signature, Term, Variable};
+use super::{Atom, Operator, Rewrites, Rule, Signature, Term, Variable};
 use itertools::Itertools;
 use serde_derive::{Deserialize, Serialize};
+use smallvec::{smallvec, SmallVec};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -513,11 +514,8 @@ impl TRS {
     fn rewrite_head(&self, term: &Term) -> Option<Vec<Term>> {
         for rule in &self.rules {
             if let Some(ref sub) = Term::pmatch(&[(&rule.lhs, &term)]) {
-                let mut items = rule.rhs.iter().map(|x| x.substitute(sub)).collect_vec();
+                let items = rule.rhs.iter().map(|x| x.substitute(sub)).collect_vec();
                 if !items.is_empty() {
-                    if self.is_deterministic {
-                        items.truncate(1);
-                    }
                     return Some(items);
                 }
             }
@@ -528,9 +526,9 @@ impl TRS {
     fn rewrite_args(&self, term: &Term, strategy: Strategy, sig: &Signature) -> Option<Vec<Term>> {
         if let Term::Application { op, ref args } = *term {
             for (i, arg) in args.iter().enumerate() {
-                if let Some(v) = self.rewrite(arg, strategy, sig) {
-                    let res = v
-                        .iter()
+                let mut it = self.rewrite(arg, strategy, sig).peekable();
+                if let Some(_) = it.peek() {
+                    let res = it
                         .map(|x| {
                             let mut args = args.clone();
                             args[i] = x.clone();
@@ -540,10 +538,8 @@ impl TRS {
                     return Some(res);
                 }
             }
-            None
-        } else {
-            None
         }
+        None
     }
     // performs all possible rewrites, else None.
     fn rewrite_all(&self, term: &Term) -> Option<Vec<Term>> {
@@ -820,16 +816,16 @@ impl TRS {
     ///
     /// let term = parse_term(&mut sig, "J(F(C) K(C A))").expect("parse of J(F(C) K(C A))");
     ///
-    /// let rewritten_terms = &t.rewrite(&term, Strategy::Normal, &sig).unwrap();
+    /// let rewritten_terms: Vec<_> = t.rewrite(&term, Strategy::Normal, &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 1);
     /// assert_eq!(rewritten_terms[0].display(&sig), "J(G K(C A))");
     ///
-    /// let rewritten_terms = &t.rewrite(&term, Strategy::Eager, &sig).unwrap();
+    /// let rewritten_terms: Vec<_> = t.rewrite(&term, Strategy::Eager, &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 2);
     /// assert_eq!(rewritten_terms[0].display(&sig), "J(F(D) K(C A))");
     /// assert_eq!(rewritten_terms[1].display(&sig), "J(F(E) K(C A))");
     ///
-    /// let rewritten_terms = &t.rewrite(&term, Strategy::All, &sig).unwrap();
+    /// let rewritten_terms: Vec<_> = t.rewrite(&term, Strategy::All, &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 6);
     /// assert_eq!(rewritten_terms[0].display(&sig), "J(G K(C A))");
     /// assert_eq!(rewritten_terms[1].display(&sig), "J(F(D) K(C A))");
@@ -838,20 +834,13 @@ impl TRS {
     /// assert_eq!(rewritten_terms[4].display(&sig), "J(F(C) K(E A))");
     /// assert_eq!(rewritten_terms[5].display(&sig), "J(F(C) K(C B))");
     /// ```
-    pub fn rewrite(&self, term: &Term, strategy: Strategy, sig: &Signature) -> Option<Vec<Term>> {
-        match *term {
-            Term::Variable(_) => None,
-            ref app => match strategy {
-                Strategy::Normal => self
-                    .rewrite_head(app)
-                    .or_else(|| self.rewrite_args(app, strategy, sig)),
-                Strategy::Eager => self
-                    .rewrite_args(app, strategy, sig)
-                    .or_else(|| self.rewrite_head(app)),
-                Strategy::All => self.rewrite_all(app),
-                Strategy::String => self.rewrite_as_string(app, sig),
-            },
-        }
+    pub fn rewrite<'a>(
+        &'a self,
+        term: &'a Term,
+        strategy: Strategy,
+        sig: &'a Signature,
+    ) -> TRSRewrites<'a> {
+        TRSRewrites::new(self, term, strategy, sig)
     }
     /// Query a `TRS` for a [`Rule`] based on its left-hand-side; return both
     /// the [`Rule`] and its index if possible
@@ -1485,5 +1474,129 @@ impl<'a> PString<'a> {
         };
         self.cache.insert(key, new_val);
         new_val
+    }
+}
+
+pub struct Normal<'a> {
+    rewrites: NormalKind<'a>,
+}
+
+enum NormalKind<'a> {
+    None,
+    Head(std::iter::Peekable<Rewrites<'a>>),
+    Subterm(
+        SmallVec<[(Operator, usize, &'a [Term]); 32]>,
+        std::iter::Peekable<Rewrites<'a>>,
+    ),
+}
+
+impl<'a> Normal<'a> {
+    pub(crate) fn new(trs: &'a TRS, term: &'a Term) -> Normal<'a> {
+        if let Term::Application { op, args } = term {
+            // Try the head.
+            for rule in &trs.rules {
+                let mut it = rule.rewrite(term).peekable();
+                if it.peek().is_some() {
+                    return Normal {
+                        rewrites: NormalKind::Head(it),
+                    };
+                }
+            }
+            // Try each arg.
+            let mut stack: SmallVec<[(Operator, usize, &[Term]); 32]> =
+                smallvec![(*op, 0, args.as_slice())];
+            while let Some((op, arg, args)) = stack.pop() {
+                match &args[arg] {
+                    Term::Variable(_) => (),
+                    Term::Application {
+                        op: new_op,
+                        args: new_args,
+                    } => {
+                        for rule in &trs.rules {
+                            let mut it = rule.rewrite(&args[arg]).peekable();
+                            if it.peek().is_some() {
+                                stack.push((op, arg, args));
+                                stack.reverse();
+                                return Normal {
+                                    rewrites: NormalKind::Subterm(stack, it),
+                                };
+                            }
+                        }
+                        if arg + 1 < args.len() {
+                            stack.push((op, arg + 1, args));
+                        }
+                        if !new_args.is_empty() {
+                            stack.push((*new_op, 0, new_args));
+                        }
+                    }
+                }
+            }
+        }
+        Normal {
+            rewrites: NormalKind::None,
+        }
+    }
+}
+
+impl<'a> Iterator for Normal<'a> {
+    type Item = Term;
+    fn next(&mut self) -> Option<Self::Item> {
+        match &mut self.rewrites {
+            NormalKind::None => None,
+            NormalKind::Head(it) => it.next(),
+            NormalKind::Subterm(stack, it) => it.next().map(|subterm| {
+                stack.iter().fold(subterm, |subterm, &(op, arg, args)| {
+                    let mut new_args = Vec::with_capacity(args.len());
+                    new_args.extend_from_slice(&args[..arg]);
+                    new_args.push(subterm);
+                    new_args.extend_from_slice(&args[arg + 1..]);
+                    Term::Application { op, args: new_args }
+                })
+            }),
+        }
+    }
+}
+
+pub struct TRSRewrites<'a>(TRSRewriteKind<'a>);
+
+enum TRSRewriteKind<'a> {
+    Normal(Normal<'a>),
+    Eager(std::vec::IntoIter<Term>),
+    All(std::vec::IntoIter<Term>),
+    String(std::vec::IntoIter<Term>),
+}
+
+impl<'a> TRSRewrites<'a> {
+    pub(crate) fn new(trs: &'a TRS, term: &'a Term, strategy: Strategy, sig: &Signature) -> Self {
+        let kind = match strategy {
+            Strategy::Normal => TRSRewriteKind::Normal(Normal::new(trs, term)),
+            Strategy::Eager => TRSRewriteKind::Eager(
+                trs.rewrite_args(term, strategy, sig)
+                    .or_else(|| trs.rewrite_head(term))
+                    .unwrap_or_else(|| vec![])
+                    .into_iter(),
+            ),
+            Strategy::All => {
+                TRSRewriteKind::All(trs.rewrite_all(term).unwrap_or_else(|| vec![]).into_iter())
+            }
+            Strategy::String => TRSRewriteKind::String(
+                trs.rewrite_as_string(term, sig)
+                    .unwrap_or_else(|| vec![])
+                    .into_iter(),
+            ),
+        };
+        TRSRewrites(kind)
+    }
+}
+
+impl<'a> Iterator for TRSRewrites<'a> {
+    type Item = Term;
+    fn next(&mut self) -> Option<Self::Item> {
+        match &mut self.0 {
+            TRSRewriteKind::Normal(it) => it.next(),
+            TRSRewriteKind::Eager(it) => it.next(),
+            TRSRewriteKind::All(it) => it.next(),
+            TRSRewriteKind::String(it) => it.next(),
+        }
     }
 }

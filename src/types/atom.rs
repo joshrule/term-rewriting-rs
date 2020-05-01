@@ -7,7 +7,7 @@ use super::Signature;
 /// [`Signature`]: struct.Signature.html
 /// [`Signature::new_var`]: struct.Signature.html#method.new_var
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Variable(pub(crate) usize);
+pub struct Variable(pub usize);
 
 /// A symbol with fixed arity. Only carries meaning alongside a [`Signature`].
 ///
@@ -16,7 +16,7 @@ pub struct Variable(pub(crate) usize);
 /// [`Signature`]: struct.Signature.html
 /// [`Signature::new_op`]: struct.Signature.html#method.new_op
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Operator(pub(crate) usize);
+pub struct Operator(pub usize);
 
 /// `Atom`s are the parts of a [`TRS`] that are not constructed from smaller parts: [`Variable`]s and [`Operator`]s.
 ///

@@ -16,7 +16,7 @@ pub use self::trs::*;
 pub type Place = Vec<usize>;
 
 /// A way of signifying what type of unification is being performed
-#[derive(PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Unification {
     Match,
     Alpha,
