@@ -5,7 +5,7 @@ use smallvec::{smallvec, SmallVec};
 use std::{collections::HashMap, convert::TryFrom, iter};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Substitution<'a>(pub SmallVec<[(&'a Variable, &'a Term); 32]>);
+pub struct Substitution<'a>(pub Vec<(&'a Variable, &'a Term)>);
 
 pub struct Variables<'a> {
     stack: SmallVec<[&'a Term; 32]>,
@@ -1414,7 +1414,6 @@ impl Term {
     ///
     /// ```
     /// # use term_rewriting::{Signature, Substitution, parse_term, Term};
-    /// # use smallvec::smallvec;
     /// let mut sig = Signature::default();
     ///
     /// let term_before = parse_term(&mut sig, "S K y_ z_").expect("parse of S K y_ z_");
@@ -1425,7 +1424,7 @@ impl Term {
     /// let y = &vars[0];
     /// let z = &vars[1];
     ///
-    /// let mut sub = Substitution(smallvec![(y, &s_term), (z, &k_term)]);
+    /// let mut sub = Substitution(vec![(y, &s_term), (z, &k_term)]);
     ///
     /// let expected_term = parse_term(&mut sig, "S K S K").expect("parse of S K S K");
     /// let subbed_term = term_before.substitute(&sub);
@@ -1491,7 +1490,6 @@ impl Term {
     ///
     /// ```
     /// # use term_rewriting::{Signature, parse_term, Term, Substitution, Variable};
-    /// # use smallvec::smallvec;
     /// let mut sig = Signature::default();
     /// let s = sig.new_op(0, Some("S".to_string()));
     ///
@@ -1504,7 +1502,7 @@ impl Term {
     ///
     /// let ta = Term::Variable(a.clone());
     /// let tb = Term::Variable(b.clone());
-    /// let expected_alpha = Substitution(smallvec![(z, &tb), (y, &ta)]);
+    /// let expected_alpha = Substitution(vec![(z, &tb), (y, &ta)]);
     ///
     /// assert_eq!(Term::alpha(&[(&t, &t2)]), Some(expected_alpha));
     ///
@@ -1577,7 +1575,6 @@ impl Term {
     ///
     /// ```
     /// # use term_rewriting::{Signature, Term, Substitution, parse_term};
-    /// # use smallvec::smallvec;
     /// let mut sig = Signature::default();
     ///
     /// let t1 = parse_term(&mut sig, "C(A)").expect("parse of C(A)");
@@ -1589,7 +1586,7 @@ impl Term {
     /// // maps variable x in term t2 to constant A in term t1
     /// let t_k = &t2.variables()[0];
     /// let t_v = parse_term(&mut sig, "A").expect("parse of A");
-    /// let expected_sub = Substitution(smallvec![(t_k, &t_v)]);
+    /// let expected_sub = Substitution(vec![(t_k, &t_v)]);
     ///
     /// assert_eq!(Term::pmatch(&[(&t2, &t1)]), Some(expected_sub));
     ///
@@ -1619,7 +1616,6 @@ impl Term {
     ///
     /// ```
     /// # use term_rewriting::{Signature, Term, Substitution, parse_term};
-    /// # use smallvec::smallvec;
     /// # let mut sig = Signature::default();
     /// let t1 = parse_term(&mut sig, "C(A)").expect("parse of C(A)");
     /// let t2 = parse_term(&mut sig, "C(x_)").expect("parse of C(x_)");
@@ -1627,14 +1623,13 @@ impl Term {
     /// // Map variable x in term t2 to constant A in term t1.
     /// let t_k = &t2.variables()[0];
     /// let t_v = parse_term(&mut sig, "A").expect("parse of A");
-    /// let expected_sub = Substitution(smallvec![(t_k, &t_v)]);
+    /// let expected_sub = Substitution(vec![(t_k, &t_v)]);
     ///
     /// assert_eq!(Term::unify(&[(&t1, &t2)]), Some(expected_sub));
     /// ```
     ///
     /// ```
     /// # use term_rewriting::{Signature, Substitution, Term, parse_term};
-    /// # use smallvec::smallvec;
     /// # let mut sig = Signature::default();
     /// let t1 = parse_term(&mut sig, "C(x_)").expect("parse of C(x_)");
     /// let t2 = parse_term(&mut sig, "C(y_)").expect("parse of C(y_)");
@@ -1642,7 +1637,7 @@ impl Term {
     /// // Map variable x in term t2 to variable y in term t2.
     /// let t_k = &t1.variables()[0];
     /// let t_v = Term::Variable(t2.variables()[0].clone());
-    /// let expected_sub = Substitution(smallvec![(t_k, &t_v)]);
+    /// let expected_sub = Substitution(vec![(t_k, &t_v)]);
     ///
     /// assert_eq!(Term::unify(&[(&t1, &t2)]), Some(expected_sub));
     /// ```
@@ -1734,6 +1729,6 @@ impl Term {
         while let Some((s, t)) = cs.pop() {
             Term::unify_one(s, t, &mut cs, &mut subs, &utype)?;
         }
-        Some(Substitution(subs))
+        Some(Substitution(subs.to_vec()))
     }
 }

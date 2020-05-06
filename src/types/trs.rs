@@ -1,7 +1,6 @@
 use super::{Atom, Operator, Rewrites, Rule, Signature, Term, Variable};
 use itertools::Itertools;
 use serde_derive::{Deserialize, Serialize};
-use smallvec::{smallvec, SmallVec};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -1483,50 +1482,59 @@ pub struct Normal<'a> {
 
 enum NormalKind<'a> {
     None,
-    Head(std::iter::Peekable<Rewrites<'a>>),
+    Head(Box<std::iter::Peekable<Rewrites<'a>>>),
     Subterm(
-        SmallVec<[(Operator, usize, &'a [Term]); 32]>,
-        std::iter::Peekable<Rewrites<'a>>,
+        Vec<(Operator, usize, &'a [Term], bool)>,
+        Box<std::iter::Peekable<Rewrites<'a>>>,
     ),
 }
 
 impl<'a> Normal<'a> {
     pub(crate) fn new(trs: &'a TRS, term: &'a Term) -> Normal<'a> {
-        if let Term::Application { op, args } = term {
-            // Try the head.
-            for rule in &trs.rules {
-                let mut it = rule.rewrite(term).peekable();
+        if !trs.rules.is_empty() {
+            if let Term::Application { op, args } = term {
+                // Try the head.
+                let mut it = Box::new(trs.rules[0].rewrite(term).peekable());
                 if it.peek().is_some() {
                     return Normal {
                         rewrites: NormalKind::Head(it),
                     };
                 }
-            }
-            // Try each arg.
-            let mut stack: SmallVec<[(Operator, usize, &[Term]); 32]> =
-                smallvec![(*op, 0, args.as_slice())];
-            while let Some((op, arg, args)) = stack.pop() {
-                match &args[arg] {
-                    Term::Variable(_) => (),
-                    Term::Application {
-                        op: new_op,
-                        args: new_args,
-                    } => {
-                        for rule in &trs.rules {
-                            let mut it = rule.rewrite(&args[arg]).peekable();
-                            if it.peek().is_some() {
-                                stack.push((op, arg, args));
-                                stack.reverse();
-                                return Normal {
-                                    rewrites: NormalKind::Subterm(stack, it),
-                                };
+                for rule in trs.rules.iter().skip(1) {
+                    *it = rule.rewrite(term).peekable();
+                    if it.peek().is_some() {
+                        return Normal {
+                            rewrites: NormalKind::Head(it),
+                        };
+                    }
+                }
+                // Try each arg.
+                let mut stack: Vec<(Operator, usize, &[Term], bool)> = Vec::with_capacity(32);
+                if !args.is_empty() {
+                    stack.push((*op, 0, args.as_slice(), false));
+                }
+                while let Some(x) = stack.last_mut() {
+                    match (&x.2[x.1], x.3) {
+                        (_, true) if x.1 + 1 < x.2.len() => {
+                            x.1 += 1;
+                            x.3 = false;
+                        }
+                        (Term::Application { op, args }, false) => {
+                            for rule in &trs.rules {
+                                *it = rule.rewrite(&x.2[x.1]).peekable();
+                                if it.peek().is_some() {
+                                    return Normal {
+                                        rewrites: NormalKind::Subterm(stack, it),
+                                    };
+                                }
+                            }
+                            x.3 = true;
+                            if !args.is_empty() {
+                                stack.push((*op, 0, args, false));
                             }
                         }
-                        if arg + 1 < args.len() {
-                            stack.push((op, arg + 1, args));
-                        }
-                        if !new_args.is_empty() {
-                            stack.push((*new_op, 0, new_args));
+                        _ => {
+                            stack.pop();
                         }
                     }
                 }
@@ -1545,13 +1553,16 @@ impl<'a> Iterator for Normal<'a> {
             NormalKind::None => None,
             NormalKind::Head(it) => it.next(),
             NormalKind::Subterm(stack, it) => it.next().map(|subterm| {
-                stack.iter().fold(subterm, |subterm, &(op, arg, args)| {
-                    let mut new_args = Vec::with_capacity(args.len());
-                    new_args.extend_from_slice(&args[..arg]);
-                    new_args.push(subterm);
-                    new_args.extend_from_slice(&args[arg + 1..]);
-                    Term::Application { op, args: new_args }
-                })
+                stack
+                    .iter()
+                    .rev()
+                    .fold(subterm, |subterm, &(op, arg, args, _)| {
+                        let mut new_args = Vec::with_capacity(args.len());
+                        new_args.extend_from_slice(&args[..arg]);
+                        new_args.push(subterm);
+                        new_args.extend_from_slice(&args[arg + 1..]);
+                        Term::Application { op, args: new_args }
+                    })
             }),
         }
     }
@@ -1568,24 +1579,23 @@ enum TRSRewriteKind<'a> {
 
 impl<'a> TRSRewrites<'a> {
     pub(crate) fn new(trs: &'a TRS, term: &'a Term, strategy: Strategy, sig: &Signature) -> Self {
-        let kind = match strategy {
-            Strategy::Normal => TRSRewriteKind::Normal(Normal::new(trs, term)),
-            Strategy::Eager => TRSRewriteKind::Eager(
+        match strategy {
+            Strategy::Normal => TRSRewrites(TRSRewriteKind::Normal(Normal::new(trs, term))),
+            Strategy::Eager => TRSRewrites(TRSRewriteKind::Eager(
                 trs.rewrite_args(term, strategy, sig)
                     .or_else(|| trs.rewrite_head(term))
                     .unwrap_or_else(|| vec![])
                     .into_iter(),
-            ),
-            Strategy::All => {
-                TRSRewriteKind::All(trs.rewrite_all(term).unwrap_or_else(|| vec![]).into_iter())
-            }
-            Strategy::String => TRSRewriteKind::String(
+            )),
+            Strategy::All => TRSRewrites(TRSRewriteKind::All(
+                trs.rewrite_all(term).unwrap_or_else(|| vec![]).into_iter(),
+            )),
+            Strategy::String => TRSRewrites(TRSRewriteKind::String(
                 trs.rewrite_as_string(term, sig)
                     .unwrap_or_else(|| vec![])
                     .into_iter(),
-            ),
-        };
-        TRSRewrites(kind)
+            )),
+        }
     }
 }
 

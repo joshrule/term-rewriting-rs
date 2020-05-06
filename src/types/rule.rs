@@ -726,7 +726,6 @@ impl Rule {
     ///
     /// ```
     /// # use term_rewriting::{Signature, Term, Rule, Substitution, parse_rule};
-    /// # use smallvec::smallvec;
     /// let mut sig = Signature::default();
     ///
     /// let mut r = parse_rule(&mut sig, "A(x_) = B(x_) | C").expect("parse of A(x_) = B(x_) | C");
@@ -736,7 +735,7 @@ impl Rule {
     ///
     /// let x = Term::Variable(r.variables()[0].clone());
     /// let y = &r2.variables()[0];
-    /// let sub = Substitution(smallvec![(y, &x)]);
+    /// let sub = Substitution(vec![(y, &x)]);
     ///
     /// assert_eq!(r.contains(&r2).unwrap(), sub);
     /// ```
@@ -1028,7 +1027,6 @@ impl Rule {
     ///
     /// ```
     /// # use term_rewriting::{Signature, Rule, parse_rule, Term, Substitution, parse_term};
-    /// # use smallvec::smallvec;
     /// let mut sig = Signature::default();
     ///
     /// let r = parse_rule(&mut sig, "A(x_) = B").expect("parse of A(x_) = B");
@@ -1043,7 +1041,7 @@ impl Rule {
     ///
     /// let t_k = &r.variables()[0];
     /// let t_v = Term::Variable(r5.variables()[0].clone());
-    /// let expected_map = Substitution(smallvec![(t_k, &t_v)]);
+    /// let expected_map = Substitution(vec![(t_k, &t_v)]);
     ///
     /// assert_eq!(Rule::pmatch(&r, &r5), Some(expected_map));
     /// ```
@@ -1059,7 +1057,6 @@ impl Rule {
     ///
     /// ```
     /// # use term_rewriting::{Signature, Rule, parse_rule, Term, Substitution, parse_term};
-    /// # use smallvec::smallvec;
     /// let mut sig = Signature::default();
     ///
     /// let r = parse_rule(&mut sig, "A(x_) = B").expect("parsed r");
@@ -1071,7 +1068,7 @@ impl Rule {
     /// let t_k0 = &r.variables()[0];
     /// let t_k1 = &r2.variables()[0];
     /// let b = parse_term(&mut sig, "B").expect("parse of B");
-    /// let expected_map = Substitution(smallvec![(t_k1, &b), (t_k0, &b)]);
+    /// let expected_map = Substitution(vec![(t_k1, &b), (t_k0, &b)]);
     ///
     /// assert_eq!(Rule::unify(&r, &r2), Some(expected_map));
     /// assert_eq!(Rule::unify(&r, &r3), None);
@@ -1079,7 +1076,7 @@ impl Rule {
     ///
     /// let t_k = &r.variables()[0];
     /// let t_v = Term::Variable(r5.variables()[0].clone());
-    /// let expected_map = Substitution(smallvec![(t_k, &t_v)]);
+    /// let expected_map = Substitution(vec![(t_k, &t_v)]);
     ///
     /// assert_eq!(Rule::unify(&r, &r5), Some(expected_map));
     /// ```
@@ -1097,7 +1094,6 @@ impl Rule {
     ///
     /// ```
     /// # use term_rewriting::{Signature, Rule, parse_rule, Term, Substitution, parse_term};
-    /// # use smallvec::smallvec;
     /// let mut sig = Signature::default();
     ///
     /// let r = parse_rule(&mut sig, "A(x_) = B").expect("parse of A(x_) = B");
@@ -1112,7 +1108,7 @@ impl Rule {
     ///
     /// let t_k = &r.variables()[0];
     /// let t_v = Term::Variable(r5.variables()[0].clone());
-    /// let expected_map = Substitution(smallvec![(t_k, &t_v)]);
+    /// let expected_map = Substitution(vec![(t_k, &t_v)]);
     ///
     /// assert_eq!(Rule::alpha(&r, &r5), Some(expected_map));
     /// ```
@@ -1148,14 +1144,13 @@ impl Rule {
     ///
     /// ```
     /// # use term_rewriting::{Signature, Rule, parse_rule, Term, Substitution, parse_term};
-    /// # use smallvec::smallvec;
     /// let mut sig = Signature::default();
     /// let mut r = parse_rule(&mut sig, "A(v0_ v1_) = A(v0_) | B(v1_)").expect("parsed rule");
     /// let c = parse_term(&mut sig, "C").expect("parsed term");
     /// let vars = r.variables();
     /// let x = &vars[0];
     ///
-    /// let sub = Substitution(smallvec![(x, &c)]);
+    /// let sub = Substitution(vec![(x, &c)]);
     /// let r2 = r.substitute(&sub);
     ///
     /// assert_eq!(r2.display(&sig), "A(C v1_) = A(C) | B(v1_)");
@@ -1179,10 +1174,9 @@ pub struct Rewrites<'a> {
 
 impl<'a> Rewrites<'a> {
     pub fn new(rule: &'a Rule, term: &'a Term) -> Self {
-        let sub = Term::pmatch(&[(&rule.lhs, &term)]);
         Rewrites {
             rhss: rule.rhs.iter(),
-            sub,
+            sub: Term::pmatch(&[(&rule.lhs, &term)]),
         }
     }
 }
@@ -1192,7 +1186,7 @@ impl<'a> Iterator for Rewrites<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         match &self.sub {
             None => None,
-            Some(sub) => self.rhss.next().map(|rhs| rhs.substitute(sub)),
+            Some(sub) => self.rhss.next().map(|rhs| rhs.substitute(&sub)),
         }
     }
 }

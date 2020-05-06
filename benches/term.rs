@@ -1,10 +1,10 @@
 extern crate criterion;
-extern crate smallvec;
 extern crate term_rewriting;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use smallvec::smallvec;
-use term_rewriting::{parse_term, parse_trs, Signature, Strategy, Substitution, Term};
+use term_rewriting::{
+    parse_term, parse_trs, trace::Trace, Signature, Strategy, Substitution, Term,
+};
 
 pub fn term_rewrite_benchmark(c: &mut Criterion) {
     let mut sig = Signature::default();
@@ -50,7 +50,7 @@ pub fn term_substitute_benchmark(c: &mut Criterion) {
 
     let vars = term.variables();
 
-    let sub = Substitution(smallvec![
+    let sub = Substitution(vec![
         (&vars[0], &s),
         (&vars[1], &k),
         (&vars[2], &sk),
@@ -62,10 +62,34 @@ pub fn term_substitute_benchmark(c: &mut Criterion) {
     });
 }
 
+pub fn term_trace_benchmark(c: &mut Criterion) {
+    let mut sig = Signature::default();
+    let trs_str =
+        "PLUS(SUCC(v0_) v1_) = PLUS(v0_ SUCC(v1_)) | SUCC(PLUS(v0_ v1_)); PLUS(ZERO v2_) = v2_;";
+    let trs = parse_trs(&mut sig, trs_str).expect("parsed trs");
+    let input_str = "PLUS(SUCC(SUCC(SUCC(ZERO))) PLUS(SUCC(ZERO) ZERO))";
+    let input = parse_term(&mut sig, input_str).expect("parsed input");
+
+    c.bench_function("trace", |b| {
+        b.iter_with_large_drop(|| {
+            Trace::new(
+                black_box(&trs),
+                black_box(&sig),
+                black_box(&input),
+                black_box(0.5),
+                black_box(50),
+                black_box(None),
+                black_box(Strategy::Normal),
+            )
+        })
+    });
+}
+
 criterion_group!(
     term,
     term_unify_benchmark,
     term_substitute_benchmark,
-    term_rewrite_benchmark
+    term_rewrite_benchmark,
+    term_trace_benchmark,
 );
 criterion_main!(term);

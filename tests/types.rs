@@ -1,6 +1,5 @@
 extern crate term_rewriting;
 
-use smallvec::smallvec;
 use term_rewriting::*;
 
 #[test]
@@ -20,7 +19,7 @@ fn term_substitute_test() {
     let vars = sig.variables();
     let y = &vars[0];
     let z = &vars[1];
-    let sub = Substitution(smallvec![(y, &s_term), (z, &k_term)]);
+    let sub = Substitution(vec![(y, &s_term), (z, &k_term)]);
 
     // build the term after substitution
     let term_after = parse_term(&mut sig, "S K S K").expect("parse of S K S K");
@@ -29,12 +28,9 @@ fn term_substitute_test() {
     assert_eq!(term_before.substitute(&sub), term_after);
     assert_ne!(term_before, term_before.substitute(&sub));
     assert_ne!(term_before, term_after);
-    assert_eq!(
-        term_before.substitute(&Substitution(smallvec![])),
-        term_before
-    );
+    assert_eq!(term_before.substitute(&Substitution(vec![])), term_before);
     assert_ne!(
-        term_before.substitute(&Substitution(smallvec![])),
+        term_before.substitute(&Substitution(vec![])),
         term_before.substitute(&sub)
     );
 }
@@ -147,7 +143,7 @@ fn unify_test() {
         op: k.clone(),
         args: vec![],
     };
-    let sub1 = Substitution(smallvec![(z, &t1_1), (y, &t1_0)]);
+    let sub1 = Substitution(vec![(z, &t1_1), (y, &t1_0)]);
     assert_eq!(Some(sub1), Term::unify(&[(&t1, &t2)]));
     assert_eq!(None, Term::unify(&[(&t1, &t3)]));
     assert_eq!(None, Term::unify(&[(&t2, &t3)]));
@@ -173,7 +169,7 @@ fn unify_test() {
             },
         ],
     };
-    let sub2 = Substitution(smallvec![(y2, &t2)]);
+    let sub2 = Substitution(vec![(y2, &t2)]);
     assert_eq!(Some(sub2), Term::unify(&[(&t3, &t4)]));
 }
 
