@@ -27,3 +27,8 @@ criterion = "0.3"
 name = "term"
 harness = false
 path = "benches/term.rs"
+
+[[bench]]
+name = "rule"
+harness = false
+path = "benches/rule.rs"
