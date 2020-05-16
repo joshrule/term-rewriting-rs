@@ -314,6 +314,12 @@ impl Context {
             })
             .collect()
     }
+    pub fn is_hole(&self) -> bool {
+        match self {
+            Context::Hole => true,
+            _ => false,
+        }
+    }
     /// The leftmost [`Place`] in the `Context` that is a `Hole`.
     ///
     /// [`Place`]: type.Place.html
@@ -438,10 +444,18 @@ impl Context {
     /// ```
     pub fn size(&self) -> usize {
         match *self {
-            Context::Hole => 1,
-            Context::Variable(_) => 1,
+            Context::Hole | Context::Variable(_) => 1,
             Context::Application { ref args, .. } => {
                 args.iter().map(Context::size).sum::<usize>() + 1
+            }
+        }
+    }
+    /// The height of the `Context`.
+    pub fn height(&self) -> usize {
+        match *self {
+            Context::Hole | Context::Variable(_) => 1,
+            Context::Application { ref args, .. } => {
+                args.iter().map(|a| 1 + a.height()).max().unwrap_or(1)
             }
         }
     }

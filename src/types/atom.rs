@@ -213,6 +213,18 @@ impl Atom {
             Atom::Operator(_) => false,
         }
     }
+    pub fn operators(&self) -> Vec<Operator> {
+        match *self {
+            Atom::Operator(o) => vec![o],
+            Atom::Variable(_) => vec![],
+        }
+    }
+    pub fn variables(&self) -> Vec<Variable> {
+        match *self {
+            Atom::Variable(v) => vec![v],
+            Atom::Operator(_) => vec![],
+        }
+    }
 }
 impl From<Variable> for Atom {
     fn from(var: Variable) -> Atom {
