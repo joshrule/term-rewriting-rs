@@ -178,7 +178,7 @@ impl Signature {
         self.operators
             .iter()
             .position(|(o_arity, o_name)| *o_arity == arity && *o_name == name)
-            .map(|id| Operator(id))
+            .map(Operator)
     }
     /// Create a new [`Variable`] distinct from all existing [`Variable`]s.
     ///

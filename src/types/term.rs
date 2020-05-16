@@ -506,8 +506,10 @@ impl Context {
                 Context::Application { op, ref args } if place[0] < args.len() => args[place[0]]
                     .replace(&place[1..], subcontext)
                     .map(|context| {
-                        let mut new_args = args.clone();
-                        new_args[place[0]] = context;
+                        let mut new_args = Vec::with_capacity(args.len());
+                        new_args.extend_from_slice(&args[..place[0]]);
+                        new_args.push(context);
+                        new_args.extend_from_slice(&args[place[0] + 1..]);
                         Context::Application { op, args: new_args }
                     }),
                 _ => None,

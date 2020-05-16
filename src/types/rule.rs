@@ -345,10 +345,14 @@ impl RuleContext {
             self.rhs[place[0] - 1]
                 .replace(&place[1..], subcontext)
                 .map(|an_rhs| {
-                    let lhs = self.lhs.clone();
-                    let mut rhs = self.rhs.clone();
-                    rhs[place[0] - 1] = an_rhs;
-                    RuleContext { lhs, rhs }
+                    let mut rhs = Vec::with_capacity(self.rhs.len());
+                    rhs.extend_from_slice(&self.rhs[..place[0] - 1]);
+                    rhs.push(an_rhs);
+                    rhs.extend_from_slice(&self.rhs[place[0]..]);
+                    RuleContext {
+                        lhs: self.lhs.clone(),
+                        rhs,
+                    }
                 })
         }
     }

@@ -526,11 +526,11 @@ impl TRS {
         if let Term::Application { op, ref args } = *term {
             for (i, arg) in args.iter().enumerate() {
                 let mut it = self.rewrite(arg, strategy, sig).peekable();
-                if let Some(_) = it.peek() {
+                if it.peek().is_some() {
                     let res = it
                         .map(|x| {
                             let mut args = args.clone();
-                            args[i] = x.clone();
+                            args[i] = x;
                             Term::Application { op, args }
                         })
                         .collect();
