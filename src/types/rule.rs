@@ -1071,8 +1071,9 @@ impl Rule {
     ///
     /// let t_k0 = &r.variables()[0];
     /// let t_k1 = &r2.variables()[0];
+    /// let v = Term::Variable(*t_k1);
     /// let b = parse_term(&mut sig, "B").expect("parse of B");
-    /// let expected_map = Substitution(vec![(t_k1, &b), (t_k0, &b)]);
+    /// let expected_map = Substitution(vec![(t_k0, &v), (t_k1, &b)]);
     ///
     /// assert_eq!(Rule::unify(&r, &r2), Some(expected_map));
     /// assert_eq!(Rule::unify(&r, &r3), None);

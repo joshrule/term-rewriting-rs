@@ -143,7 +143,7 @@ fn unify_test() {
         op: k.clone(),
         args: vec![],
     };
-    let sub1 = Substitution(vec![(z, &t1_1), (y, &t1_0)]);
+    let sub1 = Substitution(vec![(y, &t1_0), (z, &t1_1)]);
     assert_eq!(Some(sub1), Term::unify(&[(&t1, &t2)]));
     assert_eq!(None, Term::unify(&[(&t1, &t3)]));
     assert_eq!(None, Term::unify(&[(&t2, &t3)]));

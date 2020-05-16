@@ -1518,7 +1518,7 @@ impl Term {
     ///
     /// let ta = Term::Variable(a.clone());
     /// let tb = Term::Variable(b.clone());
-    /// let expected_alpha = Substitution(vec![(z, &tb), (y, &ta)]);
+    /// let expected_alpha = Substitution(vec![(y, &ta), (z, &tb)]);
     ///
     /// assert_eq!(Term::alpha(&[(&t, &t2)]), Some(expected_alpha));
     ///
@@ -1675,9 +1675,8 @@ impl Term {
     fn unify_one<'a>(
         mut s: &'a Term,
         mut t: &'a Term,
-        cs: &mut SmallVec<[(&'a Term, &'a Term); 32]>,
         subs: &mut SmallVec<[(&'a Variable, &'a Term); 32]>,
-        utype: &Unification,
+        utype: Unification,
     ) -> Option<()> {
         while let Term::Variable(v) = *s {
             match subs.iter().find(|(k_var, _)| **k_var == v) {
@@ -1699,14 +1698,14 @@ impl Term {
                 (Term::Variable(ref var), Term::Variable(_)) => {
                     subs.push((var, t));
                 }
-                (Term::Variable(ref var), t) if *utype != Unification::Alpha => {
+                (Term::Variable(ref var), t) if utype != Unification::Alpha => {
                     if t.all_variables().any(|v| v == *var) {
                         return None;
                     } else {
                         subs.push((var, t));
                     }
                 }
-                (s, Term::Variable(ref var)) if *utype == Unification::Unify => {
+                (s, Term::Variable(ref var)) if utype == Unification::Unify => {
                     if s.all_variables().any(|v| v == *var) {
                         return None;
                     } else {
@@ -1723,8 +1722,8 @@ impl Term {
                         args: ref a2,
                     },
                 ) if h1 == h2 => {
-                    for pair in a1.iter().zip(a2.iter()) {
-                        cs.push(pair);
+                    for (s1, t1) in a1.iter().zip(a2.iter()) {
+                        Term::unify_one(s1, t1, subs, utype)?;
                     }
                 }
                 _ => return None,
@@ -1737,13 +1736,9 @@ impl Term {
         initial_cs: &[(&'a Term, &'a Term)],
         utype: Unification,
     ) -> Option<Substitution<'a>> {
-        let mut cs: SmallVec<[(&Term, &Term); 32]> = smallvec![];
         let mut subs: SmallVec<[(&Variable, &Term); 32]> = smallvec![];
         for &(s, t) in initial_cs {
-            Term::unify_one(s, t, &mut cs, &mut subs, &utype)?;
-        }
-        while let Some((s, t)) = cs.pop() {
-            Term::unify_one(s, t, &mut cs, &mut subs, &utype)?;
+            Term::unify_one(s, t, &mut subs, utype)?;
         }
         Some(Substitution(subs.to_vec()))
     }
