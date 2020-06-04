@@ -7,6 +7,12 @@ use std::{collections::HashMap, convert::TryFrom, iter};
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Substitution<'a>(pub Vec<(&'a Variable, &'a Term)>);
 
+impl<'a> Substitution<'a> {
+    pub fn get(&self, v: Variable) -> Option<&'a Term> {
+        self.0.iter().find(|(k_var, _)| **k_var == v).map(|x| x.1)
+    }
+}
+
 pub struct Variables<'a> {
     stack: SmallVec<[&'a Term; 32]>,
 }
