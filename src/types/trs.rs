@@ -29,6 +29,8 @@ use std::fmt;
 #[derive(Debug, Hash, Clone, PartialEq, Eq)]
 pub struct TRS {
     pub(crate) is_deterministic: bool,
+    pub lo: usize,
+    pub hi: usize,
     pub rules: Vec<Rule>,
 }
 impl TRS {
@@ -50,6 +52,8 @@ impl TRS {
         let mut trs = TRS {
             rules: vec![],
             is_deterministic: false,
+            lo: usize::MIN,
+            hi: usize::MAX,
         };
         trs.pushes(rules).ok();
         trs
@@ -509,6 +513,99 @@ impl TRS {
                 .zip(&t2.rules)
                 .all(|(r1, r2)| Rule::same_shape_given(r1, r2, ops, vars))
     }
+    fn addition_form(term: &Term, sig: &Signature, lo: usize, hi: usize) -> Option<Vec<Term>> {
+        let plus = sig.has_op(0, Some("+".to_string()))?;
+        let app = sig.has_op(2, Some(".".to_string()))?;
+        let pattern = Term::Application {
+            op: app,
+            args: vec![
+                Term::Application {
+                    op: app,
+                    args: vec![
+                        Term::Application {
+                            op: plus,
+                            args: vec![],
+                        },
+                        Term::Variable(Variable(0)),
+                    ],
+                },
+                Term::Variable(Variable(1)),
+            ],
+        };
+        let sub = Term::pmatch(&[(&pattern, &term)])?;
+        let x = TRS::term_to_usize(sub.get(Variable(0))?, sig)?;
+        let y = TRS::term_to_usize(sub.get(Variable(1))?, sig)?;
+        Some(vec![TRS::usize_to_bounded_term(x + y, sig, lo, hi)?])
+    }
+    fn subtraction_form(term: &Term, sig: &Signature, lo: usize, hi: usize) -> Option<Vec<Term>> {
+        let minus = sig.has_op(0, Some("-".to_string()))?;
+        let app = sig.has_op(2, Some(".".to_string()))?;
+        let pattern = Term::Application {
+            op: app,
+            args: vec![
+                Term::Application {
+                    op: app,
+                    args: vec![
+                        Term::Application {
+                            op: minus,
+                            args: vec![],
+                        },
+                        Term::Variable(Variable(0)),
+                    ],
+                },
+                Term::Variable(Variable(1)),
+            ],
+        };
+        let sub = Term::pmatch(&[(&pattern, &term)])?;
+        let x = TRS::term_to_usize(sub.get(Variable(0))?, sig)?;
+        let y = TRS::term_to_usize(sub.get(Variable(1))?, sig)?;
+        Some(vec![TRS::usize_to_bounded_term(x - y, sig, lo, hi)?])
+    }
+    fn greater_form(term: &Term, sig: &Signature, lo: usize, hi: usize) -> Option<Vec<Term>> {
+        let greater = sig.has_op(0, Some(">".to_string()))?;
+        let t = sig.has_op(0, Some("TRUE".to_string()))?;
+        let f = sig.has_op(0, Some("FALSE".to_string()))?;
+        let app = sig.has_op(2, Some(".".to_string()))?;
+        let pattern = Term::Application {
+            op: app,
+            args: vec![
+                Term::Application {
+                    op: app,
+                    args: vec![
+                        Term::Application {
+                            op: greater,
+                            args: vec![],
+                        },
+                        Term::Variable(Variable(0)),
+                    ],
+                },
+                Term::Variable(Variable(1)),
+            ],
+        };
+        let sub = Term::pmatch(&[(&pattern, &term)])?;
+        let x = TRS::term_to_usize(sub.get(Variable(0))?, sig)?;
+        let y = TRS::term_to_usize(sub.get(Variable(1))?, sig)?;
+        match TRS::check_bounds(x, sig, lo, hi).or_else(|| TRS::check_bounds(y, sig, lo, hi)) {
+            Some(nan) => Some(vec![nan]),
+            None => {
+                let term = Term::Application {
+                    op: if x > y { t } else { f },
+                    args: vec![],
+                };
+                Some(vec![term])
+            }
+        }
+    }
+    fn check_bounds(n: usize, sig: &Signature, lo: usize, hi: usize) -> Option<Term> {
+        if n < lo || n > hi {
+            Some(Term::Application {
+                op: sig.has_op(0, Some("NAN".to_string()))?,
+                args: vec![],
+            })
+        } else {
+            None
+        }
+    }
     // Return rewrites modifying the entire term, if possible, else None.
     fn rewrite_head(&self, term: &Term) -> Option<Vec<Term>> {
         for rule in &self.rules {
@@ -603,20 +700,76 @@ impl TRS {
             _ => None,
         }
     }
-    fn num_to_usize(term: &Term, sig: &Signature) -> Option<usize> {
+    fn term_to_usize(term: &Term, sig: &Signature) -> Option<usize> {
         let (_, args) = term.as_guarded_application(sig, ".", 2)?;
         if args[0].as_guarded_application(sig, "DIGIT", 0).is_some() {
             TRS::digit_to_usize(&args[1], sig)
         } else {
             let (_, inner_args) = args[0].as_guarded_application(sig, ".", 2)?;
             inner_args[0].as_guarded_application(sig, "DECC", 0)?;
-            let sigs = TRS::num_to_usize(&inner_args[1], sig)?;
+            let sigs = TRS::term_to_usize(&inner_args[1], sig)?;
             let digit = TRS::digit_to_usize(&args[1], sig)?;
             Some(sigs * 10 + digit)
         }
     }
+    fn usize_to_bounded_term(n: usize, sig: &Signature, lo: usize, hi: usize) -> Option<Term> {
+        if n < lo || n > hi {
+            Some(Term::Application {
+                op: sig.has_op(0, Some("NAN".to_string()))?,
+                args: vec![],
+            })
+        } else {
+            TRS::usize_to_term(n, sig)
+        }
+    }
+    fn usize_to_term(n: usize, sig: &Signature) -> Option<Term> {
+        if n < 10 {
+            let app = sig.has_op(2, Some(".".to_string()))?;
+            let n_op = sig.has_op(0, Some(n.to_string()))?;
+            let digit = sig.has_op(0, Some("DIGIT".to_string()))?;
+            Some(Term::Application {
+                op: app,
+                args: vec![
+                    Term::Application {
+                        op: digit,
+                        args: vec![],
+                    },
+                    Term::Application {
+                        op: n_op,
+                        args: vec![],
+                    },
+                ],
+            })
+        } else {
+            let app = sig.has_op(2, Some(".".to_string()))?;
+            let decc = sig.has_op(0, Some("DECC".to_string()))?;
+            let q = n / 10;
+            let r = n % 10;
+            let r_op = sig.has_op(0, Some(r.to_string()))?;
+            let q_term = TRS::usize_to_term(q, sig)?;
+            Some(Term::Application {
+                op: app,
+                args: vec![
+                    Term::Application {
+                        op: app,
+                        args: vec![
+                            Term::Application {
+                                op: decc,
+                                args: vec![],
+                            },
+                            q_term,
+                        ],
+                    },
+                    Term::Application {
+                        op: r_op,
+                        args: vec![],
+                    },
+                ],
+            })
+        }
+    }
     fn num_to_atom(term: &Term, sig: &mut Signature) -> Option<Atom> {
-        let n = TRS::num_to_usize(term, sig)?;
+        let n = TRS::term_to_usize(term, sig)?;
         if n < 100 {
             sig.operators()
                 .iter()
@@ -799,7 +952,6 @@ impl TRS {
             _ => std::f64::NEG_INFINITY,
         }
     }
-
     /// Perform a single rewrite step.
     ///
     /// # Examples
@@ -832,6 +984,35 @@ impl TRS {
     /// assert_eq!(rewritten_terms[3].display(&sig), "J(F(C) K(D A))");
     /// assert_eq!(rewritten_terms[4].display(&sig), "J(F(C) K(E A))");
     /// assert_eq!(rewritten_terms[5].display(&sig), "J(F(C) K(C B))");
+    /// ```
+    ///
+    /// Also, addition (`+`), subtraction (`-`), and greater-than (`>`) have
+    /// built-in behavior for normal-order rewriting if they are defined.
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Strategy, TRS, parse_trs, Term, parse_term};
+    /// let mut sig = Signature::default();
+    /// sig.new_op(0, Some("TRUE".to_string()));
+    /// sig.new_op(0, Some("FALSE".to_string()));
+    /// sig.new_op(0, Some("DIGIT".to_string()));
+    /// sig.new_op(0, Some("DECC".to_string()));
+    /// (0..9).for_each(|x| {sig.new_op(0, Some(x.to_string()));});
+    /// let trs = parse_trs(&mut sig, "").expect("trs");
+    ///
+    /// let t1 = parse_term(&mut sig, "(+ (DIGIT 7) (DIGIT 3))").expect("t1");
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t1, Strategy::Normal, &sig).collect();
+    /// assert_eq!(rewritten_terms.len(), 1);
+    /// assert_eq!(rewritten_terms[0].display(&sig), ".(.(DECC .(DIGIT 1)) 0)");
+    ///
+    /// let t2 = parse_term(&mut sig, "(- (DIGIT 7) (DIGIT 3))").expect("t2");
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t2, Strategy::Normal, &sig).collect();
+    /// assert_eq!(rewritten_terms.len(), 1);
+    /// assert_eq!(rewritten_terms[0].display(&sig), ".(DIGIT 4)");
+    ///
+    /// let t3 = parse_term(&mut sig, "(> (DIGIT 7) (DIGIT 3))").expect("t3");
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t3, Strategy::Normal, &sig).collect();
+    /// assert_eq!(rewritten_terms.len(), 1);
+    /// assert_eq!(rewritten_terms[0].display(&sig), "TRUE");
     /// ```
     pub fn rewrite<'a>(
         &'a self,
@@ -1482,7 +1663,9 @@ pub struct Normal<'a> {
 
 enum NormalKind<'a> {
     None,
+    HeadForm(Vec<Term>),
     Head(Box<std::iter::Peekable<Rewrites<'a>>>),
+    SubtermForm(Vec<(Operator, usize, &'a [Term], bool)>, Vec<Term>),
     Subterm(
         Vec<(Operator, usize, &'a [Term], bool)>,
         Box<std::iter::Peekable<Rewrites<'a>>>,
@@ -1490,52 +1673,72 @@ enum NormalKind<'a> {
 }
 
 impl<'a> Normal<'a> {
-    pub(crate) fn new(trs: &'a TRS, term: &'a Term) -> Normal<'a> {
-        if !trs.rules.is_empty() {
-            if let Term::Application { op, args } = term {
-                // Try the head.
-                let mut it = Box::new(trs.rules[0].rewrite(term).peekable());
+    fn try_forms(term: &'a Term, sig: &'a Signature, lo: usize, hi: usize) -> Option<Vec<Term>> {
+        TRS::addition_form(term, sig, lo, hi)
+            .or_else(|| TRS::subtraction_form(term, sig, lo, hi))
+            .or_else(|| TRS::greater_form(term, sig, lo, hi))
+    }
+    pub(crate) fn new(trs: &'a TRS, sig: &'a Signature, term: &'a Term) -> Normal<'a> {
+        let mut it: std::iter::Peekable<Rewrites>;
+        if let Term::Application { op, args } = term {
+            // Try the head.
+            if let Some(head_forms) = Normal::try_forms(term, sig, trs.lo, trs.hi) {
+                if !head_forms.is_empty() {
+                    return Normal {
+                        rewrites: NormalKind::HeadForm(head_forms),
+                    };
+                }
+            }
+            if !trs.rules.is_empty() {
+                it = trs.rules[0].rewrite(term).peekable();
                 if it.peek().is_some() {
                     return Normal {
-                        rewrites: NormalKind::Head(it),
+                        rewrites: NormalKind::Head(Box::new(it)),
                     };
                 }
                 for rule in trs.rules.iter().skip(1) {
-                    *it = rule.rewrite(term).peekable();
+                    it = rule.rewrite(term).peekable();
                     if it.peek().is_some() {
                         return Normal {
-                            rewrites: NormalKind::Head(it),
+                            rewrites: NormalKind::Head(Box::new(it)),
                         };
                     }
                 }
-                // Try each arg.
-                let mut stack: Vec<(Operator, usize, &[Term], bool)> = Vec::with_capacity(32);
-                if !args.is_empty() {
-                    stack.push((*op, 0, args.as_slice(), false));
-                }
-                while let Some(x) = stack.last_mut() {
-                    match (&x.2[x.1], x.3) {
-                        (_, true) if x.1 + 1 < x.2.len() => {
-                            x.1 += 1;
-                            x.3 = false;
-                        }
-                        (Term::Application { op, args }, false) => {
-                            for rule in &trs.rules {
-                                *it = rule.rewrite(&x.2[x.1]).peekable();
-                                if it.peek().is_some() {
-                                    return Normal {
-                                        rewrites: NormalKind::Subterm(stack, it),
-                                    };
-                                }
-                            }
-                            x.3 = true;
-                            if !args.is_empty() {
-                                stack.push((*op, 0, args, false));
+            }
+            // Try each arg.
+            let mut stack: Vec<(Operator, usize, &[Term], bool)> = Vec::with_capacity(32);
+            if !args.is_empty() {
+                stack.push((*op, 0, args.as_slice(), false));
+            }
+            while let Some(x) = stack.last_mut() {
+                match (&x.2[x.1], x.3) {
+                    (_, true) if x.1 + 1 < x.2.len() => {
+                        x.1 += 1;
+                        x.3 = false;
+                    }
+                    (Term::Application { op, args }, false) => {
+                        if let Some(forms) = Normal::try_forms(&x.2[x.1], sig, trs.lo, trs.hi) {
+                            if !forms.is_empty() {
+                                return Normal {
+                                    rewrites: NormalKind::SubtermForm(stack, forms),
+                                };
                             }
                         }
-                        _ => {
-                            stack.pop();
+                        for rule in &trs.rules {
+                            it = rule.rewrite(&x.2[x.1]).peekable();
+                            if it.peek().is_some() {
+                                return Normal {
+                                    rewrites: NormalKind::Subterm(stack, Box::new(it)),
+                                };
+                            }
                         }
+                        x.3 = true;
+                        if !args.is_empty() {
+                            stack.push((*op, 0, args, false));
+                        }
+                    }
+                    _ => {
+                        stack.pop();
                     }
                 }
             }
@@ -1551,7 +1754,20 @@ impl<'a> Iterator for Normal<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.rewrites {
             NormalKind::None => None,
+            NormalKind::HeadForm(forms) => forms.pop(),
             NormalKind::Head(it) => it.next(),
+            NormalKind::SubtermForm(stack, forms) => forms.pop().map(|subterm| {
+                stack
+                    .iter()
+                    .rev()
+                    .fold(subterm, |subterm, &(op, arg, args, _)| {
+                        let mut new_args = Vec::with_capacity(args.len());
+                        new_args.extend_from_slice(&args[..arg]);
+                        new_args.push(subterm);
+                        new_args.extend_from_slice(&args[arg + 1..]);
+                        Term::Application { op, args: new_args }
+                    })
+            }),
             NormalKind::Subterm(stack, it) => it.next().map(|subterm| {
                 stack
                     .iter()
@@ -1578,9 +1794,14 @@ enum TRSRewriteKind<'a> {
 }
 
 impl<'a> TRSRewrites<'a> {
-    pub(crate) fn new(trs: &'a TRS, term: &'a Term, strategy: Strategy, sig: &Signature) -> Self {
+    pub(crate) fn new(
+        trs: &'a TRS,
+        term: &'a Term,
+        strategy: Strategy,
+        sig: &'a Signature,
+    ) -> Self {
         match strategy {
-            Strategy::Normal => TRSRewrites(TRSRewriteKind::Normal(Normal::new(trs, term))),
+            Strategy::Normal => TRSRewrites(TRSRewriteKind::Normal(Normal::new(trs, sig, term))),
             Strategy::Eager => TRSRewrites(TRSRewriteKind::Eager(
                 trs.rewrite_args(term, strategy, sig)
                     .or_else(|| trs.rewrite_head(term))
