@@ -107,6 +107,39 @@ impl<'a> Iterator for Postorder<'a> {
     }
 }
 
+pub struct ContextPreorder<'a> {
+    stack: SmallVec<[(&'a Context, usize); 32]>,
+}
+
+impl<'a> ContextPreorder<'a> {
+    pub(crate) fn new(context: &'a Context) -> Self {
+        let mut stack = SmallVec::with_capacity(context.height());
+        stack.push((context, 0));
+        ContextPreorder { stack }
+    }
+}
+
+impl<'a> Iterator for ContextPreorder<'a> {
+    type Item = &'a Context;
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some((context, arg)) = self.stack.pop() {
+            match context {
+                Context::Variable(_) | Context::Hole => return Some(context),
+                Context::Application { ref args, .. } => {
+                    if arg < args.len() {
+                        self.stack.push((context, arg + 1));
+                        self.stack.push((&args[arg], 0));
+                    }
+                    if arg == 0 {
+                        return Some(context);
+                    }
+                }
+            }
+        }
+        None
+    }
+}
+
 /// A first-order `Context`: a [`Term`] that may have [`Hole`]s; a sort of [`Term`] template.
 ///
 /// [`Term`]: enum.Term.html
@@ -430,6 +463,22 @@ impl Context {
         } else {
             vec![(self, vec![])]
         }
+    }
+    /// Returns an iterator performing a preorder traversal of the `Term`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_context};
+    /// let mut sig = Signature::default();
+    /// let context = parse_context(&mut sig, "A(B(A([!] v0_)) B(A(v1_ v0_)))")
+    ///     .expect("context");
+    ///
+    /// let preorder: Vec<_> = context.preorder().map(|t| t.display(&sig)).collect();
+    /// assert_eq!(preorder, vec!["A(B(A([!] v0_)) B(A(v1_ v0_)))", "B(A([!] v0_))", "A([!] v0_)", "[!]", "v0_", "B(A(v1_ v0_))", "A(v1_ v0_)", "v1_", "v0_"]);
+    /// ```
+    pub fn preorder(&self) -> ContextPreorder {
+        ContextPreorder::new(self)
     }
     /// The number of distinct [`Place`]s in the `Context`.
     ///
