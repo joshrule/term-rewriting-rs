@@ -709,7 +709,7 @@ impl TRS {
             inner_args[0].as_guarded_application(sig, "DECC", 0)?;
             let sigs = TRS::term_to_usize(&inner_args[1], sig)?;
             let digit = TRS::digit_to_usize(&args[1], sig)?;
-            Some(sigs * 10 + digit)
+            sigs.checked_mul(10).and_then(|x| x.checked_add(digit))
         }
     }
     fn usize_to_bounded_term(n: usize, sig: &Signature, lo: usize, hi: usize) -> Option<Term> {
