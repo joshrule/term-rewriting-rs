@@ -535,7 +535,12 @@ impl TRS {
         let sub = Term::pmatch(&[(&pattern, &term)])?;
         let x = TRS::term_to_usize(sub.get(Variable(0))?, sig)?;
         let y = TRS::term_to_usize(sub.get(Variable(1))?, sig)?;
-        Some(vec![TRS::usize_to_bounded_term(x + y, sig, lo, hi)?])
+        Some(vec![TRS::usize_to_bounded_term(
+            x.saturating_add(y),
+            sig,
+            lo,
+            hi,
+        )?])
     }
     fn subtraction_form(term: &Term, sig: &Signature, lo: usize, hi: usize) -> Option<Vec<Term>> {
         let minus = sig.has_op(0, Some("-".to_string()))?;
@@ -559,7 +564,12 @@ impl TRS {
         let sub = Term::pmatch(&[(&pattern, &term)])?;
         let x = TRS::term_to_usize(sub.get(Variable(0))?, sig)?;
         let y = TRS::term_to_usize(sub.get(Variable(1))?, sig)?;
-        Some(vec![TRS::usize_to_bounded_term(x - y, sig, lo, hi)?])
+        Some(vec![TRS::usize_to_bounded_term(
+            x.saturating_sub(y),
+            sig,
+            lo,
+            hi,
+        )?])
     }
     fn greater_form(term: &Term, sig: &Signature, lo: usize, hi: usize) -> Option<Vec<Term>> {
         let greater = sig.has_op(0, Some(">".to_string()))?;
