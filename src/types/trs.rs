@@ -653,10 +653,10 @@ impl TRS {
             Term::Variable(_) => None,
             Term::Application { ref args, .. } => {
                 // rewrite head
-                let mut rewrites = self.rewrite_head(term).unwrap_or_else(|| vec![]);
+                let mut rewrites = self.rewrite_head(term).unwrap_or_else(Vec::new);
                 // rewrite subterms
                 for (i, arg) in args.iter().enumerate() {
-                    for rewrite in self.rewrite_all(arg).unwrap_or_else(|| vec![]) {
+                    for rewrite in self.rewrite_all(arg).unwrap_or_else(Vec::new) {
                         rewrites.push(term.replace(&[i], rewrite).unwrap());
                     }
                 }
@@ -1815,15 +1815,15 @@ impl<'a> TRSRewrites<'a> {
             Strategy::Eager => TRSRewrites(TRSRewriteKind::Eager(
                 trs.rewrite_args(term, strategy, sig)
                     .or_else(|| trs.rewrite_head(term))
-                    .unwrap_or_else(|| vec![])
+                    .unwrap_or_else(Vec::new)
                     .into_iter(),
             )),
             Strategy::All => TRSRewrites(TRSRewriteKind::All(
-                trs.rewrite_all(term).unwrap_or_else(|| vec![]).into_iter(),
+                trs.rewrite_all(term).unwrap_or_else(Vec::new).into_iter(),
             )),
             Strategy::String => TRSRewrites(TRSRewriteKind::String(
                 trs.rewrite_as_string(term, sig)
-                    .unwrap_or_else(|| vec![])
+                    .unwrap_or_else(Vec::new)
                     .into_iter(),
             )),
         }

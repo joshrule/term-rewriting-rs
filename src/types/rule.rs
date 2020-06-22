@@ -221,7 +221,7 @@ impl RuleContext {
         lhs.chain(rhs).collect()
     }
     /// Get all the [`subcontexts`] and [`Place`]s in a `RuleContext`.
-    pub fn preorder<'a>(&'a self) -> impl Iterator<Item = &'a Context> {
+    pub fn preorder(&self) -> impl Iterator<Item = &Context> {
         self.lhs
             .preorder()
             .chain(self.rhs.iter().flat_map(|rhs| rhs.preorder()))
