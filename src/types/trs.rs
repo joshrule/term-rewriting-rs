@@ -4,6 +4,46 @@ use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 
+pub fn logplusexp(x: f64, y: f64) -> f64 {
+    let largest = x.max(y);
+    if largest == f64::NEG_INFINITY {
+        f64::NEG_INFINITY
+    } else {
+        ((x - largest).exp() + (y - largest).exp()).ln() + largest
+    }
+}
+
+// Based on code from Steven Piantadosi's fleet library.
+fn p_prefix(x: &[usize], y: &[usize], p_add: f64, p_del: f64, n_chars: usize) -> f64 {
+    let ln_p_add = p_add.ln();
+    let ln_p_del = p_del.ln();
+    let ln_chars = (n_chars as f64).ln();
+    let ln_1m_p_add = (1.0 - p_add).ln();
+    let ln_1m_p_del = (1.0 - p_del).ln();
+
+    // We can always delete all of x and add on all of y.
+    // We don't add log_1mdel_p here since we can't delete past the beginning.
+    let mut lp =
+        ln_p_del * (x.len() as f64) + (ln_p_add - ln_chars) * (y.len() as f64) + ln_1m_p_add;
+
+    // We can keep as little or as much of the shared prefix as we want.
+    // i_prefix represents possible options of the length of the shared prefix to keep.
+    for i_prefix in 1..=x.len().min(y.len()) {
+        if x[i_prefix - 1] == y[i_prefix - 1] {
+            lp = logplusexp(
+                lp,
+                ln_p_del * ((x.len() - i_prefix) as f64)
+                    + ln_1m_p_del
+                    + (ln_p_add - ln_chars) * ((y.len() - i_prefix) as f64)
+                    + ln_1m_p_add,
+            );
+        } else {
+            break;
+        }
+    }
+    lp
+}
+
 /// A first-order term rewriting system.
 ///
 /// # Examples
@@ -682,6 +722,18 @@ impl TRS {
         }
         Some(rewrites)
     }
+    pub fn convert_list_to_string_fast(term: &Term, sig: &Signature) -> Option<Vec<usize>> {
+        if term.as_guarded_application(sig, "NIL", 0).is_some() {
+            Some(vec![])
+        } else {
+            let (_, args) = term.as_guarded_application(sig, ".", 2)?;
+            let (_, inner_args) = args[0].as_guarded_application(sig, ".", 2)?;
+            inner_args[0].as_guarded_application(sig, "CONS", 0)?;
+            let mut string = vec![TRS::term_to_usize(&inner_args[1], sig)?];
+            string.append(&mut TRS::convert_list_to_string_fast(&args[1], sig)?);
+            Some(string)
+        }
+    }
     pub fn convert_list_to_string(term: &Term, sig: &mut Signature) -> Option<Vec<Atom>> {
         if term.as_guarded_application(sig, "NIL", 0).is_some() {
             Some(vec![])
@@ -958,6 +1010,103 @@ impl TRS {
             (Some(x_string), Some(y_string)) => {
                 let p = PString::new(x_string, y_string, dist, &sig).compute(t_max, d_max);
                 p.ln()
+            }
+            _ => std::f64::NEG_INFINITY,
+        }
+    }
+    /// madness: `p_list` treats two list `Term`s as strings and computes a
+    /// probabilistic edit distance between them.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, logplusexp};
+    /// let mut sig = Signature::default();
+    ///
+    /// let x = parse_term(&mut sig, "(CONS (DIGIT 1) (CONS (DIGIT 2) (CONS (DIGIT 3) (CONS (DIGIT 4) (CONS (DIGIT 5) NIL)))))")
+    ///     .expect("parsed [1, 2, 3, 4, 5]");
+    /// let p_add: f64 = 0.1;
+    /// let p_del: f64 = 0.01;
+    /// let n_chars = 10;
+    ///
+    /// // We might have no shared prefix.
+    /// let y = parse_term(&mut sig, "(CONS (DIGIT 5) (CONS (DIGIT 4) (CONS (DIGIT 3) (CONS (DIGIT 2) (CONS (DIGIT 1) NIL)))))")
+    ///     .expect("parsed [5, 4, 3, 2, 1]");
+    /// let expected = (p_add.ln()-(n_chars as f64).ln())*5.0+p_del.ln()*5.0+(1.0-p_add).ln();
+    /// let actual = TRS::p_list_prefix(&x, &y, p_add, p_del, n_chars, &sig);
+    /// assert_eq!(expected, actual);
+    ///
+    /// // We might have some shared prefix.
+    /// let y = parse_term(&mut sig, "(CONS (DIGIT 1) (CONS (DIGIT 2) (CONS (DIGIT 6) (CONS (DIGIT 7) (CONS (DIGIT 8) NIL)))))")
+    ///     .expect("parsed [1, 2, 6, 7, 8]");
+    /// let expected = logplusexp(
+    ///     logplusexp(p_del.ln()*5.0+(p_add.ln()-(n_chars as f64).ln())*5.0+(1.0-p_add).ln(),
+    ///                p_del.ln()*4.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*4.0+(1.0-p_add).ln()),
+    ///     p_del.ln()*3.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*3.0+(1.0-p_add).ln());
+    /// let actual = TRS::p_list_prefix(&x, &y, p_add, p_del, n_chars, &sig);
+    /// assert_eq!(expected, actual);
+    ///
+    /// // Maybe y is shorter than x.
+    /// let y = parse_term(&mut sig, "(CONS (DIGIT 1) (CONS (DIGIT 2) NIL))")
+    ///     .expect("parsed [1, 2, 6, 7, 8]");
+    /// let expected = logplusexp(
+    ///     logplusexp(p_del.ln()*5.0+(p_add.ln()-(n_chars as f64).ln())*2.0+(1.0-p_add).ln(),
+    ///                p_del.ln()*4.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*1.0+(1.0-p_add).ln()),
+    ///     p_del.ln()*3.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*0.0+(1.0-p_add).ln());
+    /// let actual = TRS::p_list_prefix(&x, &y, p_add, p_del, n_chars, &sig);
+    /// assert_eq!(expected, actual);
+    ///
+    /// // Maybe y is longer than x.
+    /// let y = parse_term(
+    ///    &mut sig,
+    ///    "(CONS (DIGIT 1) (CONS (DIGIT 2) (CONS (DIGIT 3) (CONS (DIGIT 4) (CONS (DIGIT 5) (CONS (DIGIT 6) (CONS (DIGIT 7) NIL)))))))")
+    ///     .expect("parsed [1, 2, 3, 4, 5, 6, 7]");
+    /// let expected = logplusexp(
+    ///     logplusexp(
+    ///         logplusexp(
+    ///             logplusexp(
+    ///                 logplusexp(
+    ///                     p_del.ln()*5.0+(p_add.ln()-(n_chars as f64).ln())*7.0+(1.0-p_add).ln(),
+    ///                     p_del.ln()*4.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*6.0+(1.0-p_add).ln()),
+    ///                 p_del.ln()*3.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*5.0+(1.0-p_add).ln()),
+    ///             p_del.ln()*2.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*4.0+(1.0-p_add).ln()),
+    ///         p_del.ln()*1.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*3.0+(1.0-p_add).ln()),
+    ///     p_del.ln()*0.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*2.0+(1.0-p_add).ln());
+    /// let actual = TRS::p_list_prefix(&x, &y, p_add, p_del, n_chars, &sig);
+    /// assert_eq!(expected, actual);
+    ///
+    /// // Maybe y == x.
+    /// let y = parse_term(
+    ///    &mut sig,
+    ///    "(CONS (DIGIT 1) (CONS (DIGIT 2) (CONS (DIGIT 3) (CONS (DIGIT 4) (CONS (DIGIT 5) NIL)))))")
+    ///     .expect("parsed [1, 2, 3, 4, 5]");
+    /// let expected = logplusexp(
+    ///     logplusexp(
+    ///         logplusexp(
+    ///             logplusexp(
+    ///                 logplusexp(
+    ///                     p_del.ln()*5.0+(p_add.ln()-(n_chars as f64).ln())*5.0+(1.0-p_add).ln(),
+    ///                     p_del.ln()*4.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*4.0+(1.0-p_add).ln()),
+    ///                 p_del.ln()*3.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*3.0+(1.0-p_add).ln()),
+    ///             p_del.ln()*2.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*2.0+(1.0-p_add).ln()),
+    ///         p_del.ln()*1.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*1.0+(1.0-p_add).ln()),
+    ///     p_del.ln()*0.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*0.0+(1.0-p_add).ln());
+    /// let actual = TRS::p_list_prefix(&x, &y, p_add, p_del, n_chars, &sig);
+    /// assert_eq!(expected, actual);
+    /// ```
+    pub fn p_list_prefix(
+        x: &Term,
+        y: &Term,
+        p_add: f64,
+        p_del: f64,
+        n_chars: usize,
+        sig: &Signature,
+    ) -> f64 {
+        let x_string = TRS::convert_list_to_string_fast(x, sig);
+        let y_string = TRS::convert_list_to_string_fast(y, sig);
+        match (x_string, y_string) {
+            (Some(x_string), Some(y_string)) => {
+                p_prefix(&x_string, &y_string, p_add, p_del, n_chars)
             }
             _ => std::f64::NEG_INFINITY,
         }
