@@ -188,8 +188,13 @@ fn rewrite_test() {
     let r_term = terms[1].clone();
 
     assert_eq!(
-        trs.rewrite(&l_term, Strategy::Normal, &sig)
-            .collect::<Vec<_>>(),
+        trs.rewrite(
+            &l_term,
+            Strategy::Normal,
+            NumberRepresentation::default(),
+            &sig
+        )
+        .collect::<Vec<_>>(),
         vec![r_term]
     );
 }

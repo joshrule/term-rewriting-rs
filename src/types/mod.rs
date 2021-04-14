@@ -23,3 +23,34 @@ enum Unification {
     Unify,
     Generalize,
 }
+
+/// A way to signify what kind of numbers a TRS uses.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum NumberLogic {
+    Symbolic,
+    Unary,
+    Decimal,
+}
+
+/// A way to signify whether a TRS is applicative or non-applicative.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Applicativeness {
+    Applicative,
+    NonApplicative,
+}
+
+/// A way to describe a TRS's number system.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct NumberRepresentation {
+    pub logic: NumberLogic,
+    pub app: Applicativeness,
+}
+
+impl Default for NumberRepresentation {
+    fn default() -> Self {
+        NumberRepresentation {
+            logic: NumberLogic::Symbolic,
+            app: Applicativeness::NonApplicative,
+        }
+    }
+}

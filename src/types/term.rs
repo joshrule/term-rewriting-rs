@@ -1,5 +1,8 @@
 use super::super::pretty::Pretty;
-use super::{Atom, Operator, Place, Signature, SituatedAtom, Unification, Variable};
+use super::{
+    Applicativeness, Atom, NumberLogic, NumberRepresentation, Operator, Place, Signature,
+    SituatedAtom, Unification, Variable,
+};
 use itertools::Itertools;
 use smallvec::{smallvec, SmallVec};
 use std::{collections::HashMap, convert::TryFrom, iter};
@@ -1796,5 +1799,392 @@ impl Term {
             Term::unify_one(s, t, &mut subs, utype)?;
         }
         Some(Substitution(subs.to_vec()))
+    }
+    /// Convert a `Term` representing a number into a numeric literal.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_term, TRS};
+    ///
+    /// // Symbolic
+    /// let mut sig = Signature::default();
+    /// let t9 = parse_term(&mut sig, "9").expect("9");
+    /// assert_eq!(t9.to_usize(&sig), Some(9));
+    /// let t81 = parse_term(&mut sig, "81").expect("81");
+    /// assert_eq!(t81.to_usize(&sig), Some(81));
+    /// let t243 = parse_term(&mut sig, "243").expect("243");
+    /// assert_eq!(t243.to_usize(&sig), Some(243));
+    ///
+    /// // Non-Applicative Unary
+    /// let mut sig = Signature::default();
+    /// let t0 = parse_term(&mut sig, "ZERO").expect("0");
+    /// assert_eq!(t0.to_usize(&sig), Some(0));
+    /// let t3 = parse_term(&mut sig, "SUCC(SUCC(SUCC(ZERO)))").expect("3");
+    /// assert_eq!(t3.to_usize(&sig), Some(3));
+    /// let t13 = parse_term(&mut sig, "SUCC(SUCC(SUCC(SUCC(SUCC(SUCC(SUCC(SUCC(SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))))))))))").expect("13");
+    /// assert_eq!(t13.to_usize(&sig), Some(13));
+    ///
+    /// // Applicative Unary
+    /// let mut sig = Signature::default();
+    /// let t0 = parse_term(&mut sig, "ZERO").expect("0");
+    /// assert_eq!(t0.to_usize(&sig), Some(0));
+    /// let t3 = parse_term(&mut sig, "(SUCC (SUCC (SUCC ZERO)))").expect("3");
+    /// assert_eq!(t3.to_usize(&sig), Some(3));
+    /// let t13 = parse_term(&mut sig, "(SUCC (SUCC (SUCC (SUCC (SUCC (SUCC (SUCC (SUCC (SUCC (SUCC (SUCC (SUCC (SUCC ZERO)))))))))))))").expect("13");
+    /// assert_eq!(t13.to_usize(&sig), Some(13));
+    ///
+    /// // Non-Applicative Decimal
+    /// let mut sig = Signature::default();
+    /// let t9 = parse_term(&mut sig, "DIGIT(9)").expect("9");
+    /// assert_eq!(t9.to_usize(&sig), Some(9));
+    /// let t81 = parse_term(&mut sig, "DECC(DIGIT(8) 1)").expect("81");
+    /// assert_eq!(t81.to_usize(&sig), Some(81));
+    /// let t243 = parse_term(&mut sig, "DECC(DECC(DIGIT(2) 4) 3)").expect("243");
+    /// assert_eq!(t243.to_usize(&sig), Some(243));
+    ///
+    /// // Applicative Decimal
+    /// let mut sig = Signature::default();
+    /// let t9 = parse_term(&mut sig, "(DIGIT 9)").expect("9");
+    /// assert_eq!(t9.to_usize(&sig), Some(9));
+    /// let t81 = parse_term(&mut sig, "(DECC (DIGIT 8) 1)").expect("81");
+    /// assert_eq!(t81.to_usize(&sig), Some(81));
+    /// let t243 = parse_term(&mut sig, "(DECC (DECC (DIGIT 2) 4) 3)").expect("243");
+    /// assert_eq!(t243.to_usize(&sig), Some(243));
+    /// ```
+    pub fn to_usize(&self, sig: &Signature) -> Option<usize> {
+        self.symbolic_term_to_usize(sig)
+            .or_else(|| self.unary_term_to_usize(sig))
+            .or_else(|| self.decimal_term_to_usize(sig))
+    }
+    fn symbolic_term_to_usize(&self, sig: &Signature) -> Option<usize> {
+        let (op, args) = self.as_application()?;
+        if args.is_empty() {
+            op.name(sig)?.parse::<usize>().ok()
+        } else {
+            None
+        }
+    }
+    fn unary_term_to_usize(&self, sig: &Signature) -> Option<usize> {
+        self.nonapplicative_unary_term_to_usize(sig)
+            .or_else(|| self.applicative_unary_term_to_usize(sig))
+    }
+    fn nonapplicative_unary_term_to_usize(&self, sig: &Signature) -> Option<usize> {
+        let mut n = 0;
+        let mut t = self;
+        loop {
+            if let Some((_, args)) = t.as_guarded_application(sig, "SUCC", 1) {
+                n += 1;
+                t = &args[0];
+            } else {
+                return t.as_guarded_application(sig, "ZERO", 0).map(|_| n);
+            }
+        }
+    }
+    fn applicative_unary_term_to_usize(&self, sig: &Signature) -> Option<usize> {
+        let mut n = 0;
+        let mut t = self;
+        loop {
+            if let Some((_, args)) = t.as_guarded_application(sig, ".", 2) {
+                args[0].as_guarded_application(sig, "SUCC", 0)?;
+                n += 1;
+                t = &args[1];
+            } else {
+                return t.as_guarded_application(sig, "ZERO", 0).map(|_| n);
+            }
+        }
+    }
+    fn decimal_term_to_usize(&self, sig: &Signature) -> Option<usize> {
+        self.nonapplicative_decimal_term_to_usize(sig)
+            .or_else(|| self.applicative_decimal_term_to_usize(sig))
+    }
+    fn nonapplicative_decimal_term_to_usize(&self, sig: &Signature) -> Option<usize> {
+        let mut n = 0;
+        let mut p = 0;
+        let mut t = self;
+        loop {
+            if let Some((_, args)) = t.as_guarded_application(sig, "DIGIT", 1) {
+                return args[0].digit_to_usize(sig).map(|x| n + x * 10usize.pow(p));
+            } else if let Some((_, args)) = t.as_guarded_application(sig, "DECC", 2) {
+                n += args[1].digit_to_usize(sig)? * 10usize.pow(p);
+                p += 1;
+                t = &args[0];
+            } else {
+                return None;
+            }
+        }
+    }
+    fn applicative_decimal_term_to_usize(&self, sig: &Signature) -> Option<usize> {
+        let (_, args) = self.as_guarded_application(sig, ".", 2)?;
+        if args[0].as_guarded_application(sig, "DIGIT", 0).is_some() {
+            args[1].digit_to_usize(sig)
+        } else {
+            let (_, inner_args) = args[0].as_guarded_application(sig, ".", 2)?;
+            inner_args[0].as_guarded_application(sig, "DECC", 0)?;
+            let sigs = inner_args[1].applicative_decimal_term_to_usize(sig)?;
+            let digit = args[1].digit_to_usize(sig)?;
+            sigs.checked_mul(10).and_then(|x| x.checked_add(digit))
+        }
+    }
+    fn digit_to_usize(&self, sig: &Signature) -> Option<usize> {
+        let (op, _) = self.as_application()?;
+        match (op.name(sig), op.arity(sig)) {
+            (Some(s), 0) if s == "0" => Some(0),
+            (Some(s), 0) if s == "1" => Some(1),
+            (Some(s), 0) if s == "2" => Some(2),
+            (Some(s), 0) if s == "3" => Some(3),
+            (Some(s), 0) if s == "4" => Some(4),
+            (Some(s), 0) if s == "5" => Some(5),
+            (Some(s), 0) if s == "6" => Some(6),
+            (Some(s), 0) if s == "7" => Some(7),
+            (Some(s), 0) if s == "8" => Some(8),
+            (Some(s), 0) if s == "9" => Some(9),
+            _ => None,
+        }
+    }
+    /// Convert a number into a term representing that number.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{NumberRepresentation, Applicativeness, NumberLogic, Signature, parse_term, Term};
+    ///
+    /// // Symbolic
+    /// let mut sig = Signature::default();
+    /// (0..244).for_each(|x| {sig.new_op(0, Some(x.to_string()));});
+    /// let rep = NumberRepresentation {
+    ///     logic: NumberLogic::Symbolic,
+    ///     app: Applicativeness::NonApplicative,
+    /// };
+    /// let t9 = Term::from_usize(9, &sig, rep).expect("9");
+    /// assert_eq!(t9.display(&sig), "9");
+    /// let t81 = Term::from_usize(81, &sig, rep).expect("81");
+    /// assert_eq!(t81.display(&sig), "81");
+    /// let t243 = Term::from_usize(243, &sig, rep).expect("243");
+    /// assert_eq!(t243.display(&sig), "243");
+    ///
+    /// // Non-Applicative Unary
+    /// let mut sig = Signature::default();
+    /// let rep = NumberRepresentation {
+    ///     logic: NumberLogic::Unary,
+    ///     app: Applicativeness::NonApplicative,
+    /// };
+    /// sig.new_op(0, Some("ZERO".to_string()));
+    /// sig.new_op(1, Some("SUCC".to_string()));
+    /// let t0 = Term::from_usize(0, &sig, rep).expect("0");
+    /// assert_eq!(t0.display(&sig), "ZERO");
+    /// let t3 = Term::from_usize(3, &sig, rep).expect("3");
+    /// assert_eq!(t3.display(&sig), "SUCC(SUCC(SUCC(ZERO)))");
+    /// let t13 = Term::from_usize(13, &sig, rep).expect("13");
+    /// assert_eq!(t13.display(&sig), "SUCC(SUCC(SUCC(SUCC(SUCC(SUCC(SUCC(SUCC(SUCC(SUCC(SUCC(SUCC(SUCC(ZERO)))))))))))))");
+    ///
+    /// // Applicative Unary
+    /// let mut sig = Signature::default();
+    /// let rep = NumberRepresentation {
+    ///     logic: NumberLogic::Unary,
+    ///     app: Applicativeness::Applicative,
+    /// };
+    /// sig.new_op(0, Some("ZERO".to_string()));
+    /// sig.new_op(0, Some("SUCC".to_string()));
+    /// sig.new_op(2, Some(".".to_string()));
+    /// let t0 = Term::from_usize(0, &sig, rep).expect("0");
+    /// assert_eq!(t0.display(&sig), "ZERO");
+    /// let t3 = Term::from_usize(3, &sig, rep).expect("3");
+    /// assert_eq!(t3.display(&sig), ".(SUCC .(SUCC .(SUCC ZERO)))");
+    /// let t13 = Term::from_usize(13, &sig, rep).expect("13");
+    /// assert_eq!(t13.display(&sig), ".(SUCC .(SUCC .(SUCC .(SUCC .(SUCC .(SUCC .(SUCC .(SUCC .(SUCC .(SUCC .(SUCC .(SUCC .(SUCC ZERO)))))))))))))");
+    ///
+    /// // Non-Applicative Decimal
+    /// let mut sig = Signature::default();
+    /// let rep = NumberRepresentation {
+    ///     logic: NumberLogic::Decimal,
+    ///     app: Applicativeness::NonApplicative,
+    /// };
+    /// (0..=9).for_each(|x| {sig.new_op(0, Some(x.to_string()));});
+    /// sig.new_op(1, Some("DIGIT".to_string()));
+    /// sig.new_op(2, Some("DECC".to_string()));
+    /// let t9 = Term::from_usize(9, &sig, rep).expect("9");
+    /// assert_eq!(t9.display(&sig), "DIGIT(9)");
+    /// let t81 = Term::from_usize(81, &sig, rep).expect("81");
+    /// assert_eq!(t81.display(&sig), "DECC(DIGIT(8) 1)");
+    /// let t243 = Term::from_usize(243, &sig, rep).expect("243");
+    /// assert_eq!(t243.display(&sig), "DECC(DECC(DIGIT(2) 4) 3)");
+    ///
+    /// // Applicative Decimal
+    /// let mut sig = Signature::default();
+    /// let rep = NumberRepresentation {
+    ///     logic: NumberLogic::Decimal,
+    ///     app: Applicativeness::Applicative,
+    /// };
+    /// (0..=9).for_each(|x| {sig.new_op(0, Some(x.to_string()));});
+    /// sig.new_op(0, Some("DIGIT".to_string()));
+    /// sig.new_op(0, Some("DECC".to_string()));
+    /// sig.new_op(2, Some(".".to_string()));
+    /// let t9 = Term::from_usize(9, &sig, rep).expect("9");
+    /// assert_eq!(t9.display(&sig), ".(DIGIT 9)");
+    /// let t81 = Term::from_usize(81, &sig, rep).expect("81");
+    /// assert_eq!(t81.display(&sig), ".(.(DECC .(DIGIT 8)) 1)");
+    /// let t243 = Term::from_usize(243, &sig, rep).expect("243");
+    /// assert_eq!(t243.display(&sig), ".(.(DECC .(.(DECC .(DIGIT 2)) 4)) 3)");
+    /// ```
+    pub fn from_usize(
+        n: usize,
+        sig: &Signature,
+        representation: NumberRepresentation,
+    ) -> Option<Term> {
+        match representation {
+            NumberRepresentation {
+                logic: NumberLogic::Symbolic,
+                ..
+            } => Term::usize_to_symbolic_term(n, sig),
+            NumberRepresentation {
+                logic: NumberLogic::Unary,
+                app: Applicativeness::Applicative,
+            } => Term::usize_to_applicative_unary_term(n, sig),
+            NumberRepresentation {
+                logic: NumberLogic::Unary,
+                app: Applicativeness::NonApplicative,
+            } => Term::usize_to_nonapplicative_unary_term(n, sig),
+            NumberRepresentation {
+                logic: NumberLogic::Decimal,
+                app: Applicativeness::Applicative,
+            } => Term::usize_to_applicative_decimal_term(n, sig),
+            NumberRepresentation {
+                logic: NumberLogic::Decimal,
+                app: Applicativeness::NonApplicative,
+            } => Term::usize_to_nonapplicative_decimal_term(n, sig),
+        }
+    }
+    fn usize_to_symbolic_term(n: usize, sig: &Signature) -> Option<Term> {
+        let term = Term::Application {
+            op: sig.has_op(0, Some(n.to_string()))?,
+            args: vec![],
+        };
+        Some(term)
+    }
+    fn usize_to_nonapplicative_unary_term(num: usize, sig: &Signature) -> Option<Term> {
+        let succ = sig.has_op(1, Some("SUCC".to_string()))?;
+        let mut term = Term::Application {
+            op: sig.has_op(0, Some("ZERO".to_string()))?,
+            args: vec![],
+        };
+        for _ in 0..num {
+            term = Term::Application {
+                op: succ,
+                args: vec![term],
+            };
+        }
+        Some(term)
+    }
+    fn usize_to_applicative_unary_term(num: usize, sig: &Signature) -> Option<Term> {
+        let app = sig.has_op(2, Some(".".to_string()))?;
+        let succ = sig.has_op(0, Some("SUCC".to_string()))?;
+        let mut term = Term::Application {
+            op: sig.has_op(0, Some("ZERO".to_string()))?,
+            args: vec![],
+        };
+        for _ in 0..num {
+            term = Term::Application {
+                op: app,
+                args: vec![
+                    Term::Application {
+                        op: succ,
+                        args: vec![],
+                    },
+                    term,
+                ],
+            };
+        }
+        Some(term)
+    }
+    fn usize_to_applicative_decimal_term(n: usize, sig: &Signature) -> Option<Term> {
+        if n < 10 {
+            let app = sig.has_op(2, Some(".".to_string()))?;
+            let n_op = sig.has_op(0, Some(n.to_string()))?;
+            let digit = sig.has_op(0, Some("DIGIT".to_string()))?;
+            Some(Term::Application {
+                op: app,
+                args: vec![
+                    Term::Application {
+                        op: digit,
+                        args: vec![],
+                    },
+                    Term::Application {
+                        op: n_op,
+                        args: vec![],
+                    },
+                ],
+            })
+        } else {
+            let app = sig.has_op(2, Some(".".to_string()))?;
+            let decc = sig.has_op(0, Some("DECC".to_string()))?;
+            let q = n / 10;
+            let r = n % 10;
+            let r_op = sig.has_op(0, Some(r.to_string()))?;
+            let q_term = Term::usize_to_applicative_decimal_term(q, sig)?;
+            Some(Term::Application {
+                op: app,
+                args: vec![
+                    Term::Application {
+                        op: app,
+                        args: vec![
+                            Term::Application {
+                                op: decc,
+                                args: vec![],
+                            },
+                            q_term,
+                        ],
+                    },
+                    Term::Application {
+                        op: r_op,
+                        args: vec![],
+                    },
+                ],
+            })
+        }
+    }
+    fn usize_to_nonapplicative_decimal_term(n: usize, sig: &Signature) -> Option<Term> {
+        if n < 10 {
+            let n_op = sig.has_op(0, Some(n.to_string()))?;
+            let digit = sig.has_op(1, Some("DIGIT".to_string()))?;
+            let n_term = Term::Application {
+                op: n_op,
+                args: vec![],
+            };
+            Some(Term::Application {
+                op: digit,
+                args: vec![n_term],
+            })
+        } else {
+            let decc = sig.has_op(2, Some("DECC".to_string()))?;
+            let q = n / 10;
+            let r = n % 10;
+            let r_op = sig.has_op(0, Some(r.to_string()))?;
+            let q_term = Term::usize_to_nonapplicative_decimal_term(q, sig)?;
+            let r_term = Term::Application {
+                op: r_op,
+                args: vec![],
+            };
+            Some(Term::Application {
+                op: decc,
+                args: vec![q_term, r_term],
+            })
+        }
+    }
+    pub fn from_usize_with_bound(
+        n: usize,
+        sig: &Signature,
+        lo: usize,
+        hi: usize,
+        representation: NumberRepresentation,
+    ) -> Option<Term> {
+        if n < lo || n > hi {
+            Some(Term::Application {
+                op: sig.has_op(0, Some("NAN".to_string()))?,
+                args: vec![],
+            })
+        } else {
+            Term::from_usize(n, sig, representation)
+        }
     }
 }

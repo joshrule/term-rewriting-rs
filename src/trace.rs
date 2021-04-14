@@ -6,7 +6,7 @@
 //! rewrites:
 //!
 //! ```
-//! # use term_rewriting::{parse, trace::Trace, Signature, Strategy};
+//! # use term_rewriting::{parse, trace::Trace, Signature, Strategy, NumberRepresentation};
 //! # use itertools::Itertools;
 //!
 //! let mut sig = Signature::default();
@@ -18,7 +18,7 @@
 //!     .trim();
 //! let (trs, mut terms) = parse(&mut sig, inp).unwrap();
 //! let mut term = terms.pop().unwrap();
-//! let trace = Trace::new(&trs, &sig, &term, 0.5, 10, None, Strategy::Normal);
+//! let trace = Trace::new(&trs, &sig, &term, 0.5, 10, None, Strategy::Normal, NumberRepresentation::default());
 //!
 //! let expected = vec!["PLUS(3, 1)", "PLUS(2, 2)", "PLUS(1, 3)", "PLUS(0, 4)", "4"];
 //! let got = trace
@@ -30,7 +30,7 @@
 //! ```
 //!
 //! ```
-//! # use term_rewriting::{parse_term, parse_trs, trace::Trace, Signature, Strategy};
+//! # use term_rewriting::{NumberRepresentation, parse_term, parse_trs, trace::Trace, Signature, Strategy};
 //! # use itertools::Itertools;
 //!
 //! let mut sig = Signature::default();
@@ -39,7 +39,7 @@
 //! let trs = parse_trs(&mut sig, trs_str).expect("parsed trs");
 //! let input_str = "PLUS(SUCC(SUCC(SUCC(ZERO))) PLUS(SUCC(ZERO) ZERO))";
 //! let input = parse_term(&mut sig, input_str).expect("parsed input");
-//! let mut trace = Trace::new(&trs, &sig, &input, 0.5, 100, None, Strategy::Normal);
+//! let mut trace = Trace::new(&trs, &sig, &input, 0.5, 100, None, Strategy::Normal, NumberRepresentation::default());
 //!
 //! let formatter = trace
 //!     .iter()
@@ -52,7 +52,7 @@ use smallvec::{smallvec, SmallVec};
 use std::f64;
 use std::fmt;
 
-use super::{Signature, Strategy, Term, TRS};
+use super::{NumberRepresentation, Signature, Strategy, Term, TRS};
 
 /// A `Trace` provides first-class control over [`Term`] rewriting.
 ///
@@ -75,6 +75,7 @@ pub struct Trace<'a> {
     max_steps: usize,
     max_term_size: Option<usize>,
     strategy: Strategy,
+    rep: NumberRepresentation,
 }
 
 pub struct TraceIter<'a> {
@@ -156,6 +157,7 @@ impl<'a> Trace<'a> {
         max_steps: usize,
         max_term_size: Option<usize>,
         strategy: Strategy,
+        rep: NumberRepresentation,
     ) -> Trace<'a> {
         let mut trace = Trace {
             root: None,
@@ -167,6 +169,7 @@ impl<'a> Trace<'a> {
             max_steps,
             max_term_size,
             strategy,
+            rep,
         };
         trace
             .unobserved
@@ -264,7 +267,10 @@ impl<'a> Trace<'a> {
             Some(self.new_node(term, parent, TraceState::TooBig, f64::NEG_INFINITY))
         } else {
             let (new_state, new_node_lp, nh, n) = {
-                let mut rewrites = self.trs.rewrite(&term, self.strategy, self.sig).peekable();
+                let mut rewrites = self
+                    .trs
+                    .rewrite(&term, self.strategy, self.rep, self.sig)
+                    .peekable();
                 let (new_state, new_node_lp) = if rewrites.peek().is_some() {
                     (TraceState::Rewritten, log_p + self.p_observe.ln())
                 } else {

@@ -1,4 +1,7 @@
-use super::{Atom, Operator, Rewrites, Rule, Signature, Term, Variable};
+use super::{
+    Applicativeness, Atom, NumberRepresentation, Operator, Rewrites, Rule, Signature, Term,
+    Variable,
+};
 use itertools::Itertools;
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -553,7 +556,36 @@ impl TRS {
                 .zip(&t2.rules)
                 .all(|(r1, r2)| Rule::same_shape_given(r1, r2, ops, vars))
     }
-    fn addition_form(term: &Term, sig: &Signature, lo: usize, hi: usize) -> Option<Vec<Term>> {
+    fn addition_form(
+        term: &Term,
+        sig: &Signature,
+        lo: usize,
+        hi: usize,
+        rep: NumberRepresentation,
+    ) -> Option<Vec<Term>> {
+        let pattern = match rep.app {
+            Applicativeness::Applicative => TRS::addition_pattern_applicative(sig),
+            Applicativeness::NonApplicative => TRS::addition_pattern_nonapplicative(sig),
+        }?;
+        let sub = Term::pmatch(&[(&pattern, &term)])?;
+        let x = sub.get(Variable(0))?.to_usize(sig)?;
+        let y = sub.get(Variable(1))?.to_usize(sig)?;
+        Some(vec![Term::from_usize_with_bound(
+            x.saturating_add(y),
+            sig,
+            lo,
+            hi,
+            rep,
+        )?])
+    }
+    fn addition_pattern_nonapplicative(sig: &Signature) -> Option<Term> {
+        let pattern = Term::Application {
+            op: sig.has_op(2, Some("+".to_string()))?,
+            args: vec![Term::Variable(Variable(0)), Term::Variable(Variable(1))],
+        };
+        Some(pattern)
+    }
+    fn addition_pattern_applicative(sig: &Signature) -> Option<Term> {
         let plus = sig.has_op(0, Some("+".to_string()))?;
         let app = sig.has_op(2, Some(".".to_string()))?;
         let pattern = Term::Application {
@@ -572,17 +604,38 @@ impl TRS {
                 Term::Variable(Variable(1)),
             ],
         };
+        Some(pattern)
+    }
+    fn subtraction_form(
+        term: &Term,
+        sig: &Signature,
+        lo: usize,
+        hi: usize,
+        rep: NumberRepresentation,
+    ) -> Option<Vec<Term>> {
+        let pattern = match rep.app {
+            Applicativeness::Applicative => TRS::subtraction_pattern_applicative(sig),
+            Applicativeness::NonApplicative => TRS::subtraction_pattern_nonapplicative(sig),
+        }?;
         let sub = Term::pmatch(&[(&pattern, &term)])?;
-        let x = TRS::term_to_usize(sub.get(Variable(0))?, sig)?;
-        let y = TRS::term_to_usize(sub.get(Variable(1))?, sig)?;
-        Some(vec![TRS::usize_to_bounded_term(
-            x.saturating_add(y),
+        let x = sub.get(Variable(0))?.to_usize(sig)?;
+        let y = sub.get(Variable(1))?.to_usize(sig)?;
+        Some(vec![Term::from_usize_with_bound(
+            x.saturating_sub(y),
             sig,
             lo,
             hi,
+            rep,
         )?])
     }
-    fn subtraction_form(term: &Term, sig: &Signature, lo: usize, hi: usize) -> Option<Vec<Term>> {
+    fn subtraction_pattern_nonapplicative(sig: &Signature) -> Option<Term> {
+        let pattern = Term::Application {
+            op: sig.has_op(2, Some("-".to_string()))?,
+            args: vec![Term::Variable(Variable(0)), Term::Variable(Variable(1))],
+        };
+        Some(pattern)
+    }
+    fn subtraction_pattern_applicative(sig: &Signature) -> Option<Term> {
         let minus = sig.has_op(0, Some("-".to_string()))?;
         let app = sig.has_op(2, Some(".".to_string()))?;
         let pattern = Term::Application {
@@ -601,20 +654,44 @@ impl TRS {
                 Term::Variable(Variable(1)),
             ],
         };
-        let sub = Term::pmatch(&[(&pattern, &term)])?;
-        let x = TRS::term_to_usize(sub.get(Variable(0))?, sig)?;
-        let y = TRS::term_to_usize(sub.get(Variable(1))?, sig)?;
-        Some(vec![TRS::usize_to_bounded_term(
-            x.saturating_sub(y),
-            sig,
-            lo,
-            hi,
-        )?])
+        Some(pattern)
     }
-    fn greater_form(term: &Term, sig: &Signature, lo: usize, hi: usize) -> Option<Vec<Term>> {
-        let greater = sig.has_op(0, Some(">".to_string()))?;
+    fn greater_form(
+        term: &Term,
+        sig: &Signature,
+        lo: usize,
+        hi: usize,
+        rep: NumberRepresentation,
+    ) -> Option<Vec<Term>> {
         let t = sig.has_op(0, Some("TRUE".to_string()))?;
         let f = sig.has_op(0, Some("FALSE".to_string()))?;
+        let pattern = match rep.app {
+            Applicativeness::Applicative => TRS::greater_pattern_applicative(sig),
+            Applicativeness::NonApplicative => TRS::greater_pattern_nonapplicative(sig),
+        }?;
+        let sub = Term::pmatch(&[(&pattern, &term)])?;
+        let x = sub.get(Variable(0))?.to_usize(sig)?;
+        let y = sub.get(Variable(1))?.to_usize(sig)?;
+        match TRS::check_bounds(x, sig, lo, hi).or_else(|| TRS::check_bounds(y, sig, lo, hi)) {
+            Some(nan) => Some(vec![nan]),
+            None => {
+                let term = Term::Application {
+                    op: if x > y { t } else { f },
+                    args: vec![],
+                };
+                Some(vec![term])
+            }
+        }
+    }
+    fn greater_pattern_nonapplicative(sig: &Signature) -> Option<Term> {
+        let pattern = Term::Application {
+            op: sig.has_op(2, Some(">".to_string()))?,
+            args: vec![Term::Variable(Variable(0)), Term::Variable(Variable(1))],
+        };
+        Some(pattern)
+    }
+    fn greater_pattern_applicative(sig: &Signature) -> Option<Term> {
+        let greater = sig.has_op(0, Some(">".to_string()))?;
         let app = sig.has_op(2, Some(".".to_string()))?;
         let pattern = Term::Application {
             op: app,
@@ -632,19 +709,7 @@ impl TRS {
                 Term::Variable(Variable(1)),
             ],
         };
-        let sub = Term::pmatch(&[(&pattern, &term)])?;
-        let x = TRS::term_to_usize(sub.get(Variable(0))?, sig)?;
-        let y = TRS::term_to_usize(sub.get(Variable(1))?, sig)?;
-        match TRS::check_bounds(x, sig, lo, hi).or_else(|| TRS::check_bounds(y, sig, lo, hi)) {
-            Some(nan) => Some(vec![nan]),
-            None => {
-                let term = Term::Application {
-                    op: if x > y { t } else { f },
-                    args: vec![],
-                };
-                Some(vec![term])
-            }
-        }
+        Some(pattern)
     }
     fn check_bounds(n: usize, sig: &Signature, lo: usize, hi: usize) -> Option<Term> {
         if n < lo || n > hi {
@@ -669,10 +734,16 @@ impl TRS {
         None
     }
     // Return rewrites modifying subterms, if possible, else None.
-    fn rewrite_args(&self, term: &Term, strategy: Strategy, sig: &Signature) -> Option<Vec<Term>> {
+    fn rewrite_args(
+        &self,
+        term: &Term,
+        strategy: Strategy,
+        rep: NumberRepresentation,
+        sig: &Signature,
+    ) -> Option<Vec<Term>> {
         if let Term::Application { op, ref args } = *term {
             for (i, arg) in args.iter().enumerate() {
-                let mut it = self.rewrite(arg, strategy, sig).peekable();
+                let mut it = self.rewrite(arg, strategy, rep, sig).peekable();
                 if it.peek().is_some() {
                     let res = it
                         .map(|x| {
@@ -729,7 +800,7 @@ impl TRS {
             let (_, args) = term.as_guarded_application(sig, ".", 2)?;
             let (_, inner_args) = args[0].as_guarded_application(sig, ".", 2)?;
             inner_args[0].as_guarded_application(sig, "CONS", 0)?;
-            let mut string = vec![TRS::term_to_usize(&inner_args[1], sig)?];
+            let mut string = vec![inner_args[1].to_usize(sig)?];
             string.append(&mut TRS::convert_list_to_string_fast(&args[1], sig)?);
             Some(string)
         }
@@ -746,92 +817,8 @@ impl TRS {
             Some(string)
         }
     }
-    fn digit_to_usize(term: &Term, sig: &Signature) -> Option<usize> {
-        let (op, _) = term.as_application()?;
-        match (op.name(sig), op.arity(sig)) {
-            (Some(s), 0) if s == "0" => Some(0),
-            (Some(s), 0) if s == "1" => Some(1),
-            (Some(s), 0) if s == "2" => Some(2),
-            (Some(s), 0) if s == "3" => Some(3),
-            (Some(s), 0) if s == "4" => Some(4),
-            (Some(s), 0) if s == "5" => Some(5),
-            (Some(s), 0) if s == "6" => Some(6),
-            (Some(s), 0) if s == "7" => Some(7),
-            (Some(s), 0) if s == "8" => Some(8),
-            (Some(s), 0) if s == "9" => Some(9),
-            _ => None,
-        }
-    }
-    fn term_to_usize(term: &Term, sig: &Signature) -> Option<usize> {
-        let (_, args) = term.as_guarded_application(sig, ".", 2)?;
-        if args[0].as_guarded_application(sig, "DIGIT", 0).is_some() {
-            TRS::digit_to_usize(&args[1], sig)
-        } else {
-            let (_, inner_args) = args[0].as_guarded_application(sig, ".", 2)?;
-            inner_args[0].as_guarded_application(sig, "DECC", 0)?;
-            let sigs = TRS::term_to_usize(&inner_args[1], sig)?;
-            let digit = TRS::digit_to_usize(&args[1], sig)?;
-            sigs.checked_mul(10).and_then(|x| x.checked_add(digit))
-        }
-    }
-    fn usize_to_bounded_term(n: usize, sig: &Signature, lo: usize, hi: usize) -> Option<Term> {
-        if n < lo || n > hi {
-            Some(Term::Application {
-                op: sig.has_op(0, Some("NAN".to_string()))?,
-                args: vec![],
-            })
-        } else {
-            TRS::usize_to_term(n, sig)
-        }
-    }
-    fn usize_to_term(n: usize, sig: &Signature) -> Option<Term> {
-        if n < 10 {
-            let app = sig.has_op(2, Some(".".to_string()))?;
-            let n_op = sig.has_op(0, Some(n.to_string()))?;
-            let digit = sig.has_op(0, Some("DIGIT".to_string()))?;
-            Some(Term::Application {
-                op: app,
-                args: vec![
-                    Term::Application {
-                        op: digit,
-                        args: vec![],
-                    },
-                    Term::Application {
-                        op: n_op,
-                        args: vec![],
-                    },
-                ],
-            })
-        } else {
-            let app = sig.has_op(2, Some(".".to_string()))?;
-            let decc = sig.has_op(0, Some("DECC".to_string()))?;
-            let q = n / 10;
-            let r = n % 10;
-            let r_op = sig.has_op(0, Some(r.to_string()))?;
-            let q_term = TRS::usize_to_term(q, sig)?;
-            Some(Term::Application {
-                op: app,
-                args: vec![
-                    Term::Application {
-                        op: app,
-                        args: vec![
-                            Term::Application {
-                                op: decc,
-                                args: vec![],
-                            },
-                            q_term,
-                        ],
-                    },
-                    Term::Application {
-                        op: r_op,
-                        args: vec![],
-                    },
-                ],
-            })
-        }
-    }
     fn num_to_atom(term: &Term, sig: &mut Signature) -> Option<Atom> {
-        let n = TRS::term_to_usize(term, sig)?;
+        let n = term.to_usize(sig)?;
         if n < 100 {
             sig.operators()
                 .iter()
@@ -1023,21 +1010,21 @@ impl TRS {
     /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, logplusexp};
     /// let mut sig = Signature::default();
     ///
-    /// let x = parse_term(&mut sig, "(CONS (DIGIT 1) (CONS (DIGIT 2) (CONS (DIGIT 3) (CONS (DIGIT 4) (CONS (DIGIT 5) NIL)))))")
+    /// let x = parse_term(&mut sig, "(CONS 1 (CONS 2 (CONS 3 (CONS 4 (CONS 5 NIL)))))")
     ///     .expect("parsed [1, 2, 3, 4, 5]");
     /// let p_add: f64 = 0.1;
     /// let p_del: f64 = 0.01;
     /// let n_chars = 10;
     ///
     /// // We might have no shared prefix.
-    /// let y = parse_term(&mut sig, "(CONS (DIGIT 5) (CONS (DIGIT 4) (CONS (DIGIT 3) (CONS (DIGIT 2) (CONS (DIGIT 1) NIL)))))")
+    /// let y = parse_term(&mut sig, "(CONS 5 (CONS 4 (CONS 3 (CONS 2 (CONS 1 NIL)))))")
     ///     .expect("parsed [5, 4, 3, 2, 1]");
     /// let expected = (p_add.ln()-(n_chars as f64).ln())*5.0+p_del.ln()*5.0+(1.0-p_add).ln();
     /// let actual = TRS::p_list_prefix(&x, &y, p_add, p_del, n_chars, &sig);
     /// assert_eq!(expected, actual);
     ///
     /// // We might have some shared prefix.
-    /// let y = parse_term(&mut sig, "(CONS (DIGIT 1) (CONS (DIGIT 2) (CONS (DIGIT 6) (CONS (DIGIT 7) (CONS (DIGIT 8) NIL)))))")
+    /// let y = parse_term(&mut sig, "(CONS 1 (CONS 2 (CONS 6 (CONS 7 (CONS 8 NIL)))))")
     ///     .expect("parsed [1, 2, 6, 7, 8]");
     /// let expected = logplusexp(
     ///     logplusexp(p_del.ln()*5.0+(p_add.ln()-(n_chars as f64).ln())*5.0+(1.0-p_add).ln(),
@@ -1047,7 +1034,7 @@ impl TRS {
     /// assert_eq!(expected, actual);
     ///
     /// // Maybe y is shorter than x.
-    /// let y = parse_term(&mut sig, "(CONS (DIGIT 1) (CONS (DIGIT 2) NIL))")
+    /// let y = parse_term(&mut sig, "(CONS 1 (CONS 2 NIL))")
     ///     .expect("parsed [1, 2, 6, 7, 8]");
     /// let expected = logplusexp(
     ///     logplusexp(p_del.ln()*5.0+(p_add.ln()-(n_chars as f64).ln())*2.0+(1.0-p_add).ln(),
@@ -1059,7 +1046,7 @@ impl TRS {
     /// // Maybe y is longer than x.
     /// let y = parse_term(
     ///    &mut sig,
-    ///    "(CONS (DIGIT 1) (CONS (DIGIT 2) (CONS (DIGIT 3) (CONS (DIGIT 4) (CONS (DIGIT 5) (CONS (DIGIT 6) (CONS (DIGIT 7) NIL)))))))")
+    ///    "(CONS 1 (CONS 2 (CONS 3 (CONS 4 (CONS 5 (CONS 6 (CONS 7 NIL)))))))")
     ///     .expect("parsed [1, 2, 3, 4, 5, 6, 7]");
     /// let expected = logplusexp(
     ///     logplusexp(
@@ -1078,7 +1065,7 @@ impl TRS {
     /// // Maybe y == x.
     /// let y = parse_term(
     ///    &mut sig,
-    ///    "(CONS (DIGIT 1) (CONS (DIGIT 2) (CONS (DIGIT 3) (CONS (DIGIT 4) (CONS (DIGIT 5) NIL)))))")
+    ///    "(CONS 1 (CONS 2 (CONS 3 (CONS 4 (CONS 5 NIL)))))")
     ///     .expect("parsed [1, 2, 3, 4, 5]");
     /// let expected = logplusexp(
     ///     logplusexp(
@@ -1116,7 +1103,7 @@ impl TRS {
     /// # Examples
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Strategy, TRS, parse_trs, Term, parse_term};
+    /// # use term_rewriting::{NumberRepresentation, Signature, Strategy, TRS, parse_trs, Term, parse_term};
     /// let mut sig = Signature::default();
     ///
     /// let t = parse_trs(&mut sig,
@@ -1126,16 +1113,16 @@ impl TRS {
     ///
     /// let term = parse_term(&mut sig, "J(F(C) K(C A))").expect("parse of J(F(C) K(C A))");
     ///
-    /// let rewritten_terms: Vec<_> = t.rewrite(&term, Strategy::Normal, &sig).collect();
+    /// let rewritten_terms: Vec<_> = t.rewrite(&term, Strategy::Normal, NumberRepresentation::default(), &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 1);
     /// assert_eq!(rewritten_terms[0].display(&sig), "J(G K(C A))");
     ///
-    /// let rewritten_terms: Vec<_> = t.rewrite(&term, Strategy::Eager, &sig).collect();
+    /// let rewritten_terms: Vec<_> = t.rewrite(&term, Strategy::Eager, NumberRepresentation::default(), &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 2);
     /// assert_eq!(rewritten_terms[0].display(&sig), "J(F(D) K(C A))");
     /// assert_eq!(rewritten_terms[1].display(&sig), "J(F(E) K(C A))");
     ///
-    /// let rewritten_terms: Vec<_> = t.rewrite(&term, Strategy::All, &sig).collect();
+    /// let rewritten_terms: Vec<_> = t.rewrite(&term, Strategy::All, NumberRepresentation::default(), &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 6);
     /// assert_eq!(rewritten_terms[0].display(&sig), "J(G K(C A))");
     /// assert_eq!(rewritten_terms[1].display(&sig), "J(F(D) K(C A))");
@@ -1149,37 +1136,82 @@ impl TRS {
     /// built-in behavior for normal-order rewriting if they are defined.
     ///
     /// ```
-    /// # use term_rewriting::{Signature, Strategy, TRS, parse_trs, Term, parse_term};
+    /// # use term_rewriting::{NumberRepresentation, Applicativeness, NumberLogic, Signature, Strategy, TRS, parse_trs, Term, parse_term};
     /// let mut sig = Signature::default();
     /// sig.new_op(0, Some("TRUE".to_string()));
     /// sig.new_op(0, Some("FALSE".to_string()));
     /// sig.new_op(0, Some("DIGIT".to_string()));
     /// sig.new_op(0, Some("DECC".to_string()));
-    /// (0..9).for_each(|x| {sig.new_op(0, Some(x.to_string()));});
-    /// let trs = parse_trs(&mut sig, "").expect("trs");
+    /// sig.new_op(0, Some("F".to_string()));
+    /// (0..99).for_each(|x| {sig.new_op(0, Some(x.to_string()));});
+    /// let mut trs = parse_trs(&mut sig, "").expect("trs");
+    /// trs.lo = 0; trs.hi = 99;
+    /// let rep = NumberRepresentation {
+    ///     logic: NumberLogic::Symbolic,
+    ///     app: Applicativeness::Applicative,
+    /// };
     ///
-    /// let t1 = parse_term(&mut sig, "(+ (DIGIT 7) (DIGIT 3))").expect("t1");
-    /// let rewritten_terms: Vec<_> = trs.rewrite(&t1, Strategy::Normal, &sig).collect();
+    /// let t1 = parse_term(&mut sig, "(+ 7 3)").expect("t1");
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t1, Strategy::Normal, rep, &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 1);
-    /// assert_eq!(rewritten_terms[0].display(&sig), ".(.(DECC .(DIGIT 1)) 0)");
+    /// assert_eq!(rewritten_terms[0].display(&sig), "10");
     ///
-    /// let t2 = parse_term(&mut sig, "(- (DIGIT 7) (DIGIT 3))").expect("t2");
-    /// let rewritten_terms: Vec<_> = trs.rewrite(&t2, Strategy::Normal, &sig).collect();
+    /// let t2 = parse_term(&mut sig, "(- 7 3)").expect("t2");
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t2, Strategy::Normal, rep, &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 1);
-    /// assert_eq!(rewritten_terms[0].display(&sig), ".(DIGIT 4)");
+    /// assert_eq!(rewritten_terms[0].display(&sig), "4");
     ///
-    /// let t3 = parse_term(&mut sig, "(> (DIGIT 7) (DIGIT 3))").expect("t3");
-    /// let rewritten_terms: Vec<_> = trs.rewrite(&t3, Strategy::Normal, &sig).collect();
+    /// let t3 = parse_term(&mut sig, "(> 7 3)").expect("t3");
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t3, Strategy::Normal, rep, &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 1);
     /// assert_eq!(rewritten_terms[0].display(&sig), "TRUE");
+    ///
+    /// let t4 = parse_term(&mut sig, "(F (+ 7 3))").expect("t3");
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t4, Strategy::Normal, rep, &sig).collect();
+    /// assert_eq!(rewritten_terms.len(), 1);
+    /// assert_eq!(rewritten_terms[0].display(&sig), ".(F 10)");
+    /// ```
+    ///
+    /// ```
+    /// # use term_rewriting::{NumberRepresentation, Signature, Strategy, TRS, parse_trs, Term, parse_term};
+    /// let mut sig = Signature::default();
+    /// sig.new_op(0, Some("TRUE".to_string()));
+    /// sig.new_op(0, Some("FALSE".to_string()));
+    /// sig.new_op(1, Some("F".to_string()));
+    /// sig.new_op(0, Some("DIGIT".to_string()));
+    /// sig.new_op(0, Some("DECC".to_string()));
+    /// (0..99).for_each(|x| {sig.new_op(0, Some(x.to_string()));});
+    /// let mut trs = parse_trs(&mut sig, "").expect("trs");
+    /// trs.lo = 0; trs.hi = 99;
+    ///
+    /// let t1 = parse_term(&mut sig, "+(7 3)").expect("t1");
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t1, Strategy::Normal, NumberRepresentation::default(), &sig).collect();
+    /// assert_eq!(rewritten_terms.len(), 1);
+    /// assert_eq!(rewritten_terms[0].display(&sig), "10");
+    ///
+    /// let t2 = parse_term(&mut sig, "-(7 3)").expect("t2");
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t2, Strategy::Normal, NumberRepresentation::default(), &sig).collect();
+    /// assert_eq!(rewritten_terms.len(), 1);
+    /// assert_eq!(rewritten_terms[0].display(&sig), "4");
+    ///
+    /// let t3 = parse_term(&mut sig, ">(7 3)").expect("t3");
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t3, Strategy::Normal, NumberRepresentation::default(), &sig).collect();
+    /// assert_eq!(rewritten_terms.len(), 1);
+    /// assert_eq!(rewritten_terms[0].display(&sig), "TRUE");
+    ///
+    /// let t4 = parse_term(&mut sig, "F(+(7 3))").expect("t3");
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t4, Strategy::Normal, NumberRepresentation::default(), &sig).collect();
+    /// assert_eq!(rewritten_terms.len(), 1);
+    /// assert_eq!(rewritten_terms[0].display(&sig), "F(10)");
     /// ```
     pub fn rewrite<'a>(
         &'a self,
         term: &'a Term,
         strategy: Strategy,
+        rep: NumberRepresentation,
         sig: &'a Signature,
     ) -> TRSRewrites<'a> {
-        TRSRewrites::new(self, term, strategy, sig)
+        TRSRewrites::new(self, term, strategy, rep, sig)
     }
     /// Query a `TRS` for a [`Rule`] based on its left-hand-side; return both
     /// the [`Rule`] and its index if possible
@@ -1832,16 +1864,27 @@ enum NormalKind<'a> {
 }
 
 impl<'a> Normal<'a> {
-    fn try_forms(term: &'a Term, sig: &'a Signature, lo: usize, hi: usize) -> Option<Vec<Term>> {
-        TRS::addition_form(term, sig, lo, hi)
-            .or_else(|| TRS::subtraction_form(term, sig, lo, hi))
-            .or_else(|| TRS::greater_form(term, sig, lo, hi))
+    fn try_forms(
+        term: &'a Term,
+        sig: &'a Signature,
+        lo: usize,
+        hi: usize,
+        rep: NumberRepresentation,
+    ) -> Option<Vec<Term>> {
+        TRS::addition_form(term, sig, lo, hi, rep)
+            .or_else(|| TRS::subtraction_form(term, sig, lo, hi, rep))
+            .or_else(|| TRS::greater_form(term, sig, lo, hi, rep))
     }
-    pub(crate) fn new(trs: &'a TRS, sig: &'a Signature, term: &'a Term) -> Normal<'a> {
+    pub(crate) fn new(
+        trs: &'a TRS,
+        sig: &'a Signature,
+        term: &'a Term,
+        rep: NumberRepresentation,
+    ) -> Normal<'a> {
         let mut it: std::iter::Peekable<Rewrites>;
         if let Term::Application { op, args } = term {
             // Try the head.
-            if let Some(head_forms) = Normal::try_forms(term, sig, trs.lo, trs.hi) {
+            if let Some(head_forms) = Normal::try_forms(term, sig, trs.lo, trs.hi, rep) {
                 if !head_forms.is_empty() {
                     return Normal {
                         rewrites: NormalKind::HeadForm(head_forms),
@@ -1876,7 +1919,8 @@ impl<'a> Normal<'a> {
                         x.3 = false;
                     }
                     (Term::Application { op, args }, false) => {
-                        if let Some(forms) = Normal::try_forms(&x.2[x.1], sig, trs.lo, trs.hi) {
+                        if let Some(forms) = Normal::try_forms(&x.2[x.1], sig, trs.lo, trs.hi, rep)
+                        {
                             if !forms.is_empty() {
                                 return Normal {
                                     rewrites: NormalKind::SubtermForm(stack, forms),
@@ -1957,12 +2001,15 @@ impl<'a> TRSRewrites<'a> {
         trs: &'a TRS,
         term: &'a Term,
         strategy: Strategy,
+        rep: NumberRepresentation,
         sig: &'a Signature,
     ) -> Self {
         match strategy {
-            Strategy::Normal => TRSRewrites(TRSRewriteKind::Normal(Normal::new(trs, sig, term))),
+            Strategy::Normal => {
+                TRSRewrites(TRSRewriteKind::Normal(Normal::new(trs, sig, term, rep)))
+            }
             Strategy::Eager => TRSRewrites(TRSRewriteKind::Eager(
-                trs.rewrite_args(term, strategy, sig)
+                trs.rewrite_args(term, strategy, rep, sig)
                     .or_else(|| trs.rewrite_head(term))
                     .unwrap_or_else(Vec::new)
                     .into_iter(),
