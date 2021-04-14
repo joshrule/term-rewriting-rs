@@ -148,7 +148,7 @@ impl<'a> Parser<'a> {
     ///
     /// [`Variable`]: trait.Variable.html
     pub fn has_var(&self, name: &str) -> Option<Variable> {
-        if name == "" {
+        if name.is_empty() {
             None
         } else {
             self.sig

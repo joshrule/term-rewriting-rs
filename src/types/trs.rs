@@ -781,7 +781,7 @@ impl TRS {
         let mut rewrites = vec![];
         for rule in &self.rules {
             let pattern = TRS::convert_rule_to_strings(rule, sig)?;
-            for breaks in TRS::gen_breaks(&pattern.0, string.len())?.iter() {
+            for breaks in TRS::gen_breaks(&pattern.0, string.len()).iter() {
                 if let Some(matches) = TRS::match_pattern(&pattern.0, &breaks[..], &string) {
                     for rhs in &pattern.1 {
                         let new_string = TRS::substitute_pattern(&rhs[..], &matches)?;
@@ -865,8 +865,8 @@ impl TRS {
             .collect::<Option<Vec<_>>>()?;
         Some((lhs, rhs))
     }
-    fn gen_breaks(pattern: &[Atom], n: usize) -> Option<Vec<Vec<usize>>> {
-        let breaks = (0..=n)
+    fn gen_breaks(pattern: &[Atom], n: usize) -> Vec<Vec<usize>> {
+        (0..=n)
             .combinations(pattern.len() - 1)
             .map(|mut x| {
                 x.insert(0, 0);
@@ -874,8 +874,7 @@ impl TRS {
                 x
             })
             .filter(|x| TRS::valid_option(&pattern, &x))
-            .collect_vec();
-        Some(breaks)
+            .collect_vec()
     }
     fn valid_option(pattern: &[Atom], breaks: &[usize]) -> bool {
         for (i, atom) in pattern.iter().enumerate() {
@@ -1383,12 +1382,11 @@ impl TRS {
     pub fn remove_clauses(&mut self, rule: &Rule) -> Result<Rule, TRSError> {
         self.rules
             .iter_mut()
-            .filter_map(|r| r.discard(&rule))
-            .next()
+            .find_map(|r| r.discard(&rule))
             .ok_or(TRSError::NotInTRS)
-            .and_then(|discarded| {
+            .map(|discarded| {
                 self.rules.retain(|rule| !rule.is_empty());
-                Ok(discarded)
+                discarded
             })
     }
     /// Try to merge a [`Rule`] with an existing [`Rule`] or else insert it at index `i` in the `TRS` if possible.

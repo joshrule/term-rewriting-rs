@@ -149,6 +149,7 @@ pub enum TraceState {
 impl<'a> Trace<'a> {
     /// Create a trace initialized with `term` undergoing rewrites in `trs`. Every step for a node
     /// in the trace multiplies the node's probability score by `p_observe`.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         trs: &'a TRS,
         sig: &'a Signature,

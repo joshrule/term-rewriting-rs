@@ -302,7 +302,7 @@ impl Signature {
         &mut self,
         other: &Signature,
         strategy: MergeStrategy,
-    ) -> Result<SignatureChange, ()> {
+    ) -> Result<SignatureChange, &'static str> {
         let op_map =
             match strategy {
                 MergeStrategy::SameOperators => {
@@ -316,7 +316,7 @@ impl Signature {
                             temp_map.insert(idx, idx);
                         }
                     } else {
-                        return Err(());
+                        return Err("operators cannot be matched");
                     }
                     temp_map
                 }

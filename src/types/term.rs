@@ -357,10 +357,7 @@ impl Context {
             .collect()
     }
     pub fn is_hole(&self) -> bool {
-        match self {
-            Context::Hole => true,
-            _ => false,
-        }
+        matches!(self, Context::Hole)
     }
     /// The leftmost [`Place`] in the `Context` that is a `Hole`.
     ///
