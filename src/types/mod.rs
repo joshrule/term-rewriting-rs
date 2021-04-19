@@ -9,6 +9,7 @@ pub use self::rule::*;
 pub use self::signature::*;
 pub use self::term::*;
 pub use self::trs::*;
+use serde_derive::{Deserialize, Serialize};
 
 /// Represents a place in a [`Term`].
 ///
@@ -25,7 +26,7 @@ enum Unification {
 }
 
 /// A way to signify what kind of numbers a TRS uses.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum NumberLogic {
     Symbolic,
     Unary,
@@ -33,14 +34,14 @@ pub enum NumberLogic {
 }
 
 /// A way to signify whether a TRS is applicative or non-applicative.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Applicativeness {
     Applicative,
     NonApplicative,
 }
 
 /// A way to describe a TRS's number system.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NumberRepresentation {
     pub logic: NumberLogic,
     pub app: Applicativeness,

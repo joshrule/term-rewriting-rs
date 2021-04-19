@@ -794,15 +794,16 @@ impl TRS {
         Some(rewrites)
     }
     pub fn convert_list_to_string_fast(term: &Term, sig: &Signature) -> Option<Vec<usize>> {
-        if term.as_guarded_application(sig, "NIL", 0).is_some() {
-            Some(vec![])
-        } else {
-            let (_, args) = term.as_guarded_application(sig, ".", 2)?;
-            let (_, inner_args) = args[0].as_guarded_application(sig, ".", 2)?;
-            inner_args[0].as_guarded_application(sig, "CONS", 0)?;
-            let mut string = vec![inner_args[1].to_usize(sig)?];
-            string.append(&mut TRS::convert_list_to_string_fast(&args[1], sig)?);
-            Some(string)
+        let mut string = vec![];
+        let mut t = term;
+        loop {
+            if t.as_guarded_application(sig, "NIL", 0).is_some() {
+                return Some(string);
+            } else {
+                let (_, args) = t.as_guarded_application(sig, "CONS", 2)?;
+                string.push(args[0].to_usize(sig)?);
+                t = &args[1];
+            }
         }
     }
     pub fn convert_list_to_string(term: &Term, sig: &mut Signature) -> Option<Vec<Atom>> {
