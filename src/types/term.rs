@@ -2054,15 +2054,15 @@ impl Term {
     }
     fn usize_to_symbolic_term(n: usize, sig: &Signature) -> Option<Term> {
         let term = Term::Application {
-            op: sig.has_op(0, Some(n.to_string()))?,
+            op: sig.has_n(n)?,
             args: vec![],
         };
         Some(term)
     }
     fn usize_to_nonapplicative_unary_term(num: usize, sig: &Signature) -> Option<Term> {
-        let succ = sig.has_op(1, Some("SUCC".to_string()))?;
+        let succ = sig.has_op(1, Some("SUCC"))?;
         let mut term = Term::Application {
-            op: sig.has_op(0, Some("ZERO".to_string()))?,
+            op: sig.has_op(0, Some("ZERO"))?,
             args: vec![],
         };
         for _ in 0..num {
@@ -2074,10 +2074,10 @@ impl Term {
         Some(term)
     }
     fn usize_to_applicative_unary_term(num: usize, sig: &Signature) -> Option<Term> {
-        let app = sig.has_op(2, Some(".".to_string()))?;
-        let succ = sig.has_op(0, Some("SUCC".to_string()))?;
+        let app = sig.has_op(2, Some("."))?;
+        let succ = sig.has_op(0, Some("SUCC"))?;
         let mut term = Term::Application {
-            op: sig.has_op(0, Some("ZERO".to_string()))?,
+            op: sig.has_op(0, Some("ZERO"))?,
             args: vec![],
         };
         for _ in 0..num {
@@ -2096,9 +2096,9 @@ impl Term {
     }
     fn usize_to_applicative_decimal_term(n: usize, sig: &Signature) -> Option<Term> {
         if n < 10 {
-            let app = sig.has_op(2, Some(".".to_string()))?;
-            let n_op = sig.has_op(0, Some(n.to_string()))?;
-            let digit = sig.has_op(0, Some("DIGIT".to_string()))?;
+            let app = sig.has_op(2, Some("."))?;
+            let n_op = sig.has_n(n)?;
+            let digit = sig.has_op(0, Some("DIGIT"))?;
             Some(Term::Application {
                 op: app,
                 args: vec![
@@ -2113,11 +2113,11 @@ impl Term {
                 ],
             })
         } else {
-            let app = sig.has_op(2, Some(".".to_string()))?;
-            let decc = sig.has_op(0, Some("DECC".to_string()))?;
+            let app = sig.has_op(2, Some("."))?;
+            let decc = sig.has_op(0, Some("DECC"))?;
             let q = n / 10;
             let r = n % 10;
-            let r_op = sig.has_op(0, Some(r.to_string()))?;
+            let r_op = sig.has_n(r)?;
             let q_term = Term::usize_to_applicative_decimal_term(q, sig)?;
             Some(Term::Application {
                 op: app,
@@ -2142,8 +2142,8 @@ impl Term {
     }
     fn usize_to_nonapplicative_decimal_term(n: usize, sig: &Signature) -> Option<Term> {
         if n < 10 {
-            let n_op = sig.has_op(0, Some(n.to_string()))?;
-            let digit = sig.has_op(1, Some("DIGIT".to_string()))?;
+            let n_op = sig.has_n(n)?;
+            let digit = sig.has_op(1, Some("DIGIT"))?;
             let n_term = Term::Application {
                 op: n_op,
                 args: vec![],
@@ -2153,10 +2153,10 @@ impl Term {
                 args: vec![n_term],
             })
         } else {
-            let decc = sig.has_op(2, Some("DECC".to_string()))?;
+            let decc = sig.has_op(2, Some("DECC"))?;
             let q = n / 10;
             let r = n % 10;
-            let r_op = sig.has_op(0, Some(r.to_string()))?;
+            let r_op = sig.has_n(r)?;
             let q_term = Term::usize_to_nonapplicative_decimal_term(q, sig)?;
             let r_term = Term::Application {
                 op: r_op,
@@ -2177,7 +2177,7 @@ impl Term {
     ) -> Option<Term> {
         if n < lo || n > hi {
             Some(Term::Application {
-                op: sig.has_op(0, Some("NAN".to_string()))?,
+                op: sig.has_op(0, Some("NAN"))?,
                 args: vec![],
             })
         } else {

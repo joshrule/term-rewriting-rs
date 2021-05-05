@@ -17,7 +17,13 @@ pub fn logplusexp(x: f64, y: f64) -> f64 {
 }
 
 // Based on code from Steven Piantadosi's fleet library.
-fn p_prefix(x: &[usize], y: &[usize], p_add: f64, p_del: f64, n_chars: usize) -> f64 {
+fn p_prefix(
+    x: &[Option<usize>],
+    y: &[Option<usize>],
+    p_add: f64,
+    p_del: f64,
+    n_chars: usize,
+) -> f64 {
     let ln_p_add = p_add.ln();
     let ln_p_del = p_del.ln();
     let ln_chars = (n_chars as f64).ln();
@@ -76,6 +82,16 @@ pub struct TRS {
     pub hi: usize,
     pub rules: Vec<Rule>,
 }
+
+pub struct Patterns {
+    add_napp: Option<Term>,
+    add_app: Option<Term>,
+    sub_napp: Option<Term>,
+    sub_app: Option<Term>,
+    gt_napp: Option<Term>,
+    gt_app: Option<Term>,
+}
+
 impl TRS {
     /// Constructs a [`Term Rewriting System`] from a list of [`Rule`]s.
     ///
@@ -409,6 +425,16 @@ impl TRS {
             .iter_mut()
             .for_each(|rule| rule.canonicalize(map));
     }
+    pub fn patterns(&self, sig: &Signature) -> Patterns {
+        Patterns {
+            add_napp: TRS::addition_pattern_nonapplicative(sig),
+            add_app: TRS::addition_pattern_applicative(sig),
+            sub_napp: TRS::subtraction_pattern_nonapplicative(sig),
+            sub_app: TRS::subtraction_pattern_applicative(sig),
+            gt_napp: TRS::greater_pattern_nonapplicative(sig),
+            gt_app: TRS::greater_pattern_applicative(sig),
+        }
+    }
     /// Do two TRSs [`unify`]?
     ///
     /// [`unify`]: https://en.wikipedia.org/wiki/Unification_(computer_science)
@@ -559,35 +585,30 @@ impl TRS {
     fn addition_form(
         term: &Term,
         sig: &Signature,
+        patterns: &Patterns,
         lo: usize,
         hi: usize,
         rep: NumberRepresentation,
-    ) -> Option<Vec<Term>> {
+    ) -> Option<Term> {
         let pattern = match rep.app {
-            Applicativeness::Applicative => TRS::addition_pattern_applicative(sig),
-            Applicativeness::NonApplicative => TRS::addition_pattern_nonapplicative(sig),
+            Applicativeness::Applicative => patterns.add_app.as_ref(),
+            Applicativeness::NonApplicative => patterns.add_napp.as_ref(),
         }?;
         let sub = Term::pmatch(&[(&pattern, &term)])?;
         let x = sub.get(Variable(0))?.to_usize(sig)?;
         let y = sub.get(Variable(1))?.to_usize(sig)?;
-        Some(vec![Term::from_usize_with_bound(
-            x.saturating_add(y),
-            sig,
-            lo,
-            hi,
-            rep,
-        )?])
+        Term::from_usize_with_bound(x.saturating_add(y), sig, lo, hi, rep)
     }
     fn addition_pattern_nonapplicative(sig: &Signature) -> Option<Term> {
         let pattern = Term::Application {
-            op: sig.has_op(2, Some("+".to_string()))?,
+            op: sig.has_op(2, Some("+"))?,
             args: vec![Term::Variable(Variable(0)), Term::Variable(Variable(1))],
         };
         Some(pattern)
     }
     fn addition_pattern_applicative(sig: &Signature) -> Option<Term> {
-        let plus = sig.has_op(0, Some("+".to_string()))?;
-        let app = sig.has_op(2, Some(".".to_string()))?;
+        let plus = sig.has_op(0, Some("+"))?;
+        let app = sig.has_op(2, Some("."))?;
         let pattern = Term::Application {
             op: app,
             args: vec![
@@ -609,35 +630,30 @@ impl TRS {
     fn subtraction_form(
         term: &Term,
         sig: &Signature,
+        patterns: &Patterns,
         lo: usize,
         hi: usize,
         rep: NumberRepresentation,
-    ) -> Option<Vec<Term>> {
+    ) -> Option<Term> {
         let pattern = match rep.app {
-            Applicativeness::Applicative => TRS::subtraction_pattern_applicative(sig),
-            Applicativeness::NonApplicative => TRS::subtraction_pattern_nonapplicative(sig),
+            Applicativeness::Applicative => patterns.sub_app.as_ref(),
+            Applicativeness::NonApplicative => patterns.sub_napp.as_ref(),
         }?;
         let sub = Term::pmatch(&[(&pattern, &term)])?;
         let x = sub.get(Variable(0))?.to_usize(sig)?;
         let y = sub.get(Variable(1))?.to_usize(sig)?;
-        Some(vec![Term::from_usize_with_bound(
-            x.saturating_sub(y),
-            sig,
-            lo,
-            hi,
-            rep,
-        )?])
+        Term::from_usize_with_bound(x.saturating_sub(y), sig, lo, hi, rep)
     }
     fn subtraction_pattern_nonapplicative(sig: &Signature) -> Option<Term> {
         let pattern = Term::Application {
-            op: sig.has_op(2, Some("-".to_string()))?,
+            op: sig.has_op(2, Some("-"))?,
             args: vec![Term::Variable(Variable(0)), Term::Variable(Variable(1))],
         };
         Some(pattern)
     }
     fn subtraction_pattern_applicative(sig: &Signature) -> Option<Term> {
-        let minus = sig.has_op(0, Some("-".to_string()))?;
-        let app = sig.has_op(2, Some(".".to_string()))?;
+        let minus = sig.has_op(0, Some("-"))?;
+        let app = sig.has_op(2, Some("."))?;
         let pattern = Term::Application {
             op: app,
             args: vec![
@@ -659,40 +675,40 @@ impl TRS {
     fn greater_form(
         term: &Term,
         sig: &Signature,
+        patterns: &Patterns,
         lo: usize,
         hi: usize,
         rep: NumberRepresentation,
-    ) -> Option<Vec<Term>> {
-        let t = sig.has_op(0, Some("TRUE".to_string()))?;
-        let f = sig.has_op(0, Some("FALSE".to_string()))?;
+    ) -> Option<Term> {
+        let t = sig.has_op(0, Some("TRUE"))?;
+        let f = sig.has_op(0, Some("FALSE"))?;
         let pattern = match rep.app {
-            Applicativeness::Applicative => TRS::greater_pattern_applicative(sig),
-            Applicativeness::NonApplicative => TRS::greater_pattern_nonapplicative(sig),
+            Applicativeness::Applicative => patterns.gt_app.as_ref(),
+            Applicativeness::NonApplicative => patterns.gt_napp.as_ref(),
         }?;
         let sub = Term::pmatch(&[(&pattern, &term)])?;
         let x = sub.get(Variable(0))?.to_usize(sig)?;
         let y = sub.get(Variable(1))?.to_usize(sig)?;
-        match TRS::check_bounds(x, sig, lo, hi).or_else(|| TRS::check_bounds(y, sig, lo, hi)) {
-            Some(nan) => Some(vec![nan]),
-            None => {
+        TRS::check_bounds(x, sig, lo, hi)
+            .or_else(|| TRS::check_bounds(y, sig, lo, hi))
+            .or_else(|| {
                 let term = Term::Application {
                     op: if x > y { t } else { f },
                     args: vec![],
                 };
-                Some(vec![term])
-            }
-        }
+                Some(term)
+            })
     }
     fn greater_pattern_nonapplicative(sig: &Signature) -> Option<Term> {
         let pattern = Term::Application {
-            op: sig.has_op(2, Some(">".to_string()))?,
+            op: sig.has_op(2, Some(">"))?,
             args: vec![Term::Variable(Variable(0)), Term::Variable(Variable(1))],
         };
         Some(pattern)
     }
     fn greater_pattern_applicative(sig: &Signature) -> Option<Term> {
-        let greater = sig.has_op(0, Some(">".to_string()))?;
-        let app = sig.has_op(2, Some(".".to_string()))?;
+        let greater = sig.has_op(0, Some(">"))?;
+        let app = sig.has_op(2, Some("."))?;
         let pattern = Term::Application {
             op: app,
             args: vec![
@@ -714,7 +730,7 @@ impl TRS {
     fn check_bounds(n: usize, sig: &Signature, lo: usize, hi: usize) -> Option<Term> {
         if n < lo || n > hi {
             Some(Term::Application {
-                op: sig.has_op(0, Some("NAN".to_string()))?,
+                op: sig.has_op(0, Some("NAN"))?,
                 args: vec![],
             })
         } else {
@@ -737,13 +753,14 @@ impl TRS {
     fn rewrite_args(
         &self,
         term: &Term,
+        patterns: &Patterns,
         strategy: Strategy,
         rep: NumberRepresentation,
         sig: &Signature,
     ) -> Option<Vec<Term>> {
         if let Term::Application { op, ref args } = *term {
             for (i, arg) in args.iter().enumerate() {
-                let mut it = self.rewrite(arg, strategy, rep, sig).peekable();
+                let mut it = self.rewrite(arg, patterns, strategy, rep, sig).peekable();
                 if it.peek().is_some() {
                     let res = it
                         .map(|x| {
@@ -793,7 +810,7 @@ impl TRS {
         }
         Some(rewrites)
     }
-    pub fn convert_list_to_string_fast(term: &Term, sig: &Signature) -> Option<Vec<usize>> {
+    pub fn convert_list_to_string_fast(term: &Term, sig: &Signature) -> Option<Vec<Option<usize>>> {
         let mut string = vec![];
         let mut t = term;
         loop {
@@ -801,7 +818,7 @@ impl TRS {
                 return Some(string);
             } else {
                 let (_, args) = t.as_guarded_application(sig, "CONS", 2)?;
-                string.push(args[0].to_usize(sig)?);
+                string.push(args[0].to_usize(sig));
                 t = &args[1];
             }
         }
@@ -1004,27 +1021,27 @@ impl TRS {
     /// madness: `p_list` treats two list `Term`s as strings and computes a
     /// probabilistic edit distance between them.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```
     /// # use term_rewriting::{Signature, TRS, parse_trs, Term, parse_term, logplusexp};
     /// let mut sig = Signature::default();
     ///
-    /// let x = parse_term(&mut sig, "(CONS 1 (CONS 2 (CONS 3 (CONS 4 (CONS 5 NIL)))))")
+    /// let x = parse_term(&mut sig, "CONS(1 CONS(2 CONS(3 CONS(4 CONS(5 NIL)))))")
     ///     .expect("parsed [1, 2, 3, 4, 5]");
     /// let p_add: f64 = 0.1;
     /// let p_del: f64 = 0.01;
     /// let n_chars = 10;
     ///
     /// // We might have no shared prefix.
-    /// let y = parse_term(&mut sig, "(CONS 5 (CONS 4 (CONS 3 (CONS 2 (CONS 1 NIL)))))")
+    /// let y = parse_term(&mut sig, "CONS(5 CONS(4 CONS(3 CONS(2 CONS(1 NIL)))))")
     ///     .expect("parsed [5, 4, 3, 2, 1]");
     /// let expected = (p_add.ln()-(n_chars as f64).ln())*5.0+p_del.ln()*5.0+(1.0-p_add).ln();
     /// let actual = TRS::p_list_prefix(&x, &y, p_add, p_del, n_chars, &sig);
     /// assert_eq!(expected, actual);
     ///
     /// // We might have some shared prefix.
-    /// let y = parse_term(&mut sig, "(CONS 1 (CONS 2 (CONS 6 (CONS 7 (CONS 8 NIL)))))")
+    /// let y = parse_term(&mut sig, "CONS(1 CONS(2 CONS(6 CONS(7 CONS(8 NIL)))))")
     ///     .expect("parsed [1, 2, 6, 7, 8]");
     /// let expected = logplusexp(
     ///     logplusexp(p_del.ln()*5.0+(p_add.ln()-(n_chars as f64).ln())*5.0+(1.0-p_add).ln(),
@@ -1034,8 +1051,8 @@ impl TRS {
     /// assert_eq!(expected, actual);
     ///
     /// // Maybe y is shorter than x.
-    /// let y = parse_term(&mut sig, "(CONS 1 (CONS 2 NIL))")
-    ///     .expect("parsed [1, 2, 6, 7, 8]");
+    /// let y = parse_term(&mut sig, "CONS(1 CONS(2 NIL))")
+    ///     .expect("parsed [1, 2]");
     /// let expected = logplusexp(
     ///     logplusexp(p_del.ln()*5.0+(p_add.ln()-(n_chars as f64).ln())*2.0+(1.0-p_add).ln(),
     ///                p_del.ln()*4.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*1.0+(1.0-p_add).ln()),
@@ -1046,7 +1063,7 @@ impl TRS {
     /// // Maybe y is longer than x.
     /// let y = parse_term(
     ///    &mut sig,
-    ///    "(CONS 1 (CONS 2 (CONS 3 (CONS 4 (CONS 5 (CONS 6 (CONS 7 NIL)))))))")
+    ///    "CONS(1 CONS(2 CONS(3 CONS(4 CONS(5 CONS(6 CONS(7 NIL)))))))")
     ///     .expect("parsed [1, 2, 3, 4, 5, 6, 7]");
     /// let expected = logplusexp(
     ///     logplusexp(
@@ -1065,7 +1082,7 @@ impl TRS {
     /// // Maybe y == x.
     /// let y = parse_term(
     ///    &mut sig,
-    ///    "(CONS 1 (CONS 2 (CONS 3 (CONS 4 (CONS 5 NIL)))))")
+    ///    "CONS(1 CONS(2 CONS(3 CONS(4 CONS(5 NIL)))))")
     ///     .expect("parsed [1, 2, 3, 4, 5]");
     /// let expected = logplusexp(
     ///     logplusexp(
@@ -1078,6 +1095,18 @@ impl TRS {
     ///             p_del.ln()*2.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*2.0+(1.0-p_add).ln()),
     ///         p_del.ln()*1.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*1.0+(1.0-p_add).ln()),
     ///     p_del.ln()*0.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*0.0+(1.0-p_add).ln());
+    /// let actual = TRS::p_list_prefix(&x, &y, p_add, p_del, n_chars, &sig);
+    /// assert_eq!(expected, actual);
+    ///
+    /// // And, double-check on those NANs.
+    /// let y = parse_term(
+    ///    &mut sig,
+    ///    "CONS(1 CONS(2 CONS(NAN CONS(NAN CONS(NAN NIL)))))")
+    ///     .expect("parsed [1, 2, NAN, NAN, NAN]");
+    /// let expected = logplusexp(
+    ///     logplusexp(p_del.ln()*5.0+(p_add.ln()-(n_chars as f64).ln())*5.0+(1.0-p_add).ln(),
+    ///                p_del.ln()*4.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*4.0+(1.0-p_add).ln()),
+    ///     p_del.ln()*3.0+(1.0-p_del).ln()+(p_add.ln()-(n_chars as f64).ln())*3.0+(1.0-p_add).ln());
     /// let actual = TRS::p_list_prefix(&x, &y, p_add, p_del, n_chars, &sig);
     /// assert_eq!(expected, actual);
     /// ```
@@ -1207,11 +1236,12 @@ impl TRS {
     pub fn rewrite<'a>(
         &'a self,
         term: &'a Term,
+        patterns: &'a Patterns,
         strategy: Strategy,
         rep: NumberRepresentation,
         sig: &'a Signature,
     ) -> TRSRewrites<'a> {
-        TRSRewrites::new(self, term, strategy, rep, sig)
+        TRSRewrites::new(self, term, patterns, strategy, rep, sig)
     }
     /// Query a `TRS` for a [`Rule`] based on its left-hand-side; return both
     /// the [`Rule`] and its index if possible
@@ -1853,9 +1883,9 @@ pub struct Normal<'a> {
 
 enum NormalKind<'a> {
     None,
-    HeadForm(Vec<Term>),
+    HeadForm(Option<Term>),
     Head(Box<std::iter::Peekable<Rewrites<'a>>>),
-    SubtermForm(Vec<(Operator, usize, &'a [Term], bool)>, Vec<Term>),
+    SubtermForm(Vec<(Operator, usize, &'a [Term], bool)>, Option<Term>),
     Subterm(
         Vec<(Operator, usize, &'a [Term], bool)>,
         Box<std::iter::Peekable<Rewrites<'a>>>,
@@ -1866,29 +1896,30 @@ impl<'a> Normal<'a> {
     fn try_forms(
         term: &'a Term,
         sig: &'a Signature,
+        patterns: &'a Patterns,
         lo: usize,
         hi: usize,
         rep: NumberRepresentation,
-    ) -> Option<Vec<Term>> {
-        TRS::addition_form(term, sig, lo, hi, rep)
-            .or_else(|| TRS::subtraction_form(term, sig, lo, hi, rep))
-            .or_else(|| TRS::greater_form(term, sig, lo, hi, rep))
+    ) -> Option<Term> {
+        TRS::addition_form(term, sig, patterns, lo, hi, rep)
+            .or_else(|| TRS::subtraction_form(term, sig, patterns, lo, hi, rep))
+            .or_else(|| TRS::greater_form(term, sig, patterns, lo, hi, rep))
     }
     pub(crate) fn new(
         trs: &'a TRS,
         sig: &'a Signature,
+        patterns: &'a Patterns,
         term: &'a Term,
         rep: NumberRepresentation,
     ) -> Normal<'a> {
         let mut it: std::iter::Peekable<Rewrites>;
         if let Term::Application { op, args } = term {
             // Try the head.
-            if let Some(head_forms) = Normal::try_forms(term, sig, trs.lo, trs.hi, rep) {
-                if !head_forms.is_empty() {
-                    return Normal {
-                        rewrites: NormalKind::HeadForm(head_forms),
-                    };
-                }
+            let head_forms = Normal::try_forms(term, sig, patterns, trs.lo, trs.hi, rep);
+            if head_forms.is_some() {
+                return Normal {
+                    rewrites: NormalKind::HeadForm(head_forms),
+                };
             }
             if !trs.rules.is_empty() {
                 it = trs.rules[0].rewrite(term).peekable();
@@ -1918,13 +1949,12 @@ impl<'a> Normal<'a> {
                         x.3 = false;
                     }
                     (Term::Application { op, args }, false) => {
-                        if let Some(forms) = Normal::try_forms(&x.2[x.1], sig, trs.lo, trs.hi, rep)
-                        {
-                            if !forms.is_empty() {
-                                return Normal {
-                                    rewrites: NormalKind::SubtermForm(stack, forms),
-                                };
-                            }
+                        let forms =
+                            Normal::try_forms(&x.2[x.1], sig, patterns, trs.lo, trs.hi, rep);
+                        if forms.is_some() {
+                            return Normal {
+                                rewrites: NormalKind::SubtermForm(stack, forms),
+                            };
                         }
                         for rule in &trs.rules {
                             it = rule.rewrite(&x.2[x.1]).peekable();
@@ -1956,9 +1986,9 @@ impl<'a> Iterator for Normal<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.rewrites {
             NormalKind::None => None,
-            NormalKind::HeadForm(forms) => forms.pop(),
+            NormalKind::HeadForm(forms) => forms.take(),
             NormalKind::Head(it) => it.next(),
-            NormalKind::SubtermForm(stack, forms) => forms.pop().map(|subterm| {
+            NormalKind::SubtermForm(stack, forms) => forms.take().map(|subterm| {
                 stack
                     .iter()
                     .rev()
@@ -1999,16 +2029,17 @@ impl<'a> TRSRewrites<'a> {
     pub(crate) fn new(
         trs: &'a TRS,
         term: &'a Term,
+        patterns: &'a Patterns,
         strategy: Strategy,
         rep: NumberRepresentation,
         sig: &'a Signature,
     ) -> Self {
         match strategy {
-            Strategy::Normal => {
-                TRSRewrites(TRSRewriteKind::Normal(Normal::new(trs, sig, term, rep)))
-            }
+            Strategy::Normal => TRSRewrites(TRSRewriteKind::Normal(Normal::new(
+                trs, sig, patterns, term, rep,
+            ))),
             Strategy::Eager => TRSRewrites(TRSRewriteKind::Eager(
-                trs.rewrite_args(term, strategy, rep, sig)
+                trs.rewrite_args(term, patterns, strategy, rep, sig)
                     .or_else(|| trs.rewrite_head(term))
                     .unwrap_or_else(Vec::new)
                     .into_iter(),

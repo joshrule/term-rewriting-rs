@@ -174,10 +174,19 @@ impl Signature {
         operator
     }
     /// Find an `Operator` in the `Signature`.
-    pub fn has_op(&self, arity: u8, name: Option<String>) -> Option<Operator> {
+    pub fn has_op(&self, arity: u8, name: Option<&str>) -> Option<Operator> {
         self.operators
             .iter()
-            .position(|(o_arity, o_name)| *o_arity == arity && *o_name == name)
+            .position(|(o_arity, o_name)| *o_arity == arity && o_name.as_deref() == name)
+            .map(Operator)
+    }
+    /// Find an `Operator` in the `Signature` that represents a number.
+    pub fn has_n(&self, n: usize) -> Option<Operator> {
+        self.operators
+            .iter()
+            .position(|(o_arity, o_name)| {
+                *o_arity == 0 && o_name.as_ref().map(|name| name.parse::<usize>()) == Some(Ok(n))
+            })
             .map(Operator)
     }
     /// Create a new [`Variable`] distinct from all existing [`Variable`]s.

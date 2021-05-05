@@ -52,7 +52,7 @@ use smallvec::{smallvec, SmallVec};
 use std::f64;
 use std::fmt;
 
-use super::{NumberRepresentation, Signature, Strategy, Term, TRS};
+use super::{NumberRepresentation, Patterns, Signature, Strategy, Term, TRS};
 
 /// A `Trace` provides first-class control over [`Term`] rewriting.
 ///
@@ -75,6 +75,7 @@ pub struct Trace<'a> {
     max_steps: usize,
     max_term_size: Option<usize>,
     strategy: Strategy,
+    patterns: &'a Patterns,
     rep: NumberRepresentation,
 }
 
@@ -157,6 +158,7 @@ impl<'a> Trace<'a> {
         p_observe: f64,
         max_steps: usize,
         max_term_size: Option<usize>,
+        patterns: &'a Patterns,
         strategy: Strategy,
         rep: NumberRepresentation,
     ) -> Trace<'a> {
@@ -164,6 +166,7 @@ impl<'a> Trace<'a> {
             root: None,
             nodes: Vec::with_capacity(max_steps),
             unobserved: Vec::with_capacity(max_steps),
+            patterns,
             trs,
             sig,
             p_observe,
@@ -270,7 +273,7 @@ impl<'a> Trace<'a> {
             let (new_state, new_node_lp, nh, n) = {
                 let mut rewrites = self
                     .trs
-                    .rewrite(&term, self.strategy, self.rep, self.sig)
+                    .rewrite(&term, &self.patterns, self.strategy, self.rep, self.sig)
                     .peekable();
                 let (new_state, new_node_lp) = if rewrites.peek().is_some() {
                     (TraceState::Rewritten, log_p + self.p_observe.ln())
