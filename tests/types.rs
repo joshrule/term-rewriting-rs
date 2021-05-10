@@ -190,6 +190,7 @@ fn rewrite_test() {
     assert_eq!(
         trs.rewrite(
             &l_term,
+            &trs.patterns(&sig),
             Strategy::Normal,
             NumberRepresentation::default(),
             &sig

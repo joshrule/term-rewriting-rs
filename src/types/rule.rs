@@ -1176,6 +1176,17 @@ impl Rule {
     pub fn rewrite<'a>(&'a self, term: &'a Term) -> Rewrites<'a> {
         Rewrites::new(self, term)
     }
+    /// This is a highly specialized form of rewriting that assumes a single RHS. It operates mutably.
+    pub fn rewrite_mut(&self, term: &mut Term) -> bool {
+        if self.rhs.len() != 1 {
+            false
+        } else if let Some(sub) = Term::pmatch(&[(&self.lhs, term)]) {
+            *term = self.rhs[0].substitute(&sub);
+            true
+        } else {
+            false
+        }
+    }
 }
 
 pub struct Rewrites<'a> {

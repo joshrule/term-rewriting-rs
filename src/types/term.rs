@@ -865,7 +865,7 @@ impl From<Variable> for Context {
 ///
 /// [`Variable`]: struct.Variable.html
 /// [`Operator`]: struct.Operator.html
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum Term {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
     /// See [`Variable`] for more information.
@@ -1386,6 +1386,24 @@ impl Term {
                 }
             }
         }
+    }
+    pub fn at_mut(&mut self, place: &[usize]) -> Option<&mut Term> {
+        let mut current = self;
+        let mut remainder = place;
+        while !remainder.is_empty() {
+            match current {
+                Term::Variable(_) => return None,
+                Term::Application { ref mut args, .. } => {
+                    if remainder[0] < args.len() {
+                        current = &mut args[remainder[0]];
+                        remainder = &remainder[1..];
+                    } else {
+                        return None;
+                    }
+                }
+            }
+        }
+        Some(current)
     }
     /// Create a copy of the `Term` where the `Term` at the given [`Place`] has been replaced with
     /// `subterm`.
@@ -2182,6 +2200,55 @@ impl Term {
             })
         } else {
             Term::from_usize(n, sig, representation)
+        }
+    }
+}
+
+impl Clone for Term {
+    fn clone(&self) -> Self {
+        match self {
+            Term::Variable(v) => Term::Variable(*v),
+            Term::Application { op, args } => Term::Application {
+                op: *op,
+                args: args.clone(),
+            },
+        }
+    }
+    fn clone_from(&mut self, source: &Self) {
+        let self_var = matches!(self, Term::Variable(_));
+        let source_var = matches!(source, Term::Variable(_));
+        if (self_var && !source_var) || (source_var && !self_var) {
+            *self = source.clone();
+            return;
+        }
+        match (self, source) {
+            (Term::Variable(v1), Term::Variable(v2)) => {
+                *v1 = *v2;
+            }
+            (
+                Term::Application {
+                    op: op1,
+                    args: args1,
+                },
+                Term::Application {
+                    op: op2,
+                    args: args2,
+                },
+            ) => {
+                *op1 = *op2;
+                // make sure arg1 is no longer than needed
+                let shared = args1.len().min(args2.len());
+                let additional = args2.len().saturating_sub(args1.len());
+                args1.reserve(additional);
+                args1.truncate(args2.len());
+                for idx in 0..shared {
+                    args1[idx].clone_from(&args2[idx]);
+                }
+                for arg in args2.iter().skip(shared) {
+                    args1.push(arg.clone());
+                }
+            }
+            _ => unreachable!(),
         }
     }
 }

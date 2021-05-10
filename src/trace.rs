@@ -17,8 +17,9 @@
 //!     PLUS(SUCC(SUCC(SUCC(ZERO))) SUCC(ZERO));"
 //!     .trim();
 //! let (trs, mut terms) = parse(&mut sig, inp).unwrap();
+//! let patterns = trs.patterns(&sig);
 //! let mut term = terms.pop().unwrap();
-//! let trace = Trace::new(&trs, &sig, &term, 0.5, 10, None, Strategy::Normal, NumberRepresentation::default());
+//! let trace = Trace::new(&trs, &sig, &term, 0.5, 10, None, &patterns, Strategy::Normal, NumberRepresentation::default());
 //!
 //! let expected = vec!["PLUS(3, 1)", "PLUS(2, 2)", "PLUS(1, 3)", "PLUS(0, 4)", "4"];
 //! let got = trace
@@ -37,9 +38,10 @@
 //! let trs_str =
 //!     "PLUS(SUCC(v0_) v1_) = PLUS(v0_ SUCC(v1_)) | SUCC(PLUS(v0_ v1_)); PLUS(ZERO v2_) = v2_;";
 //! let trs = parse_trs(&mut sig, trs_str).expect("parsed trs");
+//! let patterns = trs.patterns(&sig);
 //! let input_str = "PLUS(SUCC(SUCC(SUCC(ZERO))) PLUS(SUCC(ZERO) ZERO))";
 //! let input = parse_term(&mut sig, input_str).expect("parsed input");
-//! let mut trace = Trace::new(&trs, &sig, &input, 0.5, 100, None, Strategy::Normal, NumberRepresentation::default());
+//! let mut trace = Trace::new(&trs, &sig, &input, 0.5, 100, None, &patterns, Strategy::Normal, NumberRepresentation::default());
 //!
 //! let formatter = trace
 //!     .iter()

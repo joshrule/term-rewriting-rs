@@ -1,9 +1,10 @@
 use super::{
-    Applicativeness, Atom, NumberRepresentation, Operator, Rewrites, Rule, Signature, Term,
-    Variable,
+    Applicativeness, Atom, NumberLogic, NumberRepresentation, Operator, Rewrites, Rule, Signature,
+    Term, Variable,
 };
 use itertools::Itertools;
 use serde_derive::{Deserialize, Serialize};
+use smallvec::SmallVec;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -14,6 +15,99 @@ pub fn logplusexp(x: f64, y: f64) -> f64 {
     } else {
         ((x - largest).exp() + (y - largest).exp()).ln() + largest
     }
+}
+
+fn try_forms_mut(
+    term: &mut Term,
+    sig: &Signature,
+    patterns: &Patterns,
+    lo: usize,
+    hi: usize,
+) -> bool {
+    addition_form_mut(term, sig, patterns, lo, hi)
+        .or_else(|| subtraction_form_mut(term, sig, patterns, lo, hi))
+        .or_else(|| greater_form_mut(term, sig, patterns, lo, hi))
+        .unwrap_or(false)
+}
+
+fn addition_form_mut(
+    term: &mut Term,
+    sig: &Signature,
+    patterns: &Patterns,
+    lo: usize,
+    hi: usize,
+) -> Option<bool> {
+    let pattern = patterns.add_napp.as_ref()?;
+    let sub = Term::pmatch(&[(&pattern, &term)])?;
+    let x = sub.get(Variable(0))?.to_usize(sig)?;
+    let y = sub.get(Variable(1))?.to_usize(sig)?;
+    match term {
+        Term::Variable(_) => unreachable!(),
+        Term::Application { op, args } => {
+            let n = x.saturating_add(y);
+            if n < lo || n > hi {
+                *op = sig.has_op(0, Some("NAN"))?;
+            } else {
+                *op = sig.has_n(n)?;
+            }
+            args.clear();
+        }
+    }
+    Some(true)
+}
+
+fn subtraction_form_mut(
+    term: &mut Term,
+    sig: &Signature,
+    patterns: &Patterns,
+    lo: usize,
+    hi: usize,
+) -> Option<bool> {
+    let pattern = patterns.sub_napp.as_ref()?;
+    let sub = Term::pmatch(&[(&pattern, &term)])?;
+    let x = sub.get(Variable(0))?.to_usize(sig)?;
+    let y = sub.get(Variable(1))?.to_usize(sig)?;
+    match term {
+        Term::Variable(_) => unreachable!(),
+        Term::Application { op, args } => {
+            let n = x.saturating_sub(y);
+            if n < lo || n > hi {
+                *op = sig.has_op(0, Some("NAN"))?;
+            } else {
+                *op = sig.has_n(n)?;
+            }
+            args.clear();
+        }
+    }
+    Some(true)
+}
+
+fn greater_form_mut(
+    term: &mut Term,
+    sig: &Signature,
+    patterns: &Patterns,
+    lo: usize,
+    hi: usize,
+) -> Option<bool> {
+    let pattern = patterns.gt_napp.as_ref()?;
+    let sub = Term::pmatch(&[(&pattern, &term)])?;
+    let x = sub.get(Variable(0))?.to_usize(sig)?;
+    let y = sub.get(Variable(1))?.to_usize(sig)?;
+    if !(x < lo || x > hi || y < lo || y > hi) {
+        match term {
+            Term::Variable(_) => unreachable!(),
+            Term::Application { op, args } => {
+                if x > y {
+                    *op = sig.has_op(0, Some("TRUE"))?;
+                } else {
+                    *op = sig.has_op(0, Some("FALSE"))?;
+                }
+                args.clear();
+            }
+        }
+        return Some(true);
+    }
+    None
 }
 
 // Based on code from Steven Piantadosi's fleet library.
@@ -1141,17 +1235,18 @@ impl TRS {
     /// F(x_) = G;").expect("parse of A = B; C = D | E; F(x_) = G;");
     ///
     /// let term = parse_term(&mut sig, "J(F(C) K(C A))").expect("parse of J(F(C) K(C A))");
+    /// let patterns = t.patterns(&sig);
     ///
-    /// let rewritten_terms: Vec<_> = t.rewrite(&term, Strategy::Normal, NumberRepresentation::default(), &sig).collect();
+    /// let rewritten_terms: Vec<_> = t.rewrite(&term, &patterns, Strategy::Normal, NumberRepresentation::default(), &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 1);
     /// assert_eq!(rewritten_terms[0].display(&sig), "J(G K(C A))");
     ///
-    /// let rewritten_terms: Vec<_> = t.rewrite(&term, Strategy::Eager, NumberRepresentation::default(), &sig).collect();
+    /// let rewritten_terms: Vec<_> = t.rewrite(&term, &patterns, Strategy::Eager, NumberRepresentation::default(), &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 2);
     /// assert_eq!(rewritten_terms[0].display(&sig), "J(F(D) K(C A))");
     /// assert_eq!(rewritten_terms[1].display(&sig), "J(F(E) K(C A))");
     ///
-    /// let rewritten_terms: Vec<_> = t.rewrite(&term, Strategy::All, NumberRepresentation::default(), &sig).collect();
+    /// let rewritten_terms: Vec<_> = t.rewrite(&term, &patterns, Strategy::All, NumberRepresentation::default(), &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 6);
     /// assert_eq!(rewritten_terms[0].display(&sig), "J(G K(C A))");
     /// assert_eq!(rewritten_terms[1].display(&sig), "J(F(D) K(C A))");
@@ -1167,10 +1262,12 @@ impl TRS {
     /// ```
     /// # use term_rewriting::{NumberRepresentation, Applicativeness, NumberLogic, Signature, Strategy, TRS, parse_trs, Term, parse_term};
     /// let mut sig = Signature::default();
+    /// sig.new_op(2, Some(".".to_string()));
     /// sig.new_op(0, Some("TRUE".to_string()));
     /// sig.new_op(0, Some("FALSE".to_string()));
-    /// sig.new_op(0, Some("DIGIT".to_string()));
-    /// sig.new_op(0, Some("DECC".to_string()));
+    /// sig.new_op(0, Some("+".to_string()));
+    /// sig.new_op(0, Some("-".to_string()));
+    /// sig.new_op(0, Some(">".to_string()));
     /// sig.new_op(0, Some("F".to_string()));
     /// (0..99).for_each(|x| {sig.new_op(0, Some(x.to_string()));});
     /// let mut trs = parse_trs(&mut sig, "").expect("trs");
@@ -1179,24 +1276,25 @@ impl TRS {
     ///     logic: NumberLogic::Symbolic,
     ///     app: Applicativeness::Applicative,
     /// };
+    /// let patterns = trs.patterns(&sig);
     ///
     /// let t1 = parse_term(&mut sig, "(+ 7 3)").expect("t1");
-    /// let rewritten_terms: Vec<_> = trs.rewrite(&t1, Strategy::Normal, rep, &sig).collect();
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t1, &patterns, Strategy::Normal, rep, &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 1);
     /// assert_eq!(rewritten_terms[0].display(&sig), "10");
     ///
     /// let t2 = parse_term(&mut sig, "(- 7 3)").expect("t2");
-    /// let rewritten_terms: Vec<_> = trs.rewrite(&t2, Strategy::Normal, rep, &sig).collect();
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t2, &patterns, Strategy::Normal, rep, &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 1);
     /// assert_eq!(rewritten_terms[0].display(&sig), "4");
     ///
     /// let t3 = parse_term(&mut sig, "(> 7 3)").expect("t3");
-    /// let rewritten_terms: Vec<_> = trs.rewrite(&t3, Strategy::Normal, rep, &sig).collect();
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t3, &patterns, Strategy::Normal, rep, &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 1);
     /// assert_eq!(rewritten_terms[0].display(&sig), "TRUE");
     ///
     /// let t4 = parse_term(&mut sig, "(F (+ 7 3))").expect("t3");
-    /// let rewritten_terms: Vec<_> = trs.rewrite(&t4, Strategy::Normal, rep, &sig).collect();
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t4, &patterns, Strategy::Normal, rep, &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 1);
     /// assert_eq!(rewritten_terms[0].display(&sig), ".(F 10)");
     /// ```
@@ -1207,29 +1305,31 @@ impl TRS {
     /// sig.new_op(0, Some("TRUE".to_string()));
     /// sig.new_op(0, Some("FALSE".to_string()));
     /// sig.new_op(1, Some("F".to_string()));
-    /// sig.new_op(0, Some("DIGIT".to_string()));
-    /// sig.new_op(0, Some("DECC".to_string()));
+    /// sig.new_op(2, Some("+".to_string()));
+    /// sig.new_op(2, Some("-".to_string()));
+    /// sig.new_op(2, Some(">".to_string()));
     /// (0..99).for_each(|x| {sig.new_op(0, Some(x.to_string()));});
     /// let mut trs = parse_trs(&mut sig, "").expect("trs");
     /// trs.lo = 0; trs.hi = 99;
+    /// let patterns = trs.patterns(&sig);
     ///
     /// let t1 = parse_term(&mut sig, "+(7 3)").expect("t1");
-    /// let rewritten_terms: Vec<_> = trs.rewrite(&t1, Strategy::Normal, NumberRepresentation::default(), &sig).collect();
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t1, &patterns, Strategy::Normal, NumberRepresentation::default(), &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 1);
     /// assert_eq!(rewritten_terms[0].display(&sig), "10");
     ///
     /// let t2 = parse_term(&mut sig, "-(7 3)").expect("t2");
-    /// let rewritten_terms: Vec<_> = trs.rewrite(&t2, Strategy::Normal, NumberRepresentation::default(), &sig).collect();
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t2, &patterns, Strategy::Normal, NumberRepresentation::default(), &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 1);
     /// assert_eq!(rewritten_terms[0].display(&sig), "4");
     ///
     /// let t3 = parse_term(&mut sig, ">(7 3)").expect("t3");
-    /// let rewritten_terms: Vec<_> = trs.rewrite(&t3, Strategy::Normal, NumberRepresentation::default(), &sig).collect();
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t3, &patterns, Strategy::Normal, NumberRepresentation::default(), &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 1);
     /// assert_eq!(rewritten_terms[0].display(&sig), "TRUE");
     ///
     /// let t4 = parse_term(&mut sig, "F(+(7 3))").expect("t3");
-    /// let rewritten_terms: Vec<_> = trs.rewrite(&t4, Strategy::Normal, NumberRepresentation::default(), &sig).collect();
+    /// let rewritten_terms: Vec<_> = trs.rewrite(&t4, &patterns, Strategy::Normal, NumberRepresentation::default(), &sig).collect();
     /// assert_eq!(rewritten_terms.len(), 1);
     /// assert_eq!(rewritten_terms[0].display(&sig), "F(10)");
     /// ```
@@ -1242,6 +1342,116 @@ impl TRS {
         sig: &'a Signature,
     ) -> TRSRewrites<'a> {
         TRSRewrites::new(self, term, patterns, strategy, rep, sig)
+    }
+    /// This is a highly specialized rewriter that mutably rewrites terms using
+    /// normal-order evaluation. It requires that the TRS is deterministic.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use term_rewriting::{NumberRepresentation, Signature, Strategy, TRS, parse_trs, Term, parse_term};
+    /// let mut sig = Signature::default();
+    ///
+    /// let mut t = parse_trs(&mut sig,
+    /// "A = B;
+    /// C = D;
+    /// F(x_) = G;").expect("trs");
+    /// t.make_deterministic();
+    /// let patterns = t.patterns(&sig);
+    ///
+    /// let mut term = parse_term(&mut sig, "J(F(C) K(C A))").expect("J(F(C) K(C A))");
+    ///
+    /// assert_eq!(term.display(&sig), "J(F(C) K(C A))");
+    /// assert!(t.rewrite_mut(&mut term, &patterns, NumberRepresentation::default(), &sig));
+    /// assert_eq!(term.display(&sig), "J(G K(C A))");
+    /// ```
+    ///
+    /// Also, addition (`+`), subtraction (`-`), and greater-than (`>`) have
+    /// built-in behavior if they are defined.
+    ///
+    /// ```
+    /// # use term_rewriting::{NumberRepresentation, Signature, Strategy, TRS, parse_trs, Term, parse_term};
+    /// let mut sig = Signature::default();
+    /// sig.new_op(0, Some("TRUE".to_string()));
+    /// sig.new_op(0, Some("FALSE".to_string()));
+    /// sig.new_op(0, Some("NAN".to_string()));
+    /// sig.new_op(2, Some("+".to_string()));
+    /// sig.new_op(2, Some("-".to_string()));
+    /// sig.new_op(2, Some(">".to_string()));
+    /// sig.new_op(1, Some("F".to_string()));
+    /// (0..99).for_each(|x| {sig.new_op(0, Some(x.to_string()));});
+    /// let mut trs = parse_trs(&mut sig, "").expect("trs");
+    /// let rep = NumberRepresentation::default();
+    /// trs.lo = 0; trs.hi = 99;
+    /// trs.make_deterministic();
+    /// let patterns = trs.patterns(&sig);
+    ///
+    /// let mut term = parse_term(&mut sig, "+(7 3)").expect("t1");
+    /// trs.rewrite_mut(&mut term, &patterns, rep, &sig);
+    /// assert_eq!(term.display(&sig), "10");
+    ///
+    /// term = parse_term(&mut sig, "-(7 3)").expect("t2");
+    /// trs.rewrite_mut(&mut term, &patterns, rep, &sig);
+    /// assert_eq!(term.display(&sig), "4");
+    ///
+    /// term = parse_term(&mut sig, ">(7 3)").expect("t3");
+    /// trs.rewrite_mut(&mut term, &patterns, rep, &sig);
+    /// assert_eq!(term.display(&sig), "TRUE");
+    ///
+    /// term = parse_term(&mut sig, "F(+(7 3))").expect("t3");
+    /// trs.rewrite_mut(&mut term, &patterns, rep, &sig);
+    /// assert_eq!(term.display(&sig), "F(10)");
+    /// ```
+    pub fn rewrite_mut(
+        &self,
+        term: &mut Term,
+        patterns: &Patterns,
+        rep: NumberRepresentation,
+        sig: &Signature,
+    ) -> bool {
+        let default_rep = NumberRepresentation {
+            logic: NumberLogic::Symbolic,
+            app: Applicativeness::NonApplicative,
+        };
+        if !self.is_deterministic() || rep != default_rep {
+            return false;
+        }
+        let mut place: SmallVec<[usize; 32]> = SmallVec::with_capacity(32);
+        let mut stack: SmallVec<[(usize, bool); 128]> = SmallVec::with_capacity(128);
+        loop {
+            match term.at_mut(&place) {
+                None => panic!("FAIL: {} {:?}", term.pretty(sig), place),
+                Some(subterm) => {
+                    if std::iter::once(try_forms_mut(subterm, sig, patterns, self.lo, self.hi))
+                        .chain(self.rules.iter().map(|rule| rule.rewrite_mut(subterm)))
+                        .any(|x| x)
+                    {
+                        return true;
+                    }
+                    match subterm {
+                        Term::Application { args, .. } if !args.is_empty() => {
+                            for arg_idx in (1..args.len()).rev() {
+                                stack.push((arg_idx, false))
+                            }
+                            stack.push((0, true));
+                            place.push(0);
+                        }
+                        _ => {
+                            while let Some((_, true)) = stack.last() {
+                                stack.pop();
+                                place.pop();
+                            }
+                            if let Some((idx, seen)) = stack.last_mut() {
+                                *seen = true;
+                                place.push(*idx);
+                            } else {
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     /// Query a `TRS` for a [`Rule`] based on its left-hand-side; return both
     /// the [`Rule`] and its index if possible
