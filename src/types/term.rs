@@ -627,7 +627,7 @@ impl Context {
     }
     /// `true` if `self` is a more general instance of some `Term`.
     pub fn generalize<'a>(
-        cs: Vec<(&'a Context, &'a Context)>,
+        cs: &[(&'a Context, &'a Context)],
     ) -> Option<HashMap<&'a Variable, &'a Context>> {
         Context::unify_internal(cs, Unification::Generalize)
     }
@@ -657,7 +657,7 @@ impl Context {
     ///
     /// [alpha equivalence]: https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
     pub fn alpha<'a>(
-        cs: Vec<(&'a Context, &'a Context)>,
+        cs: &[(&'a Context, &'a Context)],
     ) -> Option<HashMap<&'a Variable, &'a Context>> {
         Context::unify_internal(cs, Unification::Alpha)
     }
@@ -682,9 +682,9 @@ impl Context {
     /// let t3 = parse_context(&mut sig, "C([!])").expect("parse of C(x_)");
     /// let t4 = parse_context(&mut sig, "C(x_)").expect("parse of C(x_)");
     ///
-    /// assert_eq!(Context::pmatch(vec![(&t1, &t2)]), None);
-    /// assert_eq!(Context::pmatch(vec![(&t2, &t1)]), None);
-    /// assert_eq!(Context::pmatch(vec![(&t2, &t3)]), Some(HashMap::new()));
+    /// assert_eq!(Context::pmatch(&[(&t1, &t2)]), None);
+    /// assert_eq!(Context::pmatch(&[(&t2, &t1)]), None);
+    /// assert_eq!(Context::pmatch(&[(&t2, &t3)]), Some(HashMap::new()));
     ///
     /// // Map variable x in term t4 to hole [!] in term t3.
     /// let t_k = &t4.variables()[0];
@@ -692,10 +692,10 @@ impl Context {
     /// let mut expected_sub = HashMap::new();
     /// expected_sub.insert(t_k, &t_v);
     ///
-    /// assert_eq!(Context::pmatch(vec![(&t4, &t3)]), Some(expected_sub));
+    /// assert_eq!(Context::pmatch(&[(&t4, &t3)]), Some(expected_sub));
     /// ```
     pub fn pmatch<'a>(
-        cs: Vec<(&'a Context, &'a Context)>,
+        cs: &[(&'a Context, &'a Context)],
     ) -> Option<HashMap<&'a Variable, &'a Context>> {
         Context::unify_internal(cs, Unification::Match)
     }
@@ -723,7 +723,7 @@ impl Context {
     /// let t1 = parse_context(&mut sig, "C(A)").expect("parse of C(A)");
     /// let t2 = parse_context(&mut sig, "C([!])").expect("parse of C([!])");
     ///
-    /// assert_eq!(Context::unify(vec![(&t1, &t2)]), None);
+    /// assert_eq!(Context::unify(&[(&t1, &t2)]), None);
     /// ```
     ///
     /// ```
@@ -739,7 +739,7 @@ impl Context {
     /// let t_v = Context::Hole;
     /// expected_sub.insert(t_k, &t_v);
     ///
-    /// assert_eq!(Context::unify(vec![(&t1, &t2)]), Some(expected_sub));
+    /// assert_eq!(Context::unify(&[(&t1, &t2)]), Some(expected_sub));
     /// ```
     ///
     /// ```
@@ -749,81 +749,114 @@ impl Context {
     /// let t1 = parse_context(&mut sig, "C([!])").expect("parse of C([!])");
     /// let t2 = parse_context(&mut sig, "C([!])").expect("parse of C([!])");
     ///
-    /// assert_eq!(Context::unify(vec![(&t1, &t2)]), Some(HashMap::new()));
+    /// assert_eq!(Context::unify(&[(&t1, &t2)]), Some(HashMap::new()));
     /// ```
     pub fn unify<'a>(
-        cs: Vec<(&'a Context, &'a Context)>,
+        cs: &[(&'a Context, &'a Context)],
     ) -> Option<HashMap<&'a Variable, &'a Context>> {
         Context::unify_internal(cs, Unification::Unify)
     }
-    /// the internal implementation of unify and match.
+    /// the internal implementation of unification.
     fn unify_internal<'a>(
-        mut cs: Vec<(&'a Context, &'a Context)>,
+        initial_cs: &[(&'a Context, &'a Context)],
         utype: Unification,
     ) -> Option<HashMap<&'a Variable, &'a Context>> {
-        let mut subs: HashMap<&Variable, &Context> = HashMap::new();
-        while !cs.is_empty() {
-            let (mut s, mut t) = cs.pop().unwrap();
-
-            while let Context::Variable(ref v) = *s {
-                if subs.contains_key(v) {
-                    s = &subs[v];
-                } else {
-                    break;
+        let mut subs: SmallVec<[(&Variable, &Context); 32]> = smallvec![];
+        for &(s, t) in initial_cs {
+            Context::unify_one(s, t, &mut subs, utype)?;
+        }
+        Some(subs.into_iter().collect())
+    }
+    fn unify_one<'a>(
+        mut s: &'a Context,
+        mut t: &'a Context,
+        subs: &mut SmallVec<[(&'a Variable, &'a Context); 32]>,
+        utype: Unification,
+    ) -> Option<()> {
+        // This how we deal with substitution composition.
+        if utype == Unification::Unify {
+            while let Context::Variable(v) = *s {
+                match subs.iter().find(|(k_var, _)| **k_var == v) {
+                    Some((_, v_term)) => s = v_term,
+                    None => break,
                 }
             }
 
-            while let Context::Variable(ref v) = *t {
-                if subs.contains_key(v) {
-                    t = &subs[v];
-                } else {
-                    break;
-                }
-            }
-
-            // if they are equal, you're all done with them.
-            if s != t {
-                match (s, t) {
-                    (Context::Hole, Context::Hole) => (),
-                    (Context::Hole, _) if utype == Unification::Generalize => (),
-                    (Context::Variable(ref var), Context::Variable(_)) => {
-                        subs.insert(var, t);
-                    }
-                    (Context::Variable(ref var), t)
-                        if utype != Unification::Alpha && utype != Unification::Generalize =>
-                    {
-                        if !(*t).variables().contains(&&var) {
-                            subs.insert(var, t);
-                        } else {
-                            return None;
-                        }
-                    }
-                    (s, Context::Variable(ref var)) if utype == Unification::Unify => {
-                        if !(*s).variables().contains(&&var) {
-                            subs.insert(var, s);
-                        } else {
-                            return None;
-                        }
-                    }
-                    (
-                        Context::Application {
-                            op: ref h1,
-                            args: ref a1,
-                        },
-                        Context::Application {
-                            op: ref h2,
-                            args: ref a2,
-                        },
-                    ) if h1 == h2 => {
-                        cs.append(&mut a1.iter().zip(a2.iter()).collect());
-                    }
-                    _ => {
-                        return None;
-                    }
+            while let Context::Variable(v) = *t {
+                match subs.iter().find(|(k_var, _)| **k_var == v) {
+                    Some((_, v_term)) => t = v_term,
+                    None => break,
                 }
             }
         }
-        Some(subs)
+        // if they are equal, you're all done with them.
+        if s != t {
+            match (s, t) {
+                (Context::Hole, Context::Hole) => (),
+                (Context::Hole, _) if utype == Unification::Generalize => (),
+                (Context::Variable(ref var), Context::Variable(_))
+                    if utype == Unification::Match =>
+                {
+                    if subs.iter().any(|(v, _)| *v == var) {
+                        return None;
+                    } else {
+                        subs.push((var, t));
+                    }
+                }
+                (Context::Variable(ref var), v2 @ Context::Variable(_))
+                    if utype == Unification::Alpha =>
+                {
+                    if subs
+                        .iter()
+                        .any(|(v, term)| (*v == var || &v2 == term) && (*v != var || &v2 != term))
+                    {
+                        return None;
+                    } else {
+                        subs.push((var, t));
+                    }
+                }
+                (Context::Variable(ref var), Context::Variable(_)) => {
+                    subs.push((var, t));
+                }
+                (Context::Variable(ref var), t) if utype == Unification::Unify => {
+                    if t.all_variables().any(|v| v == *var) {
+                        return None;
+                    } else {
+                        subs.push((var, t));
+                    }
+                }
+                (Context::Variable(ref var), t) if utype == Unification::Match => {
+                    if subs.iter().any(|(v, _)| *v == var) {
+                        return None;
+                    } else {
+                        subs.push((var, t));
+                    }
+                }
+                (s, Context::Variable(ref var)) if utype == Unification::Unify => {
+                    if s.all_variables().any(|v| v == *var) {
+                        return None;
+                    } else {
+                        subs.push((var, s));
+                    }
+                }
+                (
+                    Context::Application {
+                        op: ref h1,
+                        args: ref a1,
+                    },
+                    Context::Application {
+                        op: ref h2,
+                        args: ref a2,
+                    },
+                ) if h1 == h2 => {
+                    for (s1, t1) in a1.iter().zip(a2.iter()) {
+                        Context::unify_one(s1, t1, subs, utype)?;
+                    }
+                }
+                _ => return None,
+            }
+        }
+        Some(())
     }
 }
 impl TryFrom<&Context> for Term {
@@ -1630,6 +1663,19 @@ impl Term {
     ///
     /// assert_eq!(Term::alpha(&[(&t, &t3)]), None);
     /// ```
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, parse_term, Term, Substitution, Variable};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t1 = parse_term(&mut sig, "C(CONS(v0_ CONS(v1_ v2_)))").expect("parse of t1");
+    /// let t2 = parse_term(&mut sig, "C(CONS(v0_ CONS(v0_ v1_)))").expect("parse of t2");
+    /// println!("t1: {:?}", t1);
+    /// println!("t2: {:?}", t2);
+    ///
+    /// assert_eq!(Term::alpha(&[(&t1, &t2)]), None);
+    /// assert_eq!(Term::alpha(&[(&t2, &t1)]), None);
+    /// ```
     pub fn alpha<'a>(cs: &[(&'a Term, &'a Term)]) -> Option<Substitution<'a>> {
         Term::unify_internal(cs, Unification::Alpha)
     }
@@ -1716,6 +1762,27 @@ impl Term {
     ///
     /// assert_eq!(Term::pmatch(&[(&t2, &t3)]), None);
     /// ```
+    ///
+    /// ```
+    /// # use term_rewriting::{parse_term, Signature, Term, Substitution, Variable};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t1 = parse_term(&mut sig, "C(x_ x_)").expect("parse of C(x_ x_)");
+    ///
+    /// let t2 = parse_term(&mut sig, "C(y_ z_)").expect("parse of C(y_ z_)");
+    /// println!("{:?}", t1);
+    /// println!("{:?}", t2);
+    ///
+    /// assert_eq!(Term::pmatch(&[(&t1, &t2)]), None);
+    ///
+    /// // maps variable x in term t2 to constant A in term t1
+    /// let x = Term::Variable(Variable(0));
+    /// let y = Variable(1);
+    /// let z = Variable(2);
+    /// let expected_sub = Substitution(vec![(&y, &x,), (&z, &x)]);
+    ///
+    /// assert_eq!(Term::pmatch(&[(&t2, &t1)]), Some(expected_sub));
+    /// ```
     pub fn pmatch<'a>(cs: &[(&'a Term, &'a Term)]) -> Option<Substitution<'a>> {
         Term::unify_internal(cs, Unification::Match)
     }
@@ -1777,35 +1844,62 @@ impl Term {
         Term::unify_internal(cs, Unification::Unify)
     }
     /// the internal implementation of a single unification.
-    #[inline]
     fn unify_one<'a>(
         mut s: &'a Term,
         mut t: &'a Term,
         subs: &mut SmallVec<[(&'a Variable, &'a Term); 32]>,
         utype: Unification,
     ) -> Option<()> {
-        while let Term::Variable(v) = *s {
-            match subs.iter().find(|(k_var, _)| **k_var == v) {
-                Some((_, v_term)) => s = v_term,
-                None => break,
+        // This how we deal with substitution composition.
+        if utype == Unification::Unify {
+            while let Term::Variable(v) = *s {
+                match subs.iter().find(|(k_var, _)| **k_var == v) {
+                    Some((_, v_term)) => s = v_term,
+                    None => break,
+                }
+            }
+
+            while let Term::Variable(v) = *t {
+                match subs.iter().find(|(k_var, _)| **k_var == v) {
+                    Some((_, v_term)) => t = v_term,
+                    None => break,
+                }
             }
         }
-
-        while let Term::Variable(v) = *t {
-            match subs.iter().find(|(k_var, _)| **k_var == v) {
-                Some((_, v_term)) => t = v_term,
-                None => break,
-            }
-        }
-
         // if they are equal, you're all done with them.
         if s != t {
             match (s, t) {
+                (Term::Variable(ref var), Term::Variable(_)) if utype == Unification::Match => {
+                    if subs.iter().any(|(v, _)| *v == var) {
+                        return None;
+                    } else {
+                        subs.push((var, t));
+                    }
+                }
+                (Term::Variable(ref var), v2 @ Term::Variable(_))
+                    if utype == Unification::Alpha =>
+                {
+                    if subs
+                        .iter()
+                        .any(|(v, term)| (*v == var || &v2 == term) && (*v != var || &v2 != term))
+                    {
+                        return None;
+                    } else {
+                        subs.push((var, t));
+                    }
+                }
                 (Term::Variable(ref var), Term::Variable(_)) => {
                     subs.push((var, t));
                 }
-                (Term::Variable(ref var), t) if utype != Unification::Alpha => {
+                (Term::Variable(ref var), t) if utype == Unification::Unify => {
                     if t.all_variables().any(|v| v == *var) {
+                        return None;
+                    } else {
+                        subs.push((var, t));
+                    }
+                }
+                (Term::Variable(ref var), t) if utype == Unification::Match => {
+                    if subs.iter().any(|(v, _)| *v == var) {
                         return None;
                     } else {
                         subs.push((var, t));
