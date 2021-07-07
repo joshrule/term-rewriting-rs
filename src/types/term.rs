@@ -45,6 +45,36 @@ impl<'a> Iterator for Variables<'a> {
     }
 }
 
+pub struct ContextVariables<'a> {
+    stack: SmallVec<[&'a Context; 32]>,
+}
+
+impl<'a> ContextVariables<'a> {
+    pub(crate) fn new(ctx: &'a Context) -> Self {
+        ContextVariables {
+            stack: smallvec![ctx],
+        }
+    }
+}
+
+impl<'a> Iterator for ContextVariables<'a> {
+    type Item = Variable;
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(ctx) = self.stack.pop() {
+            match ctx {
+                Context::Hole => (),
+                Context::Variable(v) => return Some(*v),
+                Context::Application { ref args, .. } => {
+                    for arg in args.iter().rev() {
+                        self.stack.push(arg);
+                    }
+                }
+            }
+        }
+        None
+    }
+}
+
 pub struct Preorder<'a> {
     stack: SmallVec<[(&'a Term, usize); 32]>,
 }
@@ -295,6 +325,9 @@ impl Context {
                 vars
             }
         }
+    }
+    pub fn all_variables(&self) -> ContextVariables {
+        ContextVariables::new(self)
     }
     /// Every [`Operator`] used in the `Context`.
     ///
