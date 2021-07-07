@@ -1478,8 +1478,13 @@ impl TRS {
     /// assert_eq!(t.get(&c).unwrap().1.display(&sig), "C = D | E");
     /// ```
     pub fn get(&self, lhs: &Term) -> Option<(usize, Rule)> {
+        let mut lhs = lhs.clone();
+        lhs.canonicalize(&mut HashMap::new());
+        let n_vars = lhs.variables().len();
         for (idx, rule) in self.rules.iter().enumerate() {
-            if Term::alpha(&[(lhs, &rule.lhs)]).is_some() {
+            let mut new_lhs = rule.lhs.clone();
+            new_lhs.offset(n_vars);
+            if Term::alpha(&[(&lhs, &new_lhs)]).is_some() {
                 return Some((idx, rule.clone()));
             }
         }
