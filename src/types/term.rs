@@ -1586,13 +1586,26 @@ impl Term {
     ///
     /// assert_eq!(subbed_term, expected_term);
     /// ```
+    ///
+    /// ```
+    /// # use term_rewriting::{Signature, Substitution, parse_term, Term};
+    /// let mut sig = Signature::default();
+    ///
+    /// let t1 = parse_term(&mut sig, "C(x_ y_ x_)").expect("parse of C(x_ y_ x_)");
+    /// let t2 = parse_term(&mut sig, "C(z_ z_ D)").expect("parse of C(z_ z_ D)");
+    ///
+    /// let sub = Term::unify(&[(&t1, &t2)]).unwrap();
+    /// println!("sub: {:?}", sub);
+    /// assert_eq!(t1.substitute(&sub).pretty(&sig), "C(D, D, D)");
+    /// assert_eq!(t2.substitute(&sub).pretty(&sig), "C(D, D, D)");
+    /// ```
     pub fn substitute(&self, sub: &Substitution) -> Term {
         match *self {
             Term::Variable(v) => sub
                 .0
                 .iter()
                 .find(|(k_var, _)| **k_var == v)
-                .map(|x| (x.1).clone())
+                .map(|(_, t)| t.substitute(sub))
                 .unwrap_or(Term::Variable(v)),
             Term::Application { op, ref args } => Term::Application {
                 op,
