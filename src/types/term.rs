@@ -2113,8 +2113,8 @@ impl Term {
         Some(term)
     }
     fn usize_to_applicative_decimal_term(n: usize, sig: &Signature) -> Option<Term> {
+        let app = sig.has_op(2, Some("."))?;
         if n < 10 {
-            let app = sig.has_op(2, Some("."))?;
             let n_op = sig.has_n(n)?;
             let digit = sig.has_op(0, Some("DIGIT"))?;
             Some(Term::Application {
@@ -2131,7 +2131,6 @@ impl Term {
                 ],
             })
         } else {
-            let app = sig.has_op(2, Some("."))?;
             let decc = sig.has_op(0, Some("DECC"))?;
             let q = n / 10;
             let r = n % 10;

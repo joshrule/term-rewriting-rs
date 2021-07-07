@@ -241,7 +241,7 @@ impl<'a> SituatedAtom<'a> {
     pub fn new(atom: Atom, sig: &'a Signature) -> Option<Self> {
         match atom {
             Atom::Operator(Operator(id)) if id >= sig.operators.len() => None,
-            _ => Some(SituatedAtom { atom, sig }),
+            _ => Some(SituatedAtom { sig, atom }),
         }
     }
 }
