@@ -717,14 +717,18 @@ impl Rule {
     /// assert_eq!(r1.display(&sig), "A(v0_) = C");
     /// ```
     pub fn discard(&mut self, r: &Rule) -> Option<Rule> {
-        if let Some(sub) = Term::alpha(&[(&r.lhs, &self.lhs)]) {
-            let terms = r
+        let mut inner_rule = r.clone();
+        if let Some(n) = self.lhs.all_variables().map(|Variable(x)| x).max() {
+            inner_rule.offset(n);
+        }
+        if let Some(sub) = Term::alpha(&[(&inner_rule.lhs, &self.lhs)]) {
+            let terms = inner_rule
                 .rhs
                 .iter()
                 .map(|rhs| rhs.substitute(&sub))
                 .collect::<Vec<Term>>();
             self.rhs.retain(|x| !terms.contains(x));
-            let lhs = r.lhs.substitute(&sub);
+            let lhs = inner_rule.lhs.substitute(&sub);
             Some(Rule::new(lhs, terms).unwrap())
         } else {
             None

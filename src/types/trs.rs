@@ -1540,9 +1540,13 @@ impl TRS {
     /// assert!(t.get_clause(&r).is_none());
     /// ```
     pub fn get_clause(&self, rule: &Rule) -> Option<(usize, Rule)> {
+        let mut inner_rule = rule.clone();
         for (i, r) in self.rules.iter().enumerate() {
-            if let Some(sub) = r.contains(rule) {
-                return Some((i, rule.substitute(&sub)));
+            if let Some(n) = r.lhs.all_variables().map(|Variable(x)| x).max() {
+                inner_rule.offset(n);
+            }
+            if let Some(sub) = r.contains(&inner_rule) {
+                return Some((i, inner_rule.substitute(&sub)));
             }
         }
         None
