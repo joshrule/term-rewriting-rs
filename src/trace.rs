@@ -248,7 +248,7 @@ impl<'a> Trace<'a> {
         logsumexp(&lps).exp()
     }
     /// A lower bound on the probability that `self` rewrites to `term`.
-    pub fn rewrites_to<T>(&mut self, term: &Term, weighter: T) -> f64
+    pub fn rewrites_to<T>(&self, term: &Term, weighter: T) -> f64
     where
         T: Fn(&Term, &Term) -> f64,
     {
