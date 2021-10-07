@@ -719,7 +719,7 @@ impl Rule {
     pub fn discard(&mut self, r: &Rule) -> Option<Rule> {
         let mut inner_rule = r.clone();
         if let Some(n) = self.lhs.all_variables().map(|Variable(x)| x).max() {
-            inner_rule.offset(n);
+            inner_rule.offset(n + 1);
         }
         if let Some(sub) = Term::alpha(&[(&inner_rule.lhs, &self.lhs)]) {
             let terms = inner_rule
