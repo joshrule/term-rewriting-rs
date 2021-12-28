@@ -797,10 +797,13 @@ impl Context {
                 (Context::Variable(ref var), Context::Variable(_))
                     if utype == Unification::Match =>
                 {
-                    if subs.iter().any(|(v, _)| *v == var) {
-                        return None;
-                    } else {
-                        subs.push((var, t));
+                    match subs.iter().find(|(v, _)| *v == var) {
+                        Some((_, k)) => {
+                            if t != *k {
+                                return None;
+                            }
+                        }
+                        None => subs.push((var, t)),
                     }
                 }
                 (Context::Variable(ref var), v2 @ Context::Variable(_))
@@ -826,10 +829,13 @@ impl Context {
                     }
                 }
                 (Context::Variable(ref var), t) if utype == Unification::Match => {
-                    if subs.iter().any(|(v, _)| *v == var) {
-                        return None;
-                    } else {
-                        subs.push((var, t));
+                    match subs.iter().find(|(v, _)| *v == var) {
+                        Some((_, k)) => {
+                            if t != *k {
+                                return None;
+                            }
+                        }
+                        None => subs.push((var, t)),
                     }
                 }
                 (s, Context::Variable(ref var)) if utype == Unification::Unify => {
@@ -1879,14 +1885,18 @@ impl Term {
                 }
             }
         }
+
         // if they are equal, you're all done with them.
         if s != t {
             match (s, t) {
                 (Term::Variable(ref var), Term::Variable(_)) if utype == Unification::Match => {
-                    if subs.iter().any(|(v, _)| *v == var) {
-                        return None;
-                    } else {
-                        subs.push((var, t));
+                    match subs.iter().find(|(v, _)| *v == var) {
+                        Some((_, k)) => {
+                            if t != *k {
+                                return None;
+                            }
+                        }
+                        None => subs.push((var, t)),
                     }
                 }
                 (Term::Variable(ref var), v2 @ Term::Variable(_))
@@ -1912,10 +1922,13 @@ impl Term {
                     }
                 }
                 (Term::Variable(ref var), t) if utype == Unification::Match => {
-                    if subs.iter().any(|(v, _)| *v == var) {
-                        return None;
-                    } else {
-                        subs.push((var, t));
+                    match subs.iter().find(|(v, _)| *v == var) {
+                        Some((_, k)) => {
+                            if t != *k {
+                                return None;
+                            }
+                        }
+                        None => subs.push((var, t)),
                     }
                 }
                 (s, Term::Variable(ref var)) if utype == Unification::Unify => {
